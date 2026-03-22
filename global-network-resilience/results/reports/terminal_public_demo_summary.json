@@ -1,0 +1,90 @@
+{
+  "mode": "single",
+  "result": {
+    "dataset_name": "public_cache",
+    "paths": {
+      "routes": "data/public_cache/routes.dat",
+      "airports": "data/public_cache/airports.dat"
+    },
+    "summary": {
+      "nodes": 1246,
+      "edges": 2556,
+      "density": 0.00329536444332708,
+      "largest_component_ratio": 0.9678972712680578,
+      "avg_degree": 4.102728731942215
+    },
+    "avg_latency_ms": 10.796099264246433,
+    "top_nodes": [
+      {
+        "node": "3876",
+        "degree": 135
+      },
+      {
+        "node": "3941",
+        "degree": 69
+      },
+      {
+        "node": "344",
+        "degree": 66
+      },
+      {
+        "node": "3395",
+        "degree": 56
+      },
+      {
+        "node": "2997",
+        "degree": 56
+      },
+      {
+        "node": "2397",
+        "degree": 55
+      },
+      {
+        "node": "3093",
+        "degree": 47
+      },
+      {
+        "node": "350",
+        "degree": 45
+      },
+      {
+        "node": "345",
+        "degree": 43
+      },
+      {
+        "node": "3382",
+        "degree": 43
+      }
+    ],
+    "cuts": [
+      {
+        "step": 1,
+        "removed_node": "3876",
+        "largest_component_ratio": 0.9293172690763052,
+        "component_loss_pct": 3.8580002191752616,
+        "remaining_nodes": 1245,
+        "remaining_edges": 2421
+      },
+      {
+        "step": 2,
+        "removed_node": "3941",
+        "largest_component_ratio": 0.9163987138263665,
+        "component_loss_pct": 5.1498557441691295,
+        "remaining_nodes": 1244,
+        "remaining_edges": 2352
+      },
+      {
+        "step": 3,
+        "removed_node": "344",
+        "largest_component_ratio": 0.9090909090909091,
+        "component_loss_pct": 5.8806362177148745,
+        "remaining_nodes": 1243,
+        "remaining_edges": 2287
+      }
+    ]
+  },
+  "params": {
+    "max_routes": 5000,
+    "cuts": 3
+  }
+}

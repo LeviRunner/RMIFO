@@ -147,6 +147,19 @@ cd global-network-resilience
 python main.py
 ```
 
+### 4. Executar Versão Terminal com Dados Públicos
+```bash
+cd global-network-resilience
+python terminal_public_demo.py --max-routes 30000 --cuts 5
+```
+
+Esta execução:
+- baixa datasets públicos OpenFlights (rotas e aeroportos);
+- constrói o grafo de conectividade no terminal;
+- simula cortes direcionados em nós críticos;
+- imprime métricas de impacto e latência estimada;
+- exporta resumo em `results/reports/terminal_public_demo_summary.json`.
+
 **Saída esperada:**
 ```
  Pipeline RMIFO inicializado
