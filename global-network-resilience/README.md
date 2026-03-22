@@ -25,9 +25,11 @@ Use o menu interativo para comparar datasets `routes.dat` e `airports.dat`:
 Menu disponível:
 - `1`: roda apenas o dataset padrão em `data/public_cache`;
 - `2`: compara `data/public_cache` vs outro dataset informado por caminho;
-- `3`: compara dois datasets customizados (A vs B).
+- `3`: compara dois datasets customizados (A vs B);
+- `4`: compara dois continentes por número (ex: 02=America vs 05=Asia);
+- `5`: analisa um único continente por número (ex: 01=Africa).
 
-No final, o terminal imprime o comparativo (delta de nós, arestas, maior componente e latência).
+No final, o terminal imprime o comparativo (delta de nós, arestas, maior componente e latência) e salva em JSON.
 
 ## Separação por Continente (airports/routes)
 

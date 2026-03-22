@@ -1,90 +1,82 @@
 {
   "mode": "single",
   "result": {
-    "dataset_name": "public_cache",
+    "dataset_name": "Europe",
     "paths": {
-      "routes": "data/public_cache/routes.dat",
-      "airports": "data/public_cache/airports.dat"
+      "routes": "data/public_cache/continent_split/routes_from/06_oceania_routes_from.dat",
+      "airports": "data/public_cache/continent_split/airports/06_europe_airports.dat"
     },
     "summary": {
-      "nodes": 1246,
-      "edges": 2556,
-      "density": 0.00329536444332708,
-      "largest_component_ratio": 0.9678972712680578,
-      "avg_degree": 4.102728731942215
+      "nodes": 557,
+      "edges": 1320,
+      "density": 0.008524598633481007,
+      "largest_component_ratio": 0.9694793536804309,
+      "avg_degree": 4.73967684021544
     },
-    "avg_latency_ms": 10.796099264246433,
+    "avg_latency_ms": 0.0,
     "top_nodes": [
       {
-        "node": "3876",
-        "degree": 135
+        "node": "3361",
+        "degree": 85
       },
       {
-        "node": "3941",
-        "degree": 69
+        "node": "1056",
+        "degree": 84
       },
       {
-        "node": "344",
-        "degree": 66
+        "node": "1054",
+        "degree": 80
       },
       {
-        "node": "3395",
-        "degree": 56
+        "node": "3320",
+        "degree": 59
       },
       {
-        "node": "2997",
-        "degree": 56
-      },
-      {
-        "node": "2397",
+        "node": "3339",
         "degree": 55
       },
       {
-        "node": "3093",
-        "degree": 47
+        "node": "1055",
+        "degree": 54
       },
       {
-        "node": "350",
-        "degree": 45
+        "node": "1051",
+        "degree": 53
       },
       {
-        "node": "345",
-        "degree": 43
+        "node": "3728",
+        "degree": 51
       },
       {
-        "node": "3382",
-        "degree": 43
+        "node": "2006",
+        "degree": 49
+      },
+      {
+        "node": "3351",
+        "degree": 38
       }
     ],
     "cuts": [
       {
         "step": 1,
-        "removed_node": "3876",
-        "largest_component_ratio": 0.9293172690763052,
-        "component_loss_pct": 3.8580002191752616,
-        "remaining_nodes": 1245,
-        "remaining_edges": 2421
+        "removed_node": "3361",
+        "largest_component_ratio": 0.9442446043165468,
+        "component_loss_pct": 2.5234749363884146,
+        "remaining_nodes": 556,
+        "remaining_edges": 1235
       },
       {
         "step": 2,
-        "removed_node": "3941",
-        "largest_component_ratio": 0.9163987138263665,
-        "component_loss_pct": 5.1498557441691295,
-        "remaining_nodes": 1244,
-        "remaining_edges": 2352
-      },
-      {
-        "step": 3,
-        "removed_node": "344",
-        "largest_component_ratio": 0.9090909090909091,
-        "component_loss_pct": 5.8806362177148745,
-        "remaining_nodes": 1243,
-        "remaining_edges": 2287
+        "removed_node": "1056",
+        "largest_component_ratio": 0.9207207207207208,
+        "component_loss_pct": 4.875863295971017,
+        "remaining_nodes": 555,
+        "remaining_edges": 1151
       }
     ]
   },
   "params": {
-    "max_routes": 5000,
-    "cuts": 3
+    "max_routes": 10000,
+    "cuts": 2
   }
 }

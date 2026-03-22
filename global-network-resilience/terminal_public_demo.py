@@ -8,6 +8,7 @@ métricas de resiliência sem necessidade de Spark em nuvem.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import random
@@ -44,90 +45,39 @@ def load_data_from_files(
     routes_path: Path,
     airports_path: Path,
     max_routes: int,
-) -> Tuple[duckdb.DuckDBPyRelation, duckdb.DuckDBPyRelation]:
+) -> Tuple[list, list]:
     """Carrega dados de rotas/aeroportos a partir de arquivos locais."""
     if not routes_path.exists():
         raise FileNotFoundError(f"Arquivo de rotas não encontrado: {routes_path}")
     if not airports_path.exists():
         raise FileNotFoundError(f"Arquivo de aeroportos não encontrado: {airports_path}")
 
-    routes_sql_path = _escape_path_for_sql(routes_path)
-    airports_sql_path = _escape_path_for_sql(airports_path)
+    # Lê rotas com CSV simples
+    routes_rows = []
+    with routes_path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        for idx, row in enumerate(reader):
+            if idx >= max_routes:
+                break
+            if len(row) >= 6 and row[3] and row[5] and row[3] != "\\N" and row[5] != "\\N":
+                routes_rows.append(row)
 
-    con = duckdb.connect(database=":memory:")
+    # Lê aeroportos com CSV simples
+    airports_rows = []
+    with airports_path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 8 and row[0] and row[0] != "\\N":
+                airports_rows.append(row)
 
-    routes = con.sql(
-        f"""
-        SELECT
-            c0 AS airline,
-            c3 AS source_airport_id,
-            c5 AS destination_airport_id,
-            c8 AS equipment
-        FROM read_csv(
-            '{routes_sql_path}',
-            delim=',',
-            quote='"',
-            header=false,
-            columns={{
-                'c0': 'VARCHAR',
-                'c1': 'VARCHAR',
-                'c2': 'VARCHAR',
-                'c3': 'VARCHAR',
-                'c4': 'VARCHAR',
-                'c5': 'VARCHAR',
-                'c6': 'VARCHAR',
-                'c7': 'VARCHAR',
-                'c8': 'VARCHAR'
-            }},
-            ignore_errors=true
-        )
-        WHERE c3 IS NOT NULL
-          AND c5 IS NOT NULL
-          AND c3 != '\\N'
-          AND c5 != '\\N'
-        LIMIT {max_routes}
-        """
-    )
+    # Retorna tupla compatível com o resto da função
+    class RelationWrapper:
+        def __init__(self, rows):
+            self._rows = rows
+        def fetchall(self):
+            return self._rows
 
-    airports = con.sql(
-        f"""
-        SELECT
-            a0 AS airport_id,
-            a1 AS airport_name,
-            a2 AS city,
-            a3 AS country,
-            a4 AS iata,
-            TRY_CAST(a6 AS DOUBLE) AS latitude,
-            TRY_CAST(a7 AS DOUBLE) AS longitude
-        FROM read_csv(
-            '{airports_sql_path}',
-            delim=',',
-            quote='"',
-            header=false,
-            columns={{
-                'a0': 'VARCHAR',
-                'a1': 'VARCHAR',
-                'a2': 'VARCHAR',
-                'a3': 'VARCHAR',
-                'a4': 'VARCHAR',
-                'a5': 'VARCHAR',
-                'a6': 'VARCHAR',
-                'a7': 'VARCHAR',
-                'a8': 'VARCHAR',
-                'a9': 'VARCHAR',
-                'a10': 'VARCHAR',
-                'a11': 'VARCHAR',
-                'a12': 'VARCHAR',
-                'a13': 'VARCHAR'
-            }},
-            ignore_errors=true
-        )
-        WHERE a0 IS NOT NULL
-          AND a0 != '\\N'
-        """
-    )
-
-    return routes, airports
+    return RelationWrapper(routes_rows), RelationWrapper(airports_rows)
 
 
 def ensure_public_cache(cache_dir: Path) -> Tuple[Path, Path]:
@@ -137,13 +87,37 @@ def ensure_public_cache(cache_dir: Path) -> Tuple[Path, Path]:
     return routes_path, airports_path
 
 
+def extract_routes_columns(all_routes_rows: List[any]) -> List[Tuple[str, str, str, str]]:
+    """Extrai coluna de rotas (col 0, 3, 5, 8) de tuplas completas do DuckDB."""
+    extracted = []
+    for row in all_routes_rows:
+        if len(row) > 8:
+            extracted.append((str(row[0]) if row[0] else "", str(row[3]) if row[3] else "",str(row[5]) if row[5] else "", str(row[8]) if row[8] else ""))
+        else:
+            # Fallback para casos com menos colunas
+            extracted.append((str(row[0]) if len(row) > 0 and row[0] else "",
+                           str(row[3]) if len(row) > 3 and row[3] else "",
+                           str(row[5]) if len(row) > 5 and row[5] else "",
+                           str(row[8]) if len(row) > 8 and row[8] else ""))
+    return extracted
+
+
 def build_graph(routes_rows: List[Tuple[str, str, str, str]]) -> nx.Graph:
     """Constroi grafo não-direcionado a partir das rotas."""
     graph = nx.Graph()
 
     for row in routes_rows:
-        src = row[1]
-        dst = row[2]
+        # Tenta acessar com os índices do OpenFlights (3 e 5)
+        src = None
+        dst = None
+        if len(row) > 5:
+            src = row[3].strip() if row[3] else None
+            dst = row[5].strip() if row[5] else None
+        # Fallback para índices alternativos se necessário
+        if not src or not dst:
+            continue
+        if src == "\\N" or dst == "\\N":
+            continue
         if src == dst:
             continue
         graph.add_edge(src, dst)
@@ -170,16 +144,25 @@ def estimate_route_latency_ms(
     sample_size: int = 3000,
 ) -> float:
     """Estima latência média por rota assumindo propagação em fibra."""
-    airport_coords = {
-        row[0]: (row[5], row[6])
-        for row in airports_rows
-        if row[5] is not None and row[6] is not None
-    }
+    airport_coords: Dict[str, Tuple[float, float]] = {}
+    for row in airports_rows:
+        airport_id = row[0].strip() if len(row) > 0 else None
+        if not airport_id or airport_id == "\\N":
+            continue
+        try:
+            lat = float(row[5].strip()) if len(row) > 5 and row[5] else None
+            lon = float(row[6].strip()) if len(row) > 6 and row[6] else None
+            if lat is not None and lon is not None:
+                airport_coords[airport_id] = (lat, lon)
+        except (ValueError, IndexError, AttributeError):
+            continue
 
     joined: List[Tuple[str, str, float, float, float, float]] = []
     for row in routes_rows:
-        src = row[1]
-        dst = row[2]
+        src = row[3].strip() if len(row) > 3 else None
+        dst = row[5].strip() if len(row) > 5 else None
+        if not src or not dst or src == "\\N" or dst == "\\N":
+            continue
         src_coords = airport_coords.get(src)
         dst_coords = airport_coords.get(dst)
         if src_coords is None or dst_coords is None:
@@ -200,7 +183,7 @@ def estimate_route_latency_ms(
         rtt_ms = (distance / 200000.0) * 1000.0 * 2.0
         latencies.append(rtt_ms)
 
-    return sum(latencies) / len(latencies)
+    return sum(latencies) / len(latencies) if latencies else 0.0
 
 
 def summarize_graph(graph: nx.Graph) -> Dict[str, float]:
@@ -351,10 +334,73 @@ def prompt_path(message: str, default: Path) -> Path:
     return Path(typed) if typed else default
 
 
+def load_continent_index(split_dir: Path) -> Dict[str, Dict[str, str]]:
+    """Carrega índice de continentes (airports e routes) para seleção rápida."""
+    airports_index_path = split_dir / "airports_index.csv"
+    routes_from_index_path = split_dir / "routes_from_index.csv"
+
+    continent_map: Dict[str, Dict[str, str]] = {}
+
+    if airports_index_path.exists():
+        with airports_index_path.open("r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                idx = row["index"]
+                continent = row["continent"]
+                file_name = row["file_name"]
+                continent_map[idx] = {
+                    "continent": continent,
+                    "airports_file": str(split_dir / "airports" / file_name),
+                    "routes_from_file": None,
+                }
+
+    if routes_from_index_path.exists():
+        with routes_from_index_path.open("r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                idx = row["index"]
+                file_name = row["file_name"]
+                if idx in continent_map:
+                    continent_map[idx]["routes_from_file"] = str(split_dir / "routes_from" / file_name)
+
+    return continent_map
+
+
+def print_continent_options(continent_map: Dict[str, Dict[str, str]]) -> None:
+    """Imprime opções de continentes disponíveis."""
+    print("\nContinentes disponíveis:")
+    for idx in sorted(continent_map.keys(), key=lambda x: int(x)):
+        record = continent_map[idx]
+        print(f"  [{idx}] {record['continent']}")
+
+
+def select_continent(continent_map: Dict[str, Dict[str, str]], prompt_msg: str) -> Dict[str, str] | None:
+    """Seleciona continente por número (aceita com ou sem leading zero)."""
+    typed = input(f"{prompt_msg}: ").strip()
+    
+    # Tenta encontrar por índice exato ou por índice com leading zero removido
+    if typed in continent_map:
+        return continent_map[typed]
+    
+    # Se não encontrou, tenta remover leading zeros ou adicionar
+    typed_normalized = str(int(typed)) if typed.isdigit() else typed
+    for key in continent_map:
+        if str(int(key)) == typed_normalized:
+            return continent_map[key]
+    
+    print("Opcao invalida.")
+    return None
+
+
+
 def run_interactive_menu(args: argparse.Namespace) -> None:
     """Executa menu interativo para rodar análise simples ou comparativa."""
     cache_dir = Path(args.cache_dir)
     public_routes, public_airports = ensure_public_cache(cache_dir)
+    split_dir = cache_dir / "continent_split"
+    continent_map = {}
+    if split_dir.exists():
+        continent_map = load_continent_index(split_dir)
 
     print("=" * 72)
     print("RMIFO TERMINAL INTERATIVO")
@@ -362,6 +408,9 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
     print("1) Rodar dataset publico (public_cache)")
     print("2) Comparar public_cache VS outro dataset")
     print("3) Comparar dois datasets customizados")
+    if continent_map:
+        print("4) Comparar continentes por numero (ex: 02 vs 05)")
+        print("5) Rodar analise de um continente por numero")
     print("0) Sair")
 
     choice = input("Escolha uma opcao: ").strip()
@@ -431,6 +480,65 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
                 "max_routes": args.max_routes,
                 "cuts": args.cuts,
             },
+        }
+    elif choice == "4" and continent_map:
+        print_continent_options(continent_map)
+        cont_a = select_continent(continent_map, "Continente A (numero)")
+        if not cont_a:
+            return
+        cont_b = select_continent(continent_map, "Continente B (numero)")
+        if not cont_b:
+            return
+
+        name_a = cont_a["continent"]
+        name_b = cont_b["continent"]
+        airports_file_a = Path(cont_a["airports_file"])
+        routes_file_a = Path(cont_a["routes_from_file"]) if cont_a["routes_from_file"] else None
+        airports_file_b = Path(cont_b["airports_file"])
+        routes_file_b = Path(cont_b["routes_from_file"]) if cont_b["routes_from_file"] else None
+
+        if routes_file_a is None or routes_file_b is None:
+            print("Erro: arquivos de rotas nao encontrados para os continentes selecionados.")
+            return
+
+        dataset_a = run_analysis(name_a, routes_file_a, airports_file_a, args.max_routes, args.cuts)
+        dataset_b = run_analysis(name_b, routes_file_b, airports_file_b, args.max_routes, args.cuts)
+
+        print(f"\n[{name_a}]")
+        print_results(dataset_a["summary"], dataset_a["avg_latency_ms"], [(n["node"], n["degree"]) for n in dataset_a["top_nodes"]], dataset_a["cuts"])
+        print(f"\n[{name_b}]")
+        print_results(dataset_b["summary"], dataset_b["avg_latency_ms"], [(n["node"], n["degree"]) for n in dataset_b["top_nodes"]], dataset_b["cuts"])
+        print_comparison(dataset_a, dataset_b)
+
+        payload = {
+            "mode": "comparison",
+            "base": dataset_a,
+            "other": dataset_b,
+            "params": {
+                "max_routes": args.max_routes,
+                "cuts": args.cuts,
+            },
+        }
+    elif choice == "5" and continent_map:
+        print_continent_options(continent_map)
+        selected = select_continent(continent_map, "Continente (numero)")
+        if not selected:
+            return
+
+        name = selected["continent"]
+        airports_file = Path(selected["airports_file"])
+        routes_file = Path(selected["routes_from_file"]) if selected["routes_from_file"] else None
+
+        if routes_file is None:
+            print("Erro: arquivo de rotas nao encontrado para este continente.")
+            return
+
+        result = run_analysis(name, routes_file, airports_file, args.max_routes, args.cuts)
+        print_results(result["summary"], result["avg_latency_ms"], [(n["node"], n["degree"]) for n in result["top_nodes"]], result["cuts"])
+        payload = {
+            "mode": "single",
+            "result": result,
+            "params": {"max_routes": args.max_routes, "cuts": args.cuts},
         }
     else:
         print("Opcao invalida.")
