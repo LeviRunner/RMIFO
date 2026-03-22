@@ -29,6 +29,25 @@ Menu disponível:
 
 No final, o terminal imprime o comparativo (delta de nós, arestas, maior componente e latência).
 
+## Separação por Continente (airports/routes)
+
+Para facilitar comparação de dados e medições de resiliência, execute:
+
+```bash
+python scripts/split_by_continent.py
+```
+
+Isso gera arquivos enumerados em `data/public_cache/continent_split`:
+- `airports/01_africa_airports.dat`, `airports/02_america_airports.dat`, ...
+- `routes_from/01_africa_routes_from.dat`, `routes_from/02_america_routes_from.dat`, ...
+- `routes_pair/01_africa_to_africa_routes.dat`, ...
+
+Índices para comparação:
+- `data/public_cache/continent_split/airports_index.csv`
+- `data/public_cache/continent_split/routes_from_index.csv`
+- `data/public_cache/continent_split/routes_pair_index.csv`
+- `data/public_cache/continent_split/summary.json`
+
 ## Pipeline Completo (Spark)
 
 ```bash

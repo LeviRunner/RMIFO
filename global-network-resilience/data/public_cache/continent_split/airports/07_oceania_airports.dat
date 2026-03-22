@@ -1,0 +1,633 @@
+1,Goroka Airport,Goroka,Papua New Guinea,GKA,AYGA,-6.081689834590001,145.391998291,5282,10,U,Pacific/Port_Moresby,airport,OurAirports
+2,Madang Airport,Madang,Papua New Guinea,MAG,AYMD,-5.20707988739,145.789001465,20,10,U,Pacific/Port_Moresby,airport,OurAirports
+3,Mount Hagen Kagamuga Airport,Mount Hagen,Papua New Guinea,HGU,AYMH,-5.826789855957031,144.29600524902344,5388,10,U,Pacific/Port_Moresby,airport,OurAirports
+4,Nadzab Airport,Nadzab,Papua New Guinea,LAE,AYNZ,-6.569803,146.725977,239,10,U,Pacific/Port_Moresby,airport,OurAirports
+5,Port Moresby Jacksons International Airport,Port Moresby,Papua New Guinea,POM,AYPY,-9.443380355834961,147.22000122070312,146,10,U,Pacific/Port_Moresby,airport,OurAirports
+6,Wewak International Airport,Wewak,Papua New Guinea,WWK,AYWK,-3.58383011818,143.669006348,19,10,U,Pacific/Port_Moresby,airport,OurAirports
+11,Akureyri Airport,Akureyri,Iceland,AEY,BIAR,65.66000366210938,-18.07270050048828,6,0,N,Atlantic/Reykjavik,airport,OurAirports
+12,Egilsstaðir Airport,Egilsstadir,Iceland,EGS,BIEG,65.2833023071289,-14.401399612426758,76,0,N,Atlantic/Reykjavik,airport,OurAirports
+13,Hornafjörður Airport,Hofn,Iceland,HFN,BIHN,64.295601,-15.2272,24,0,N,Atlantic/Reykjavik,airport,OurAirports
+14,Húsavík Airport,Husavik,Iceland,HZK,BIHU,65.952301,-17.426001,48,0,N,Atlantic/Reykjavik,airport,OurAirports
+15,Ísafjörður Airport,Isafjordur,Iceland,IFJ,BIIS,66.05809783935547,-23.135299682617188,8,0,N,Atlantic/Reykjavik,airport,OurAirports
+16,Keflavik International Airport,Keflavik,Iceland,KEF,BIKF,63.985000610352,-22.605600357056,171,0,N,Atlantic/Reykjavik,airport,OurAirports
+17,Patreksfjörður Airport,Patreksfjordur,Iceland,PFJ,BIPA,65.555801,-23.965,11,0,N,Atlantic/Reykjavik,airport,OurAirports
+18,Reykjavik Airport,Reykjavik,Iceland,RKV,BIRK,64.1299972534,-21.9405994415,48,0,N,Atlantic/Reykjavik,airport,OurAirports
+19,Siglufjörður Airport,Siglufjordur,Iceland,SIJ,BISI,66.133301,-18.9167,10,0,N,Atlantic/Reykjavik,airport,OurAirports
+20,Vestmannaeyjar Airport,Vestmannaeyjar,Iceland,VEY,BIVM,63.42430114746094,-20.278900146484375,326,0,N,Atlantic/Reykjavik,airport,OurAirports
+579,Mount Pleasant Airport,Mount Pleasant,Falkland Islands,MPN,EGYP,-51.82279968261719,-58.447200775146484,244,-3,U,Atlantic/Stanley,airport,OurAirports
+625,Vagar Airport,Vagar,Faroe Islands,FAE,EKVG,62.0635986328125,-7.277219772338867,280,0,E,Atlantic/Faeroe,airport,OurAirports
+892,RAF Ascension Island,Wide Awake,Saint Helena,ASI,FHAW,-7.9696,-14.3937,278,0,N,Atlantic/St_Helena,airport,OurAirports
+893,Sir Seewoosagur Ramgoolam International Airport,Plaisance,Mauritius,MRU,FIMP,-20.430201,57.683601,186,4,N,Indian/Mauritius,airport,OurAirports
+894,Sir Charles Gaetan Duval Airport,Rodriguez Island,Mauritius,RRG,FIMR,-19.7577,63.361,95,4,N,Indian/Mauritius,airport,OurAirports
+895,Diego Garcia Naval Support Facility,Diego Garcia Island,British Indian Ocean Territory,NKW,FJDG,-7.31327,72.411102,9,6,U,Indian/Chagos,airport,OurAirports
+912,Prince Said Ibrahim International Airport,Moroni,Comoros,HAH,FMCH,-11.5337,43.2719,93,3,U,Indian/Comoro,airport,OurAirports
+913,Mohéli Bandar Es Eslam Airport,Moheli,Comoros,NWA,FMCI,-12.298100471496582,43.76639938354492,46,3,U,Indian/Comoro,airport,OurAirports
+914,Ouani Airport,Anjouan,Comoros,AJN,FMCV,-12.131699562072754,44.430301666259766,62,3,U,Indian/Comoro,airport,OurAirports
+915,Dzaoudzi Pamandzi International Airport,Dzaoudzi,Mayotte,DZA,FMCZ,-12.804699897766113,45.28110122680664,23,3,U,Indian/Mayotte,airport,OurAirports
+916,Roland Garros Airport,St.-denis,Reunion,RUN,FMEE,-20.887100219726562,55.51029968261719,66,4,U,Indian/Reunion,airport,OurAirports
+917,Pierrefonds Airport,St.-pierre,Reunion,ZSE,FMEP,-21.320899963378906,55.42499923706055,59,4,U,Indian/Reunion,airport,OurAirports
+918,Ivato Airport,Antananarivo,Madagascar,TNR,FMMI,-18.7969,47.478802,4198,3,U,Indian/Antananarivo,airport,OurAirports
+919,Miandrivazo Airport,Miandrivazo,Madagascar,ZVA,FMMN,-19.56279945373535,45.450801849365234,203,3,U,Indian/Antananarivo,airport,OurAirports
+920,Sainte Marie Airport,Sainte Marie,Madagascar,SMS,FMMS,-17.093900680541992,49.815799713134766,7,3,U,Indian/Antananarivo,airport,OurAirports
+921,Toamasina Airport,Toamasina,Madagascar,TMM,FMMT,-18.109500885009766,49.39250183105469,22,3,U,Indian/Antananarivo,airport,OurAirports
+922,Morondava Airport,Morondava,Madagascar,MOQ,FMMV,-20.284700393676758,44.31760025024414,30,3,U,Indian/Antananarivo,airport,OurAirports
+923,Arrachart Airport,Antsiranana,Madagascar,DIE,FMNA,-12.34939956665039,49.29169845581055,374,3,U,Indian/Antananarivo,airport,OurAirports
+924,Mananara Nord Airport,Mananara,Madagascar,WMR,FMNC,-16.16390037536621,49.773799896240234,9,3,U,Indian/Antananarivo,airport,OurAirports
+925,Andapa Airport,Andapa,Madagascar,ZWA,FMND,-14.651700019836426,49.620601654052734,1552,3,U,Indian/Antananarivo,airport,OurAirports
+926,Ambilobe Airport,Ambilobe,Madagascar,AMB,FMNE,-13.188400268554688,48.987998962402344,72,3,U,Indian/Antananarivo,airport,OurAirports
+927,Antsirabato Airport,Antalaha,Madagascar,ANM,FMNH,-14.99940013885498,50.3202018737793,20,3,U,Indian/Antananarivo,airport,OurAirports
+928,Analalava Airport,Analalava,Madagascar,HVA,FMNL,-14.62969970703125,47.76380157470703,345,3,U,Indian/Antananarivo,airport,OurAirports
+929,Amborovy Airport,Mahajanga,Madagascar,MJN,FMNM,-15.6668417421,46.351232528699995,87,3,U,Indian/Antananarivo,airport,OurAirports
+930,Fascene Airport,Nosy-be,Madagascar,NOS,FMNN,-13.3121004105,48.3148002625,36,3,U,Indian/Antananarivo,airport,OurAirports
+931,Besalampy Airport,Besalampy,Madagascar,BPY,FMNQ,-16.744530296500002,44.4824838638,125,3,U,Indian/Antananarivo,airport,OurAirports
+932,Maroantsetra Airport,Maroantsetra,Madagascar,WMN,FMNR,-15.436699867248535,49.68830108642578,13,3,U,Indian/Antananarivo,airport,OurAirports
+933,Sambava Airport,Sambava,Madagascar,SVB,FMNS,-14.278599739074707,50.17470169067383,20,3,U,Indian/Antananarivo,airport,OurAirports
+934,Vohimarina Airport,Vohemar,Madagascar,VOH,FMNV,-13.375800132751465,50.00279998779297,19,3,U,Indian/Antananarivo,airport,OurAirports
+935,Ambalabe Airport,Antsohihy,Madagascar,WAI,FMNW,-14.898799896240234,47.993900299072266,92,3,U,Indian/Antananarivo,airport,OurAirports
+936,Ampampamena Airport,Ampampamena,Madagascar,IVA,FMNZ,-13.484816,48.632702,49,3,U,Indian/Antananarivo,airport,OurAirports
+937,Tôlanaro Airport,Tolagnaro,Madagascar,FTU,FMSD,-25.03809928894043,46.95610046386719,29,3,U,Indian/Antananarivo,airport,OurAirports
+938,Fianarantsoa Airport,Fianarantsoa,Madagascar,WFI,FMSF,-21.441600799560547,47.111698150634766,3658,3,U,Indian/Antananarivo,airport,OurAirports
+939,Farafangana Airport,Farafangana,Madagascar,RVA,FMSG,-22.805299758911133,47.82059860229492,26,3,U,Indian/Antananarivo,airport,OurAirports
+940,Manakara Airport,Manakara,Madagascar,WVK,FMSK,-22.119699478149414,48.02170181274414,33,3,U,Indian/Antananarivo,airport,OurAirports
+941,Mananjary Airport,Mananjary,Madagascar,MNJ,FMSM,-21.201799392700195,48.358299255371094,20,3,U,Indian/Antananarivo,airport,OurAirports
+942,Morombe Airport,Morombe,Madagascar,MXM,FMSR,-21.7539005279541,43.3754997253418,16,3,U,Indian/Antananarivo,airport,OurAirports
+943,Toliara Airport,Toliara,Madagascar,TLE,FMST,-23.383399963378906,43.72850036621094,29,3,U,Indian/Antananarivo,airport,OurAirports
+991,Alphonse Airport,Alphonse,Seychelles,\N,FSAL,-7.00478,52.7262,10,4,U,Indian/Mahe,airport,OurAirports
+992,Desroches Airport,Desroches,Seychelles,DES,FSDR,-5.6967,53.6558,10,4,U,Indian/Mahe,airport,OurAirports
+993,Farquhar Airport,Farquhar,Seychelles,\N,FSFA,-10.1096,51.176102,10,4,U,Indian/Mahe,airport,OurAirports
+994,Seychelles International Airport,Mahe,Seychelles,SEZ,FSIA,-4.67434,55.521801,10,4,U,Indian/Mahe,airport,OurAirports
+995,Praslin Airport,Praslin,Seychelles,PRI,FSPP,-4.3192901611328125,55.69139862060547,10,4,U,Indian/Mahe,airport,OurAirports
+996,Coetivy Airport,Coetivy,Seychelles,\N,FSSC,-7.13457,56.278198,10,4,U,Indian/Mahe,airport,OurAirports
+1051,Fuerteventura Airport,Fuerteventura,Spain,FUE,GCFV,28.452699661254883,-13.863800048828125,85,0,E,Atlantic/Canary,airport,OurAirports
+1052,Hierro Airport,Hierro,Spain,VDE,GCHI,27.814800262451172,-17.887100219726562,103,0,E,Atlantic/Canary,airport,OurAirports
+1053,La Palma Airport,Santa Cruz De La Palma,Spain,SPC,GCLA,28.626499,-17.7556,107,0,E,Atlantic/Canary,airport,OurAirports
+1054,Gran Canaria Airport,Gran Canaria,Spain,LPA,GCLP,27.931900024414062,-15.38659954071045,78,0,E,Atlantic/Canary,airport,OurAirports
+1055,Lanzarote Airport,Arrecife,Spain,ACE,GCRR,28.945499,-13.6052,46,0,E,Atlantic/Canary,airport,OurAirports
+1056,Tenerife South Airport,Tenerife,Spain,TFS,GCTS,28.044500351,-16.5725002289,209,0,E,Atlantic/Canary,airport,OurAirports
+1057,Tenerife Norte Airport,Tenerife,Spain,TFN,GCXO,28.4827003479,-16.3414993286,2076,0,E,Atlantic/Canary,airport,OurAirports
+1102,Amílcar Cabral International Airport,Amilcar Cabral,Cape Verde,SID,GVAC,16.7414,-22.9494,177,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+1103,Rabil Airport,Boa Vista,Cape Verde,BVC,GVBA,16.136499404907227,-22.888900756835938,69,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+1104,Maio Airport,Maio,Cape Verde,MMO,GVMA,15.155900001525879,-23.213699340820312,36,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+1105,Preguiça Airport,Sao Nocolau Island,Cape Verde,SNE,GVSN,16.58839988708496,-24.284700393676758,669,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+1106,São Pedro Airport,Sao Vicente Island,Cape Verde,VXE,GVSV,16.833200454711914,-25.055299758911133,66,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+1617,Santa Maria Airport,Santa Maria (island),Portugal,SMA,LPAZ,36.97140121459961,-25.17060089111328,308,-1,E,Atlantic/Azores,airport,OurAirports
+1625,Flores Airport,Flores,Portugal,FLW,LPFL,39.455299377441406,-31.131399154663086,112,-1,E,Atlantic/Azores,airport,OurAirports
+1627,Graciosa Airport,Graciosa Island,Portugal,GRW,LPGR,39.092201232910156,-28.029800415039062,86,-1,E,Atlantic/Azores,airport,OurAirports
+1628,Horta Airport,Horta,Portugal,HOR,LPHR,38.519901275634766,-28.715900421142578,118,-1,E,Atlantic/Azores,airport,OurAirports
+1629,Lajes Airport,Lajes (terceira Island),Portugal,TER,LPLA,38.761799,-27.090799,180,-1,E,Atlantic/Azores,airport,OurAirports
+1633,João Paulo II Airport,Ponta Delgada,Portugal,PDL,LPPD,37.7411994934,-25.6979007721,259,-1,E,Atlantic/Azores,airport,OurAirports
+1634,Pico Airport,Pico,Portugal,PIX,LPPI,38.554298,-28.441299,109,-1,E,Atlantic/Azores,airport,OurAirports
+1639,São Jorge Airport,Sao Jorge Island,Portugal,SJZ,LPSJ,38.66550064086914,-28.175800323486328,311,-1,E,Atlantic/Azores,airport,OurAirports
+1958,Aitutaki Airport,Aitutaki,Cook Islands,AIT,NCAI,-18.830900192260742,-159.76400756835938,14,-10,U,Pacific/Rarotonga,airport,OurAirports
+1959,Rarotonga International Airport,Avarua,Cook Islands,RAR,NCRG,-21.2026996613,-159.805999756,19,-10,U,Pacific/Rarotonga,airport,OurAirports
+1960,Nadi International Airport,Nandi,Fiji,NAN,NFFN,-17.755399703979492,177.4429931640625,59,12,U,Pacific/Fiji,airport,OurAirports
+1961,Nausori International Airport,Nausori,Fiji,SUV,NFNA,-18.04330062866211,178.5590057373047,17,12,U,Pacific/Fiji,airport,OurAirports
+1963,Fua'amotu International Airport,Tongatapu,Tonga,TBU,NFTF,-21.241199493408203,-175.14999389648438,126,13,U,Pacific/Tongatapu,airport,OurAirports
+1964,Vava'u International Airport,Vava'u,Tonga,VAV,NFTV,-18.58530044555664,-173.96200561523438,236,13,U,Pacific/Tongatapu,airport,OurAirports
+1965,Bonriki International Airport,Tarawa,Kiribati,TRW,NGTA,1.3816399574279785,173.14700317382812,9,12,U,Pacific/Tarawa,airport,OurAirports
+1968,Hihifo Airport,Wallis,Wallis and Futuna,WLS,NLWW,-13.2383003235,-176.199005127,79,12,U,Pacific/Wallis,airport,OurAirports
+1969,Faleolo International Airport,Faleolo,Samoa,APW,NSFA,-13.829999923706055,-172.00799560546875,58,13,U,Pacific/Apia,airport,OurAirports
+1970,Pago Pago International Airport,Pago Pago,American Samoa,PPG,NSTU,-14.3310003281,-170.710006714,32,-11,U,Pacific/Pago_Pago,airport,OurAirports
+1972,Tubuai Airport,Tubuai,French Polynesia,TUB,NTAT,-23.365400314331055,-149.5240020751953,7,-10,U,Pacific/Tahiti,airport,OurAirports
+1973,Anaa Airport,Anaa,French Polynesia,AAA,NTGA,-17.35260009765625,-145.50999450683594,10,-10,U,Pacific/Tahiti,airport,OurAirports
+1974,Fangatau Airport,Fangatau,French Polynesia,FGU,NTGB,-15.819899559020996,-140.88699340820312,9,-10,U,Pacific/Tahiti,airport,OurAirports
+1975,Tikehau Airport,Tikehau,French Polynesia,TIH,NTGC,-15.119600296020508,-148.2310028076172,6,-10,U,Pacific/Tahiti,airport,OurAirports
+1977,Fakarava Airport,Fakarava,French Polynesia,FAV,NTGF,-16.054100036621094,-145.65699768066406,13,-10,U,Pacific/Tahiti,airport,OurAirports
+1978,Manihi Airport,Manihi,French Polynesia,XMH,NTGI,-14.436800003051758,-146.07000732421875,14,-10,U,Pacific/Tahiti,airport,OurAirports
+1979,Totegegie Airport,Totegegie,French Polynesia,GMR,NTGJ,-23.07990074157715,-134.88999938964844,7,-9,U,Pacific/Gambier,airport,OurAirports
+1980,Kaukura Airport,Kaukura Atoll,French Polynesia,KKR,NTGK,-15.663299560546875,-146.88499450683594,11,-10,U,Pacific/Tahiti,airport,OurAirports
+1981,Makemo Airport,Makemo,French Polynesia,MKP,NTGM,-16.583900451660156,-143.6580047607422,3,-10,U,Pacific/Tahiti,airport,OurAirports
+1982,Puka Puka Airport,Puka Puka,French Polynesia,PKP,NTGP,-14.809499740600586,-138.81300354003906,5,-10,U,Pacific/Tahiti,airport,OurAirports
+1983,Takapoto Airport,Takapoto,French Polynesia,TKP,NTGT,-14.709500312805176,-145.24600219726562,12,-10,U,Pacific/Tahiti,airport,OurAirports
+1984,Arutua Airport,Arutua,French Polynesia,AXR,NTGU,-15.248299598693848,-146.61700439453125,9,-10,U,Pacific/Tahiti,airport,OurAirports
+1985,Mataiva Airport,Mataiva,French Polynesia,MVT,NTGV,-14.8681001663208,-148.7169952392578,11,-10,U,Pacific/Tahiti,airport,OurAirports
+1986,Takaroa Airport,Takaroa,French Polynesia,TKX,NTKR,-14.45580005645752,-145.02499389648438,13,-10,U,Pacific/Tahiti,airport,OurAirports
+1987,Nuku Hiva Airport,Nuku Hiva,French Polynesia,NHV,NTMD,-8.795599937438965,-140.22900390625,220,-9.5,U,Pacific/Marquesas,airport,OurAirports
+1989,Bora Bora Airport,Bora Bora,French Polynesia,BOB,NTTB,-16.444400787353516,-151.75100708007812,10,-10,U,Pacific/Tahiti,airport,OurAirports
+1990,Rangiroa Airport,Rangiroa,French Polynesia,RGI,NTTG,-14.954299926757812,-147.66099548339844,10,-10,U,Pacific/Tahiti,airport,OurAirports
+1991,Huahine-Fare Airport,Huahine Island,French Polynesia,HUH,NTTH,-16.68720054626465,-151.02200317382812,7,-10,U,Pacific/Tahiti,airport,OurAirports
+1992,Moorea Airport,Moorea,French Polynesia,MOZ,NTTM,-17.49,-149.761993,9,-10,U,Pacific/Tahiti,airport,OurAirports
+1994,Maupiti Airport,Maupiti,French Polynesia,MAU,NTTP,-16.42650032043457,-152.24400329589844,15,-10,U,Pacific/Tahiti,airport,OurAirports
+1995,Raiatea Airport,Raiatea Island,French Polynesia,RFP,NTTR,-16.7229,-151.466003,3,-10,U,Pacific/Tahiti,airport,OurAirports
+1997,Bauerfield International Airport,Port-vila,Vanuatu,VLI,NVVV,-17.699300765991,168.32000732422,70,11,U,Pacific/Efate,airport,OurAirports
+1998,Koné Airport,Kone,New Caledonia,KNQ,NWWD,-21.05430030822754,164.83700561523438,23,11,U,Pacific/Noumea,airport,OurAirports
+1999,Koumac Airport,Koumac,New Caledonia,KOC,NWWK,-20.546300888061523,164.25599670410156,42,11,U,Pacific/Noumea,airport,OurAirports
+2000,Lifou Airport,Lifou,New Caledonia,LIF,NWWL,-20.774799346923828,167.24000549316406,92,11,U,Pacific/Noumea,airport,OurAirports
+2001,Nouméa Magenta Airport,Noumea,New Caledonia,GEA,NWWM,-22.25830078125,166.47300720214844,10,11,U,Pacific/Noumea,airport,OurAirports
+2002,Maré Airport,Mare,New Caledonia,MEE,NWWR,-21.481700897216797,168.03799438476562,141,11,U,Pacific/Noumea,airport,OurAirports
+2003,Touho Airport,Touho,New Caledonia,TOU,NWWU,-20.790000915527344,165.25900268554688,10,11,U,Pacific/Noumea,airport,OurAirports
+2004,Ouvéa Airport,Ouvea,New Caledonia,UVE,NWWV,-20.640600204467773,166.572998046875,23,11,U,Pacific/Noumea,airport,OurAirports
+2005,La Tontouta International Airport,Noumea,New Caledonia,NOU,NWWW,-22.01460075378418,166.21299743652344,52,11,U,Pacific/Noumea,airport,OurAirports
+2006,Auckland International Airport,Auckland,New Zealand,AKL,NZAA,-37.008098602299995,174.792007446,23,12,Z,Pacific/Auckland,airport,OurAirports
+2007,Taupo Airport,Taupo,New Zealand,TUO,NZAP,-38.73970031738281,176.08399963378906,1335,12,Z,Pacific/Auckland,airport,OurAirports
+2008,Ardmore Airport,Ardmore,New Zealand,AMZ,NZAR,-37.029701232910156,174.97300720214844,111,12,Z,Pacific/Auckland,airport,OurAirports
+2009,Christchurch International Airport,Christchurch,New Zealand,CHC,NZCH,-43.48939895629883,172.53199768066406,123,12,Z,Pacific/Auckland,airport,OurAirports
+2010,Chatham Islands-Tuuta Airport,Chatham Island,New Zealand,CHT,NZCI,-43.810001373291016,-176.45700073242188,43,12.75,Z,Pacific/Chatham,airport,OurAirports
+2011,Dunedin Airport,Dunedin,New Zealand,DUD,NZDN,-45.9281005859375,170.197998046875,4,12,Z,Pacific/Auckland,airport,OurAirports
+2012,Gisborne Airport,Gisborne,New Zealand,GIS,NZGS,-38.663299560546875,177.97799682617188,15,12,Z,Pacific/Auckland,airport,OurAirports
+2013,Glentanner Airport,Glentanner,New Zealand,GTN,NZGT,-43.906700134277344,170.1280059814453,1824,12,Z,Pacific/Auckland,airport,OurAirports
+2014,Hokitika Airfield,Hokitika,New Zealand,HKK,NZHK,-42.713600158691406,170.98500061035156,146,12,Z,Pacific/Auckland,airport,OurAirports
+2015,Hamilton International Airport,Hamilton,New Zealand,HLZ,NZHN,-37.8666992188,175.332000732,172,12,Z,Pacific/Auckland,airport,OurAirports
+2016,Hastings Aerodrome,Hastings,New Zealand,\N,NZHS,-39.646702,176.766998,72,12,Z,Pacific/Auckland,airport,OurAirports
+2017,Kerikeri Airport,Kerikeri,New Zealand,KKE,NZKK,-35.26279830932617,173.91200256347656,492,12,Z,Pacific/Auckland,airport,OurAirports
+2018,Kaitaia Airport,Kaitaia,New Zealand,KAT,NZKT,-35.06999969482422,173.28500366210938,270,12,Z,Pacific/Auckland,airport,OurAirports
+2019,Alexandra Airport,Alexandra,New Zealand,ALR,NZLX,-45.211700439453125,169.3730010986328,752,12,Z,Pacific/Auckland,airport,OurAirports
+2020,Mount Cook Airport,Mount Cook,New Zealand,MON,NZMC,-43.76499938964844,170.13299560546875,2153,12,Z,Pacific/Auckland,airport,OurAirports
+2021,Manapouri Airport,Manapouri,New Zealand,TEU,NZMO,-45.53310012817383,167.64999389648438,687,12,Z,Pacific/Auckland,airport,OurAirports
+2022,Hood Airport,Masterton,New Zealand,MRO,NZMS,-40.97330093383789,175.63400268554688,364,12,Z,Pacific/Auckland,airport,OurAirports
+2023,New Plymouth Airport,New Plymouth,New Zealand,NPL,NZNP,-39.00859832763672,174.1790008544922,97,12,Z,Pacific/Auckland,airport,OurAirports
+2024,Nelson Airport,Nelson,New Zealand,NSN,NZNS,-41.298301696777344,173.2209930419922,17,12,Z,Pacific/Auckland,airport,OurAirports
+2025,Invercargill Airport,Invercargill,New Zealand,IVC,NZNV,-46.41239929199219,168.31300354003906,5,12,Z,Pacific/Auckland,airport,OurAirports
+2026,RNZAF Base Ohakea,Ohakea,New Zealand,OHA,NZOH,-40.20600128173828,175.38800048828125,164,12,Z,Pacific/Auckland,airport,OurAirports
+2027,Oamaru Airport,Oamaru,New Zealand,OAM,NZOU,-44.970001220703125,171.08200073242188,99,12,Z,Pacific/Auckland,airport,OurAirports
+2028,Palmerston North Airport,Palmerston North,New Zealand,PMR,NZPM,-40.32059860229492,175.61700439453125,151,12,Z,Pacific/Auckland,airport,OurAirports
+2029,Paraparaumu Airport,Paraparaumu,New Zealand,PPQ,NZPP,-40.904701232910156,174.98899841308594,22,12,Z,Pacific/Auckland,airport,OurAirports
+2030,Queenstown International Airport,Queenstown International,New Zealand,ZQN,NZQN,-45.0210990906,168.738998413,1171,12,Z,Pacific/Auckland,airport,OurAirports
+2031,Rotorua Regional Airport,Rotorua,New Zealand,ROT,NZRO,-38.10919952392578,176.31700134277344,935,12,Z,Pacific/Auckland,airport,OurAirports
+2032,Waiouru Airport,Waiouru,New Zealand,\N,NZRU,-39.4463996887207,175.6580047607422,2686,12,Z,Pacific/Auckland,airport,OurAirports
+2034,Tauranga Airport,Tauranga,New Zealand,TRG,NZTG,-37.67190170288086,176.1959991455078,13,12,Z,Pacific/Auckland,airport,OurAirports
+2035,Timaru Airport,Timaru,New Zealand,TIU,NZTU,-44.302799224853516,171.22500610351562,89,12,Z,Pacific/Auckland,airport,OurAirports
+2036,Pukaki Airport,Pukaki,New Zealand,TWZ,NZUK,-44.2350006104,170.117996216,1575,12,Z,Pacific/Auckland,airport,OurAirports
+2037,Woodbourne Airport,Woodbourne,New Zealand,BHE,NZWB,-41.5182991027832,173.8699951171875,109,12,Z,Pacific/Auckland,airport,OurAirports
+2039,Wanaka Airport,Wanaka,New Zealand,WKA,NZWF,-44.722198486328,169.24600219727,1142,12,Z,Pacific/Auckland,airport,OurAirports
+2040,Wigram Airport,Wigram,New Zealand,\N,NZWG,-43.5511016846,172.552993774,74,12,Z,Pacific/Auckland,airport,OurAirports
+2041,Whakatane Airport,Whakatane,New Zealand,WHK,NZWK,-37.92060089111328,176.91400146484375,20,12,Z,Pacific/Auckland,airport,OurAirports
+2042,Wellington International Airport,Wellington,New Zealand,WLG,NZWN,-41.3272018433,174.804992676,41,12,Z,Pacific/Auckland,airport,OurAirports
+2043,Wairoa Airport,Wairoa,New Zealand,WIR,NZWO,-39.006900787353516,177.40699768066406,42,12,Z,Pacific/Auckland,airport,OurAirports
+2044,RNZAF Base Auckland-Whenuapai,Whenuapai,New Zealand,\N,NZWP,-36.78779983520508,174.6300048828125,100,12,Z,Pacific/Auckland,airport,OurAirports
+2045,Whangarei Airport,Whangarei,New Zealand,WRE,NZWR,-35.7682991027832,174.36500549316406,133,12,Z,Pacific/Auckland,airport,OurAirports
+2046,Westport Airport,Westport,New Zealand,WSZ,NZWS,-41.73809814453125,171.58099365234375,13,12,Z,Pacific/Auckland,airport,OurAirports
+2047,Wanganui Airport,Wanganui,New Zealand,WAG,NZWU,-39.96220016479492,175.02499389648438,27,12,Z,Pacific/Auckland,airport,OurAirports
+2242,Canton Island Airport,Canton Island,Kiribati,CIS,PCIS,-2.7681200504300003,-171.710006714,9,13,U,Pacific/Enderbury,airport,OurAirports
+2243,Rota International Airport,Rota,Northern Mariana Islands,ROP,PGRO,14.174300193786621,145.2429962158203,607,10,U,Pacific/Saipan,airport,OurAirports
+2244,Saipan International Airport,Saipan,Northern Mariana Islands,SPN,PGSN,15.119,145.729004,215,10,U,Pacific/Saipan,airport,OurAirports
+2245,Andersen Air Force Base,Andersen,Guam,UAM,PGUA,13.584,144.929998,627,10,U,Pacific/Guam,airport,OurAirports
+2246,Antonio B. Won Pat International Airport,Agana,Guam,GUM,PGUM,13.4834003448,144.796005249,298,10,U,Pacific/Guam,airport,OurAirports
+2247,Tinian International Airport,West Tinian,Northern Mariana Islands,TIQ,PGWT,14.999199867248535,145.61900329589844,271,10,U,Pacific/Saipan,airport,OurAirports
+2249,Marshall Islands International Airport,Majuro,Marshall Islands,MAJ,PKMJ,7.064760208129883,171.27200317382812,6,12,U,Pacific/Majuro,airport,OurAirports
+2250,Dyess Army Air Field,Kwajalein,Marshall Islands,\N,PKRO,9.396889686580002,167.470993042,9,12,U,Pacific/Majuro,airport,OurAirports
+2251,Bucholz Army Air Field,Kwajalein,Marshall Islands,KWA,PKWA,8.720120429992676,167.73199462890625,9,12,U,Pacific/Majuro,airport,OurAirports
+2253,Henderson Field,Midway,Midway Islands,MDY,PMDY,28.20170021057129,-177.38099670410156,13,-11,U,Pacific/Midway,airport,OurAirports
+2254,Chuuk International Airport,Chuuk,Micronesia,TKK,PTKK,7.461870193481445,151.84300231933594,11,10,U,Pacific/Truk,airport,OurAirports
+2255,Pohnpei International Airport,Pohnpei,Micronesia,PNI,PTPN,6.985099792480469,158.20899963378906,10,11,U,Pacific/Ponape,airport,OurAirports
+2256,Babelthuap Airport,Babelthuap,Palau,ROR,PTRO,7.36731,134.544236,176,9,U,Pacific/Palau,airport,OurAirports
+2257,Kosrae International Airport,Kosrae,Micronesia,KSA,PTSA,5.35698,162.957993,11,11,U,Pacific/Kosrae,airport,OurAirports
+2258,Yap International Airport,Yap,Micronesia,YAP,PTYA,9.49891,138.082993,91,10,U,Pacific/Truk,airport,OurAirports
+2657,Mataveri Airport,Easter Island,Chile,IPC,SCIP,-27.1648006439,-109.42199707,227,-6,S,Pacific/Easter,airport,OurAirports
+2672,Seymour Airport,Galapagos,Ecuador,GPS,SEGS,-0.45375800132751465,-90.26589965820312,207,-6,U,Pacific/Galapagos,airport,OurAirports
+3156,Malé International Airport,Male,Maldives,MLE,VRMM,4.191830158233643,73.52909851074219,6,5,U,Indian/Maldives,airport,OurAirports
+3317,Brisbane Archerfield Airport,Brisbane,Australia,ACF,YBAF,-27.5702991486,153.007995605,63,10,O,Australia/Brisbane,airport,OurAirports
+3318,Northern Peninsula Airport,Amberley,Australia,ABM,YBAM,-10.9508,142.459,34,10,O,Australia/Brisbane,airport,OurAirports
+3319,Alice Springs Airport,Alice Springs,Australia,ASP,YBAS,-23.806699752807617,133.90199279785156,1789,9.5,N,Australia/Darwin,airport,OurAirports
+3320,Brisbane International Airport,Brisbane,Australia,BNE,YBBN,-27.384199142456055,153.11700439453125,13,10,N,Australia/Brisbane,airport,OurAirports
+3321,Gold Coast Airport,Coolangatta,Australia,OOL,YBCG,-28.1644001007,153.505004883,21,10,N,Australia/Brisbane,airport,OurAirports
+3322,Cairns International Airport,Cairns,Australia,CNS,YBCS,-16.885799408,145.755004883,10,10,N,Australia/Brisbane,airport,OurAirports
+3323,Charleville Airport,Charlieville,Australia,CTL,YBCV,-26.4132995605,146.261993408,1003,10,O,Australia/Brisbane,airport,OurAirports
+3324,Mount Isa Airport,Mount Isa,Australia,ISA,YBMA,-20.663900375399997,139.488998413,1121,10,O,Australia/Brisbane,airport,OurAirports
+3325,Sunshine Coast Airport,Maroochydore,Australia,MCY,YBMC,-26.6033,153.091003,15,10,O,Australia/Brisbane,airport,OurAirports
+3326,Mackay Airport,Mackay,Australia,MKY,YBMK,-21.171699523900003,149.179992676,19,10,O,Australia/Brisbane,airport,OurAirports
+3328,Proserpine Whitsunday Coast Airport,Prosserpine,Australia,PPP,YBPN,-20.4950008392,148.552001953,82,10,O,Australia/Brisbane,airport,OurAirports
+3329,Rockhampton Airport,Rockhampton,Australia,ROK,YBRK,-23.3819007874,150.475006104,34,10,O,Australia/Brisbane,airport,OurAirports
+3330,Townsville Airport,Townsville,Australia,TSV,YBTL,-19.252500534057617,146.76499938964844,18,10,N,Australia/Brisbane,airport,OurAirports
+3331,Weipa Airport,Weipa,Australia,WEI,YBWP,-12.6786003113,141.925003052,63,10,O,Australia/Brisbane,airport,OurAirports
+3332,Avalon Airport,Avalon,Australia,AVV,YMAV,-38.039398,144.468994,35,10,O,Australia/Hobart,airport,OurAirports
+3333,Albury Airport,Albury,Australia,ABX,YMAY,-36.06779861450195,146.95799255371094,539,10,O,Australia/Sydney,airport,OurAirports
+3334,Melbourne Essendon Airport,Melbourne,Australia,MEB,YMEN,-37.7281,144.901993,282,10,O,Australia/Hobart,airport,OurAirports
+3335,RAAF Base East Sale,East Sale,Australia,\N,YMES,-38.098899841299996,147.149002075,23,10,O,Australia/Hobart,airport,OurAirports
+3336,Hobart International Airport,Hobart,Australia,HBA,YMHB,-42.836101532,147.509994507,13,10,O,Australia/Melbourne,airport,OurAirports
+3337,Launceston Airport,Launceston,Australia,LST,YMLT,-41.54529953,147.214004517,562,10,O,Australia/Melbourne,airport,OurAirports
+3338,Melbourne Moorabbin Airport,Melbourne,Australia,MBW,YMMB,-37.975799560546875,145.1020050048828,50,10,O,Australia/Hobart,airport,OurAirports
+3339,Melbourne International Airport,Melbourne,Australia,MEL,YMML,-37.673302,144.843002,434,10,O,Australia/Hobart,airport,OurAirports
+3340,"RAAF Williams, Point Cook Base",Point Cook,Australia,\N,YMPC,-37.932201,144.753006,14,10,O,Australia/Hobart,airport,OurAirports
+3341,Adelaide International Airport,Adelaide,Australia,ADL,YPAD,-34.945,138.531006,20,9.5,O,Australia/Adelaide,airport,OurAirports
+3343,RAAF Base Edinburgh,Edinburgh,Australia,\N,YPED,-34.70249938964844,138.62100219726562,67,9.5,O,Australia/Adelaide,airport,OurAirports
+3344,Perth Jandakot Airport,Perth,Australia,JAD,YPJT,-32.09749984741211,115.88099670410156,99,8,O,Australia/Perth,airport,OurAirports
+3345,Karratha Airport,Karratha,Australia,KTA,YPKA,-20.712200164799995,116.773002625,29,8,O,Australia/Perth,airport,OurAirports
+3346,Kalgoorlie Boulder Airport,Kalgoorlie,Australia,KGI,YPKG,-30.789400100699996,121.461997986,1203,8,O,Australia/Perth,airport,OurAirports
+3347,Kununurra Airport,Kununurra,Australia,KNX,YPKU,-15.7781000137,128.707992554,145,8,O,Australia/Perth,airport,OurAirports
+3348,Learmonth Airport,Learmonth,Australia,LEA,YPLM,-22.235599517799997,114.088996887,19,8,O,Australia/Perth,airport,OurAirports
+3349,Port Hedland International Airport,Port Hedland,Australia,PHE,YPPD,-20.3777999878,118.625999451,33,8,O,Australia/Perth,airport,OurAirports
+3350,Adelaide Parafield Airport,Adelaide,Australia,\N,YPPF,-34.793300628699996,138.632995605,57,9.5,O,Australia/Adelaide,airport,OurAirports
+3351,Perth International Airport,Perth,Australia,PER,YPPH,-31.94029998779297,115.96700286865234,67,8,N,Australia/Perth,airport,OurAirports
+3352,Woomera Airfield,Woomera,Australia,UMR,YPWR,-31.14419937133789,136.81700134277344,548,9.5,O,Australia/Adelaide,airport,OurAirports
+3353,Christmas Island Airport,Christmas Island,Christmas Island,XCH,YPXM,-10.450599670410156,105.69000244140625,916,7,U,Indian/Christmas,airport,OurAirports
+3354,Sydney Bankstown Airport,Sydney,Australia,BWU,YSBK,-33.924400329589844,150.98800659179688,29,10,O,Australia/Sydney,airport,OurAirports
+3355,Canberra International Airport,Canberra,Australia,CBR,YSCB,-35.30690002441406,149.19500732421875,1886,10,O,Australia/Sydney,airport,OurAirports
+3356,Coffs Harbour Airport,Coff's Harbour,Australia,CFS,YSCH,-30.3206005096,153.115997314,18,10,O,Australia/Sydney,airport,OurAirports
+3357,Camden Airport,Camden,Australia,CDU,YSCN,-34.04029846191406,150.68699645996094,230,10,O,Australia/Sydney,airport,OurAirports
+3358,Dubbo City Regional Airport,Dubbo,Australia,DBO,YSDU,-32.2167015076,148.574996948,935,10,O,Australia/Sydney,airport,OurAirports
+3359,Norfolk Island International Airport,Norfolk Island,Norfolk Island,NLK,YSNF,-29.04159927368164,167.93899536132812,371,11,U,Pacific/Norfolk,airport,OurAirports
+3360,RAAF Base Richmond,Richmond,Australia,XRH,YSRI,-33.600601,150.781006,67,10,O,Australia/Sydney,airport,OurAirports
+3361,Sydney Kingsford Smith International Airport,Sydney,Australia,SYD,YSSY,-33.94609832763672,151.177001953125,21,10,O,Australia/Sydney,airport,OurAirports
+3362,Tamworth Airport,Tamworth,Australia,TMW,YSTW,-31.0839004517,150.847000122,1334,10,O,Australia/Sydney,airport,OurAirports
+3363,Wagga Wagga City Airport,Wagga Wagga,Australia,WGA,YSWG,-35.1652984619,147.466003418,724,10,O,Australia/Sydney,airport,OurAirports
+3415,Hilo International Airport,Hilo,United States,ITO,PHTO,19.721399307250977,-155.04800415039062,38,-10,N,Pacific/Honolulu,airport,OurAirports
+3445,Hana Airport,Hana,United States,HNM,PHHN,20.79560089111328,-156.01400756835938,78,-10,A,Pacific/Honolulu,airport,OurAirports
+3456,Kahului Airport,Kahului,United States,OGG,PHOG,20.8986,-156.429993,54,-10,N,Pacific/Honolulu,airport,OurAirports
+3499,Wheeler Army Airfield,Wahiawa,United States,HHI,PHHI,21.48349953,-158.0399933,837,-10,A,Pacific/Honolulu,airport,OurAirports
+3514,Ellison Onizuka Kona International At Keahole Airport,Kona,United States,KOA,PHKO,19.738783,-156.045603,47,-10,N,Pacific/Honolulu,airport,OurAirports
+3532,Upolu Airport,Opolu,United States,UPP,PHUP,20.265300750732422,-155.86000061035156,96,-10,A,Pacific/Honolulu,airport,OurAirports
+3545,Waimea Kohala Airport,Kamuela,United States,MUE,PHMU,20.001300811767578,-155.66799926757812,2671,-10,A,Pacific/Honolulu,airport,OurAirports
+3583,Dillingham Airfield,Dillingham,United States,HDH,PHDH,21.5795001984,-158.197006226,14,-10,A,Pacific/Honolulu,airport,OurAirports
+3602,Lihue Airport,Lihue,United States,LIH,PHLI,21.97599983215332,-159.33900451660156,153,-10,N,Pacific/Honolulu,airport,OurAirports
+3705,Molokai Airport,Molokai,United States,MKK,PHMK,21.15290069580078,-157.0959930419922,454,-10,N,Pacific/Honolulu,airport,OurAirports
+3728,Daniel K Inouye International Airport,Honolulu,United States,HNL,PHNL,21.32062,-157.924228,13,-10,N,Pacific/Honolulu,airport,OurAirports
+3785,Barking Sands Airport,Barking Sands,United States,BKH,PHBK,22.022800445599998,-159.785003662,23,-10,A,Pacific/Honolulu,airport,OurAirports
+3787,Bradshaw Army Airfield,Bradshaw Field,United States,BSF,PHSF,19.760099411,-155.554000854,6190,-10,A,Pacific/Honolulu,airport,OurAirports
+3796,Kapalua Airport,Lahania-kapalua,United States,JHM,PHJH,20.962900161743164,-156.67300415039062,256,-10,N,Pacific/Honolulu,airport,OurAirports
+3835,Kaneohe Bay MCAS (Marion E. Carl Field) Airport,Kaneohe Bay,United States,NGF,PHNG,21.4505004883,-157.768005371,24,-10,A,Pacific/Honolulu,airport,OurAirports
+3851,Lanai Airport,Lanai,United States,LNY,PHNY,20.785600662231445,-156.9510040283203,1308,-10,N,Pacific/Honolulu,airport,OurAirports
+3990,Emerald Airport,Emerald,Australia,EMD,YEML,-23.5674991608,148.179000854,624,10,O,Australia/Brisbane,airport,OurAirports
+3999,Darwin International Airport,Darwin,Australia,DRW,YPDN,-12.41469955444336,130.8769989013672,103,9.5,N,Australia/Darwin,airport,OurAirports
+4010,Ayers Rock Connellan Airport,Uluru,Australia,AYQ,YAYE,-25.1861,130.975998,1626,9.5,N,Australia/Darwin,airport,OurAirports
+4031,Milford Sound Airport,Milford Sound,New Zealand,MFN,NZMF,-44.673301696777344,167.92300415039062,10,12,Z,Pacific/Auckland,airport,OurAirports
+4051,Kingscote Airport,Kingscote,Australia,KGC,YKSC,-35.71390151977539,137.52099609375,24,9.5,O,Australia/Adelaide,airport,OurAirports
+4052,Hervey Bay Airport,Hervey Bay,Australia,HVB,YHBA,-25.3188991547,152.880004883,60,10,O,Australia/Brisbane,airport,OurAirports
+4062,Armidale Airport,Armidale,Australia,ARM,YARM,-30.528099060099997,151.617004395,3556,10,O,Australia/Sydney,airport,OurAirports
+4069,L.F. Wade International International Airport,Bermuda,Bermuda,BDA,TXKF,32.36399841308594,-64.67870330810547,12,-4,A,Atlantic/Bermuda,airport,OurAirports
+4074,Honiara International Airport,Honiara,Solomon Islands,HIR,AGGH,-9.4280004501343,160.05499267578,28,11,U,Pacific/Guadalcanal,airport,OurAirports
+4075,Faa'a International Airport,Papeete,French Polynesia,PPT,NTAA,-17.553699,-149.606995,5,-10,U,Pacific/Tahiti,airport,OurAirports
+4076,Nauru International Airport,Nauru,Nauru,INU,ANYN,-0.547458,166.919006,22,12,U,Pacific/Nauru,airport,OurAirports
+4077,Funafuti International Airport,Funafuti,Tuvalu,FUN,NGFU,-8.525,179.195999,9,12,U,Pacific/Funafuti,airport,OurAirports
+4095,Hawke's Bay Airport,NAPIER,New Zealand,NPE,NZNR,-39.465801,176.869995,6,12,Z,Pacific/Auckland,airport,OurAirports
+4096,Levuka Airfield,Levuka,Fiji,LEV,NFNB,-17.7110996246,178.759002686,11,12,N,Pacific/Fiji,airport,OurAirports
+4102,Kaikoura Airport,Kaikoura,New Zealand,KBZ,NZKI,-42.42499923706055,173.60499572753906,20,12,Z,Pacific/Auckland,airport,OurAirports
+4104,Picton Aerodrome,Picton,New Zealand,PCN,NZPN,-41.346099853516,173.95599365234,161,12,Z,Pacific/Auckland,airport,OurAirports
+4217,Blackall Airport,Blackall,Australia,BKQ,YBCK,-24.427799224900003,145.429000854,928,10,O,Australia/Brisbane,airport,OurAirports
+4218,Bundaberg Airport,Bundaberg,Australia,BDB,YBUD,-24.903900146499996,152.319000244,107,10,O,Australia/Brisbane,airport,OurAirports
+4221,Hayman Island Heliport,Hayman Island,Australia,\N,YHYN,-20.0599,148.8834,8,10,O,Australia/Brisbane,airport,OurAirports
+4235,Kaadedhdhoo Airport,Kaadedhdhoo,Maldives,KDM,VRMT,0.48813098669052124,72.99690246582031,2,5,U,Indian/Maldives,airport,OurAirports
+4242,Tanna Airport,Tanna,Vanuatu,TAH,NVVW,-19.45509910583496,169.2239990234375,19,11,U,Pacific/Efate,airport,OurAirports
+4289,Thangool Airport,Biloela,Australia,THG,YTNG,-24.493900299072266,150.5760040283203,644,10,O,Australia/Brisbane,airport,OurAirports
+4290,Fagali'i Airport,Apia,Samoa,FGI,NSFI,-13.848699569699999,-171.740005493,131,13,U,Pacific/Apia,airport,OurAirports
+4291,Ballina Byron Gateway Airport,Ballina Byron Bay,Australia,BNK,YBNA,-28.8339004517,153.56199646,7,10,O,Australia/Sydney,airport,OurAirports
+4319,Broome International Airport,Broome,Australia,BME,YBRM,-17.944700241088867,122.23200225830078,56,8,O,Australia/Perth,airport,OurAirports
+4320,Newcastle Airport,Newcastle,Australia,NTL,YWLM,-32.79499816894531,151.83399963378906,31,10,O,Australia/Sydney,airport,OurAirports
+4321,Bakki Airport,Bakki,Iceland,\N,BIBA,63.55609893798828,-20.137500762939453,45,0,N,Atlantic/Reykjavik,airport,OurAirports
+4382,Johnston Atoll Airport,Johnston Island,Johnston Atoll,JON,PJON,16.7285995483,-169.533996582,7,-10,U,Pacific/Johnston,airport,OurAirports
+5404,Uru Harbour Airport,Atoifi,Solomon Islands,ATD,AGAT,-8.87333,161.011002,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5405,Gwaunaru'u Airport,Auki,Solomon Islands,AKS,AGGA,-8.70257,160.682007,5,11,U,Pacific/Guadalcanal,airport,OurAirports
+5406,Ballalae Airport,Ballalae,Solomon Islands,BAS,AGGE,-6.990745,155.886656,5,11,U,Pacific/Guadalcanal,airport,OurAirports
+5407,Fera/Maringe Airport,Fera Island,Solomon Islands,FRE,AGGF,-8.1075,159.576996,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5408,Babanakira Airport,Mbambanakira,Solomon Islands,MBU,AGGI,-9.7475004196167,159.83900451660156,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5409,Ngorangora Airport,Kirakira,Solomon Islands,IRA,AGGK,-10.449700355500001,161.897994995,54,11,U,Pacific/Guadalcanal,airport,OurAirports
+5410,Santa Cruz/Graciosa Bay/Luova Airport,Santa Cruz/Graciosa Bay/Luova,Solomon Islands,SCZ,AGGL,-10.72029972076416,165.7949981689453,18,11,U,Pacific/Guadalcanal,airport,OurAirports
+5411,Munda Airport,Munda,Solomon Islands,MUA,AGGM,-8.327969551086426,157.26300048828125,10,11,U,Pacific/Guadalcanal,airport,OurAirports
+5412,Nusatupe Airport,Gizo,Solomon Islands,GZO,AGGN,-8.09778022766,156.863998413,13,11,U,Pacific/Guadalcanal,airport,OurAirports
+5413,Mono Airport,Stirling Island,Solomon Islands,MNY,AGGO,-7.416940212249756,155.56500244140625,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5414,Rennell/Tingoa Airport,Rennell Island,Solomon Islands,RNL,AGGR,-11.533900260925293,160.06300354003906,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5415,Marau Airport,Marau,Solomon Islands,RUS,AGGU,-9.861669540409999,160.824996948,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5416,Suavanao Airport,Suavanao,Solomon Islands,VAO,AGGV,-7.585559844970703,158.7310028076172,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5417,Kaghau Airport,Kagau Island,Solomon Islands,KGE,AGKG,-7.3305,157.585,30,11,U,Pacific/Guadalcanal,airport,OurAirports
+5418,Ramata Airport,Ramata,Solomon Islands,RBV,AGRM,-8.168060302734375,157.64300537109375,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+5419,Buka Airport,Buka Island,Papua New Guinea,BUA,AYBK,-5.4223198890686035,154.67300415039062,11,10,U,Pacific/Port_Moresby,airport,OurAirports
+5420,Chimbu Airport,Kundiawa,Papua New Guinea,CMU,AYCH,-6.024290084838867,144.9709930419922,4974,10,U,Pacific/Port_Moresby,airport,OurAirports
+5421,Daru Airport,Daru,Papua New Guinea,DAU,AYDU,-9.08675956726,143.207992554,20,10,U,Pacific/Port_Moresby,airport,OurAirports
+5422,Gurney Airport,Gurney,Papua New Guinea,GUR,AYGN,-10.3114995956,150.333999634,88,10,U,Pacific/Port_Moresby,airport,OurAirports
+5423,Girua Airport,Girua,Papua New Guinea,PNP,AYGR,-8.80453968048,148.309005737,311,10,U,Pacific/Port_Moresby,airport,OurAirports
+5424,Kimbe Airport,Hoskins,Papua New Guinea,HKN,AYHK,-5.462170124053955,150.40499877929688,66,10,U,Pacific/Port_Moresby,airport,OurAirports
+5425,Kiunga Airport,Kiunga,Papua New Guinea,UNG,AYKI,-6.1257100105285645,141.28199768066406,88,10,U,Pacific/Port_Moresby,airport,OurAirports
+5426,Kikori Airport,Kikori,Papua New Guinea,KRI,AYKK,-7.424379825592041,144.2500762939453,50,10,U,Pacific/Port_Moresby,airport,OurAirports
+5427,Kerema Airport,Kerema,Papua New Guinea,KMA,AYKM,-7.96361017227,145.770996094,10,10,U,Pacific/Port_Moresby,airport,OurAirports
+5428,Kavieng Airport,Kavieng,Papua New Guinea,KVG,AYKV,-2.57940006256,150.807998657,7,10,U,Pacific/Port_Moresby,airport,OurAirports
+5429,Mendi Airport,Mendi,Papua New Guinea,MDU,AYMN,-6.14774,143.656998,5680,10,U,Pacific/Port_Moresby,airport,OurAirports
+5430,Momote Airport,Momote,Papua New Guinea,MAS,AYMO,-2.06189,147.423996,12,10,U,Pacific/Port_Moresby,airport,OurAirports
+5431,Moro Airport,Moro,Papua New Guinea,MXH,AYMR,-6.36332988739,143.238006592,2740,10,U,Pacific/Port_Moresby,airport,OurAirports
+5432,Misima Island Airport,Misima Island,Papua New Guinea,MIS,AYMS,-10.689200401299999,152.837997437,26,10,U,Pacific/Port_Moresby,airport,OurAirports
+5433,Tari Airport,Tari,Papua New Guinea,TIZ,AYTA,-5.84499979019,142.947998047,5500,10,U,Pacific/Port_Moresby,airport,OurAirports
+5434,Tabubil Airport,Tabubil,Papua New Guinea,TBG,AYTB,-5.27861,141.225998,1570,10,U,Pacific/Port_Moresby,airport,OurAirports
+5435,Tokua Airport,Tokua,Papua New Guinea,RAB,AYTK,-4.34045982361,152.380004883,32,10,U,Pacific/Port_Moresby,airport,OurAirports
+5436,Vanimo Airport,Vanimo,Papua New Guinea,VAI,AYVN,-2.6926,141.3028,10,10,U,Pacific/Port_Moresby,airport,OurAirports
+5437,Wapenamanda Airport,Wapenamanda,Papua New Guinea,WBM,AYWD,-5.6433000564575195,143.89500427246094,5889,10,U,Pacific/Port_Moresby,airport,OurAirports
+5450,Grímsey Airport,Grímsey,Iceland,GRY,BIGR,66.5458,-18.0173,66,0,N,Atlantic/Reykjavik,airport,OurAirports
+5452,Thorshofn Airport,Thorshofn,Iceland,THO,BITN,66.21849822998047,-15.335599899291992,65,0,N,Atlantic/Reykjavik,airport,OurAirports
+5453,Vopnafjörður Airport,Vopnafjörður,Iceland,VPN,BIVO,65.72059631347656,-14.850600242614746,16,0,N,Atlantic/Reykjavik,airport,OurAirports
+5614,Iconi Airport,Moroni,Comoros,YVA,FMCN,-11.710800170899999,43.2439002991,33,3,U,Indian/Comoro,airport,OurAirports
+5615,Antsalova Airport,Antsalova,Madagascar,WAQ,FMMG,-18.701273,44.614921,551,3,U,Indian/Antananarivo,airport,OurAirports
+5616,Ankavandra Airport,Ankavandra,Madagascar,JVA,FMMK,-18.80501,45.273467,427,3,U,Indian/Antananarivo,airport,OurAirports
+5617,Belo sur Tsiribihina Airport,Belo sur Tsiribihina,Madagascar,BMD,FMML,-19.6867008209,44.541900634799994,154,3,U,Indian/Antananarivo,airport,OurAirports
+5618,Maintirano Airport,Maintirano,Madagascar,MXT,FMMO,-18.049999,44.033001,95,3,U,Indian/Antananarivo,airport,OurAirports
+5619,Morafenobe Airport,Morafenobe,Madagascar,TVA,FMMR,-17.850083,44.920467,748,3,U,Indian/Antananarivo,airport,OurAirports
+5620,Tambohorano Airport,Tambohorano,Madagascar,WTA,FMMU,-17.47610092163086,43.972801208496094,23,3,U,Indian/Antananarivo,airport,OurAirports
+5621,Tsiroanomandidy Airport,Tsiroanomandidy,Madagascar,WTS,FMMX,-18.759677,46.054065,2776,3,U,Indian/Antananarivo,airport,OurAirports
+5622,Ambatondrazaka Airport,Ambatondrazaka,Madagascar,WAM,FMMZ,-17.795378,48.442583,2513,3,U,Indian/Antananarivo,airport,OurAirports
+5623,Port Bergé Airport,Port Bergé,Madagascar,WPB,FMNG,-15.584286,47.623587,213,3,U,Indian/Antananarivo,airport,OurAirports
+5624,Ambanja Airport,Ambanja,Madagascar,\N,FMNJ,-13.645705,48.459427,36,3,U,Indian/Antananarivo,airport,OurAirports
+5625,Soalala Airport,Soalala,Madagascar,DWB,FMNO,-16.10169,45.358837,141,3,U,Indian/Antananarivo,airport,OurAirports
+5626,Mampikony Airport,Mampikony,Madagascar,WMP,FMNP,-16.0722693402,47.644164562200004,0,3,U,Indian/Antananarivo,airport,OurAirports
+5628,Mandritsara Airport,Mandritsara,Madagascar,WMA,FMNX,-15.833049,48.833284,1007,3,U,Indian/Antananarivo,airport,OurAirports
+5629,Manja Airport,Manja,Madagascar,MJA,FMSJ,-21.426105,44.316509,787,3,U,Indian/Antananarivo,airport,OurAirports
+5659,La Gomera Airport,La Gomera,Spain,GMZ,GCGM,28.029600143432617,-17.214599609375,716,0,E,Atlantic/Canary,airport,OurAirports
+5674,Praia International Airport,"Praia, Santiago Island",Cape Verde,RAI,GVNP,14.924500465393066,-23.493499755859375,230,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+5675,São Filipe Airport,"Sao Filipe, Fogo Island",Cape Verde,SFL,GVSF,14.8850002289,-24.4799995422,617,-1,U,Atlantic/Cape_Verde,airport,OurAirports
+5743,Kili Airport,Kili Island,Marshall Islands,KIO,Q51,5.644515,169.119507,5,12,U,Pacific/Majuro,airport,OurAirports
+5793,Corvo Airport,Corvo,Portugal,CVU,LPCR,39.671501,-31.1136,0,-1,E,Atlantic/Azores,airport,OurAirports
+5814,Utirik Airport,Utirik Island,Marshall Islands,UTK,03N,11.222,169.852005,4,12,U,Pacific/Majuro,airport,OurAirports
+5833,Mili Island Airport,Mili Island,Marshall Islands,MIJ,MLIP,6.08333,171.733002,4,12,U,Pacific/Majuro,airport,OurAirports
+5861,Enua Airport,Atiu Island,Cook Islands,AIU,NCAT,-19.96780014038086,-158.11900329589844,36,-10,U,Pacific/Rarotonga,airport,OurAirports
+5862,Mangaia Island Airport,Mangaia Island,Cook Islands,MGS,NCMG,-21.895986557006836,-157.9066619873047,45,-10,U,Pacific/Rarotonga,airport,OurAirports
+5863,Manihiki Island Airport,Manihiki Island,Cook Islands,MHX,NCMH,-10.376700401306152,-161.0019989013672,0,-10,U,Pacific/Rarotonga,airport,OurAirports
+5864,Mauke Airport,Mauke Island,Cook Islands,MUK,NCMK,-20.13610076904297,-157.34500122070312,26,-10,U,Pacific/Rarotonga,airport,OurAirports
+5865,Mitiaro Island Airport,Mitiaro Island,Cook Islands,MOI,NCMR,-19.842500686645508,-157.7030029296875,25,-10,U,Pacific/Rarotonga,airport,OurAirports
+5866,Tongareva Airport,Penrhyn Island,Cook Islands,PYE,NCPY,-9.01436996459961,-158.03240966796875,8,-10,U,Pacific/Rarotonga,airport,OurAirports
+5867,Cicia Airport,Cicia,Fiji,ICI,NFCI,-17.7432994843,-179.341995239,13,12,U,Pacific/Fiji,airport,OurAirports
+5868,Malolo Lailai Island Airport,Malolo Lailai Island,Fiji,PTF,NFFO,-17.7779006958,177.197006226,10,12,U,Pacific/Fiji,airport,OurAirports
+5869,Vunisea Airport,Vunisea,Fiji,KDV,NFKD,-19.058099746699998,178.156997681,6,12,U,Pacific/Fiji,airport,OurAirports
+5870,Mana Island Airport,Mana Island,Fiji,MNF,NFMA,-17.6730995178,177.098007202,0,12,U,Pacific/Fiji,airport,OurAirports
+5871,Moala Airport,Moala,Fiji,MFJ,NFMO,-18.566699981699998,179.951004028,13,12,U,Pacific/Fiji,airport,OurAirports
+5872,Ngau Airport,Ngau,Fiji,NGI,NFNG,-18.115600585899998,179.339996338,50,12,U,Pacific/Fiji,airport,OurAirports
+5873,Lakeba Island Airport,Lakeba Island,Fiji,LKB,NFNK,-18.1991996765,-178.817001343,280,12,U,Pacific/Fiji,airport,OurAirports
+5874,Labasa Airport,Lambasa,Fiji,LBS,NFNL,-16.466699600219727,179.33999633789062,44,12,U,Pacific/Fiji,airport,OurAirports
+5875,Matei Airport,Matei,Fiji,TVU,NFNM,-16.6905994415,-179.876998901,60,12,U,Pacific/Fiji,airport,OurAirports
+5876,Koro Island Airport,Koro Island,Fiji,KXF,NFNO,-17.3458003998,179.42199707,358,12,U,Pacific/Fiji,airport,OurAirports
+5877,Rotuma Airport,Rotuma,Fiji,RTA,NFNR,-12.482500076293945,177.0709991455078,22,12,U,Pacific/Fiji,airport,OurAirports
+5878,Savusavu Airport,Savusavu,Fiji,SVU,NFNS,-16.8027992249,179.341003418,17,12,U,Pacific/Fiji,airport,OurAirports
+5879,Kaufana Airport,Eua Island,Tonga,EUA,NFTE,-21.378299713100002,-174.957992554,325,13,U,Pacific/Tongatapu,airport,OurAirports
+5880,Lifuka Island Airport,Lifuka,Tonga,HPA,NFTL,-19.777000427246094,-174.34100341796875,31,13,U,Pacific/Tongatapu,airport,OurAirports
+5881,Mata'aho Airport,"Angaha, Niuafo'ou Island",Tonga,NFO,NFTO,-15.5707998276,-175.632995605,160,13,U,Pacific/Tongatapu,airport,OurAirports
+5882,Kuini Lavenia Airport,Niuatoputapu,Tonga,NTT,NFTP,-15.977297,-173.791089,30,13,U,Pacific/Tongatapu,airport,OurAirports
+5883,Vanua Balavu Airport,Vanua Balavu,Fiji,VBV,NFVB,-17.268999099731445,-178.9759979248047,76,12,U,Pacific/Fiji,airport,OurAirports
+5884,Niue International Airport,Alofi,Niue,IUE,NIUE,-19.079030990600586,-169.92559814453125,209,-11,U,Pacific/Niue,airport,OurAirports
+5885,Pointe Vele Airport,Futuna Island,Wallis and Futuna,FUT,NLWF,-14.3114004135,-178.065994263,20,12,U,Pacific/Wallis,airport,OurAirports
+5887,Maota Airport,Savaii Island,Samoa,MXS,NSMA,-13.742300033569336,-172.25799560546875,0,13,U,Pacific/Apia,airport,OurAirports
+5888,Apataki Airport,Apataki,French Polynesia,APK,NTGD,-15.5736,-146.414993,8,-10,U,Pacific/Tahiti,airport,OurAirports
+5889,Ahe Airport,Ahe,French Polynesia,AHE,NTHE,-14.428099632263184,-146.2570037841797,11,-10,U,Pacific/Tahiti,airport,OurAirports
+5890,Hiva Oa-Atuona Airport,Hiva-oa,French Polynesia,AUQ,NTMN,-9.76879024506,-139.011001587,1481,-9.5,U,Pacific/Marquesas,airport,OurAirports
+5891,Ua Pou Airport,Ua Pou,French Polynesia,UAP,NTMP,-9.35167,-140.078003,16,-9.5,U,Pacific/Marquesas,airport,OurAirports
+5892,Ua Huka Airport,Ua Huka,French Polynesia,UAH,NTMU,-8.93611,-139.552002,160,-9.5,U,Pacific/Marquesas,airport,OurAirports
+5893,Mota Lava Airport,Ablow,Vanuatu,MTV,NVSA,-13.6660003662,167.712005615,63,11,U,Pacific/Efate,airport,OurAirports
+5894,Sola Airport,Sola,Vanuatu,SLH,NVSC,-13.8516998291,167.537002563,7,11,U,Pacific/Efate,airport,OurAirports
+5895,Torres Airstrip,Loh/Linua,Vanuatu,TOH,NVSD,-13.3280000687,166.638000488,75,11,U,Pacific/Efate,airport,OurAirports
+5896,Siwo Airport,Sangafa,Vanuatu,EAE,NVSE,-17.0902996063,168.343002319,7,11,U,Pacific/Efate,airport,OurAirports
+5897,Craig Cove Airport,Craig Cove,Vanuatu,CCV,NVSF,-16.264999,167.923996,69,11,U,Pacific/Efate,airport,OurAirports
+5898,Longana Airport,Longana,Vanuatu,LOD,NVSG,-15.3066997528,167.966995239,167,11,U,Pacific/Efate,airport,OurAirports
+5899,Sara Airport,Pentecost Island,Vanuatu,SSR,NVSH,-15.4708003998,168.151992798,493,11,U,Pacific/Efate,airport,OurAirports
+5900,Tavie Airport,Paama Island,Vanuatu,PBJ,NVSI,-16.438999176,168.257003784,160,11,U,Pacific/Efate,airport,OurAirports
+5901,Lamap Airport,Lamap,Vanuatu,LPM,NVSL,-16.4611228,167.829253,7,11,U,Pacific/Efate,airport,OurAirports
+5902,Lamen Bay Airport,Lamen Bay,Vanuatu,LNB,NVSM,-16.584199905400002,168.158996582,7,11,U,Pacific/Efate,airport,OurAirports
+5903,Maewo-Naone Airport,Maewo Island,Vanuatu,MWF,NVSN,-15,168.082992554,509,11,U,Pacific/Efate,airport,OurAirports
+5904,Lonorore Airport,Lonorore,Vanuatu,LNE,NVSO,-15.865599632299999,168.17199707,43,11,U,Pacific/Efate,airport,OurAirports
+5905,Norsup Airport,Norsup,Vanuatu,NUS,NVSP,-16.0797,167.401001,23,11,U,Pacific/Efate,airport,OurAirports
+5906,Gaua Island Airport,Gaua Island,Vanuatu,ZGU,NVSQ,-14.218099594099998,167.587005615,100,11,U,Pacific/Efate,airport,OurAirports
+5907,Redcliffe Airport,Redcliffe,Vanuatu,RCL,NVSR,-15.472000122099999,167.835006714,36,11,U,Pacific/Efate,airport,OurAirports
+5908,Santo Pekoa International Airport,Santo,Vanuatu,SON,NVSS,-15.505000114399998,167.220001221,184,11,U,Pacific/Efate,airport,OurAirports
+5909,Tongoa Airport,Tongoa Island,Vanuatu,TGH,NVST,-16.8910999298,168.550994873,443,11,U,Pacific/Efate,airport,OurAirports
+5910,Uléi Airport,Ambryn Island,Vanuatu,ULB,NVSU,-16.3297,168.3011,170,11,U,Pacific/Efate,airport,OurAirports
+5911,Valesdir Airport,Valesdir,Vanuatu,VLS,NVSV,-16.796100616500002,168.177001953,10,11,U,Pacific/Efate,airport,OurAirports
+5912,Southwest Bay Airport,Malekula Island,Vanuatu,SWJ,NVSX,-16.4864,167.4472,68,11,U,Pacific/Efate,airport,OurAirports
+5913,North West Santo Airport,Olpoi,Vanuatu,OLJ,NVSZ,-14.881699562099998,166.557998657,50,11,U,Pacific/Efate,airport,OurAirports
+5914,Aneityum Airport,Anelghowhat,Vanuatu,AUY,NVVA,-20.2492008209,169.770996094,7,11,U,Pacific/Efate,airport,OurAirports
+5915,Aniwa Airport,Aniwa,Vanuatu,AWD,NVVB,-19.2346,169.6009,69,11,U,Pacific/Efate,airport,OurAirports
+5916,Dillon's Bay Airport,Dillon's Bay,Vanuatu,DLY,NVVD,-18.7693996429,169.00100708,630,11,U,Pacific/Efate,airport,OurAirports
+5917,Futuna Airport,Futuna Island,Vanuatu,FTA,NVVF,-19.516399383499998,170.231994629,95,11,U,Pacific/Efate,airport,OurAirports
+5918,Ipota Airport,Ipota,Vanuatu,IPA,NVVI,-18.856389,169.283333,23,11,U,Pacific/Efate,airport,OurAirports
+5919,Tiga Airport,Tiga,New Caledonia,TGJ,NWWA,-21.096099853515625,167.8040008544922,128,11,U,Pacific/Noumea,airport,OurAirports
+5920,Île Art - Waala Airport,Waala,New Caledonia,BMY,NWWC,-19.720600128173828,163.66099548339844,306,11,U,Pacific/Noumea,airport,OurAirports
+5921,Île des Pins Airport,Île des Pins,New Caledonia,ILP,NWWE,-22.588899612426758,167.45599365234375,315,11,U,Pacific/Noumea,airport,OurAirports
+5982,Balimo Airport,Balimo,Papua New Guinea,OPU,AYBM,-8.05000019073,142.932998657,51,10,U,Pacific/Port_Moresby,airport,OurAirports
+5986,Baimuru Airport,Baimuru,Papua New Guinea,VMU,AYBA,-7.49686002731,144.819900513,27,10,U,Pacific/Port_Moresby,airport,OurAirports
+5989,Kalaupapa Airport,Molokai,United States,LUP,PHLU,21.21100044,-156.973999,24,-10,A,Pacific/Honolulu,airport,OurAirports
+5990,Eniwetok Airport,Eniwetok Atoll,Marshall Islands,ENT,PKMA,11.340700149536133,162.3280029296875,13,12,U,Pacific/Majuro,airport,OurAirports
+6045,San Cristóbal Airport,San Cristóbal,Ecuador,SCY,SEST,-0.910206,-89.617401,62,-6,U,Pacific/Galapagos,airport,OurAirports
+6048,Port Stanley Airport,Stanley,Falkland Islands,PSY,SFAL,-51.685699462891,-57.777599334717,75,-3,U,Atlantic/Stanley,airport,OurAirports
+6100,Ujae Atoll Airport,Ujae Atoll,Marshall Islands,UJE,UJAP,8.92805957794,165.761993408,29,12,U,Pacific/Majuro,airport,OurAirports
+6183,Gan International Airport,Gan Island,Maldives,GAN,VRMG,-0.693342,73.155602,6,5,U,Indian/Maldives,airport,OurAirports
+6184,Hanimaadhoo Airport,Haa Dhaalu Atoll,Maldives,HAQ,VRMH,6.744229793548584,73.17050170898438,4,5,U,Indian/Maldives,airport,OurAirports
+6185,Kadhdhoo Airport,Laamu Atoll,Maldives,KDO,VRMK,1.8591699600219727,73.52189636230469,4,5,U,Indian/Maldives,airport,OurAirports
+6235,Albany Airport,Albany,Australia,ALH,YABA,-34.94329833984375,117.80899810791016,233,8,O,Australia/Perth,airport,OurAirports
+6236,Argyle Airport,Argyle,Australia,GYL,YARG,-16.6369,128.451004,522,8,O,Australia/Perth,airport,OurAirports
+6237,Aurukun Airport,Aurukun,Australia,AUU,YAUR,-13.354067,141.72065,31,10,O,Australia/Brisbane,airport,OurAirports
+6238,Barcaldine Airport,Barcaldine,Australia,BCI,YBAR,-23.5652999878,145.307006836,878,10,O,Australia/Brisbane,airport,OurAirports
+6239,Badu Island Airport,Badu Island,Australia,BDD,YBAU,-10.149999618499999,142.1734,14,10,O,Australia/Brisbane,airport,OurAirports
+6240,Birdsville Airport,Birdsville,Australia,BVI,YBDV,-25.897499084472656,139.34800720214844,159,10,O,Australia/Brisbane,airport,OurAirports
+6241,Broken Hill Airport,Broken Hill,Australia,BHQ,YBHI,-32.0013999939,141.472000122,958,9.5,O,Australia/Adelaide,airport,OurAirports
+6242,Hamilton Island Airport,Hamilton Island,Australia,HTI,YBHM,-20.3581008911,148.95199585,15,10,O,Australia/Brisbane,airport,OurAirports
+6243,Bedourie Airport,Bedourie,Australia,BEU,YBIE,-24.346099853515625,139.4600067138672,300,10,O,Australia/Brisbane,airport,OurAirports
+6244,Bourke Airport,Bourke,Australia,BRK,YBKE,-30.039199829101562,145.95199584960938,352,10,O,Australia/Sydney,airport,OurAirports
+6245,Burketown Airport,Burketown,Australia,BUC,YBKT,-17.748600006103516,139.53399658203125,21,10,O,Australia/Brisbane,airport,OurAirports
+6246,Boigu Airport,Boigu,Australia,GIC,YBOI,-9.23278045654,142.218002319,23,10,O,Australia/Brisbane,airport,OurAirports
+6247,Oakey Airport,Oakey,Australia,OKY,YBOK,-27.411399841308594,151.73500061035156,1335,10,O,Australia/Brisbane,airport,OurAirports
+6248,Boulia Airport,Boulia,Australia,BQL,YBOU,-22.913299560546875,139.89999389648438,542,10,O,Australia/Brisbane,airport,OurAirports
+6249,Bathurst Airport,Bathurst,Australia,BHS,YBTH,-33.4094009399,149.651992798,2435,10,O,Australia/Sydney,airport,OurAirports
+6250,Blackwater Airport,Blackwater,Australia,BLT,YBTR,-23.603099822998047,148.8070068359375,657,10,O,Australia/Brisbane,airport,OurAirports
+6251,Carnarvon Airport,Carnarvon,Australia,CVQ,YCAR,-24.880211,113.67174,13,8,O,Australia/Perth,airport,OurAirports
+6252,Cobar Airport,Cobar,Australia,CAZ,YCBA,-31.538299560546875,145.79400634765625,724,10,O,Australia/Sydney,airport,OurAirports
+6253,Coober Pedy Airport,Coober Pedy,Australia,CPD,YCBP,-29.040000915527344,134.7209930419922,740,9.5,O,Australia/Adelaide,airport,OurAirports
+6254,Coconut Island Airport,Coconut Island,Australia,CNC,YCCT,-10.050000190734863,143.07000732421875,3,10,O,Australia/Brisbane,airport,OurAirports
+6255,Cloncurry Airport,Cloncurry,Australia,CNJ,YCCY,-20.668600082399998,140.503997803,616,10,O,Australia/Brisbane,airport,OurAirports
+6256,Ceduna Airport,Ceduna,Australia,CED,YCDU,-32.13059997558594,133.7100067138672,77,9.5,O,Australia/Adelaide,airport,OurAirports
+6257,Cooktown Airport,Cooktown,Australia,CTN,YCKN,-15.444700241088867,145.1840057373047,26,10,O,Australia/Brisbane,airport,OurAirports
+6258,Cunnamulla Airport,Cunnamulla,Australia,CMA,YCMU,-28.030000686645508,145.6219940185547,630,10,O,Australia/Brisbane,airport,OurAirports
+6259,Coonamble Airport,Coonamble,Australia,CNB,YCNM,-30.983299255371094,148.37600708007812,604,10,O,Australia/Sydney,airport,OurAirports
+6260,Coen Airport,Coen,Australia,CUQ,YCOE,-13.761133,143.113311,532,10,O,Australia/Brisbane,airport,OurAirports
+6261,Cooma Snowy Mountains Airport,Cooma,Australia,OOM,YCOM,-36.3005981445,148.973999023,3088,10,O,Australia/Sydney,airport,OurAirports
+6262,Doomadgee Airport,Doomadgee,Australia,DMD,YDMG,-17.9403,138.822006,153,10,O,Australia/Brisbane,airport,OurAirports
+6263,Darnley Island Airport,Darnley Island,Australia,NLF,YDNI,-9.583330154418945,143.76699829101562,0,10,O,Australia/Brisbane,airport,OurAirports
+6264,Devonport Airport,Devonport,Australia,DPO,YDPO,-41.1697006226,146.429992676,33,10,O,Australia/Melbourne,airport,OurAirports
+6265,Elcho Island Airport,Elcho Island,Australia,ELC,YELD,-12.019399642899998,135.570999146,101,9.5,O,Australia/Darwin,airport,OurAirports
+6266,Esperance Airport,Esperance,Australia,EPR,YESP,-33.684399,121.822998,470,8,O,Australia/Perth,airport,OurAirports
+6267,Flinders Island Airport,Flinders Island,Australia,FLS,YFLI,-40.0917015076,147.992996216,10,10,O,Australia/Melbourne,airport,OurAirports
+6268,Geraldton Airport,Geraldton,Australia,GET,YGEL,-28.796101,114.707001,121,8,O,Australia/Perth,airport,OurAirports
+6269,Gladstone Airport,Gladstone,Australia,GLT,YGLA,-23.869699,151.223007,64,10,O,Australia/Brisbane,airport,OurAirports
+6270,Groote Eylandt Airport,Groote Eylandt,Australia,GTE,YGTE,-13.975000381500001,136.460006714,53,9.5,O,Australia/Darwin,airport,OurAirports
+6271,Griffith Airport,Griffith,Australia,GFF,YGTH,-34.2508010864,146.067001343,439,10,O,Australia/Sydney,airport,OurAirports
+6272,Horn Island Airport,Horn Island,Australia,HID,YHID,-10.586400032,142.289993286,43,10,O,Australia/Brisbane,airport,OurAirports
+6273,Hooker Creek Airport,Hooker Creek,Australia,HOK,YHOO,-18.3367004395,130.638000488,320,9.5,O,Australia/Darwin,airport,OurAirports
+6274,Mount Hotham Airport,Mount Hotham,Australia,MHU,YHOT,-37.0475006104,147.333999634,4260,10,O,Australia/Hobart,airport,OurAirports
+6275,Hughenden Airport,Hughenden,Australia,HGD,YHUG,-20.815000534057617,144.22500610351562,1043,10,O,Australia/Brisbane,airport,OurAirports
+6276,Julia Creek Airport,Julia Creek,Australia,JCK,YJLC,-20.66830062866211,141.72300720214844,404,10,O,Australia/Brisbane,airport,OurAirports
+6277,Kalbarri Airport,Kalbarri,Australia,KAX,YKBR,-27.692813,114.259169,157,8,O,Australia/Perth,airport,OurAirports
+6278,King Island Airport,King Island,Australia,KNS,YKII,-39.877498626708984,143.8780059814453,132,10,O,Australia/Melbourne,airport,OurAirports
+6279,Kalkgurung Airport,Kalkgurung,Australia,KFG,YKKG,-17.431900024414062,130.80799865722656,646,9.5,O,Australia/Darwin,airport,OurAirports
+6280,Karumba Airport,Karumba,Australia,KRB,YKMB,-17.45669937133789,140.8300018310547,5,10,O,Australia/Brisbane,airport,OurAirports
+6281,Kowanyama Airport,Kowanyama,Australia,KWM,YKOW,-15.485600471496582,141.75100708007812,35,10,O,Australia/Brisbane,airport,OurAirports
+6282,Kubin Airport,Kubin,Australia,KUG,YKUB,-10.225000381500001,142.218002319,15,10,O,Australia/Brisbane,airport,OurAirports
+6283,Leonora Airport,Leonora,Australia,LNO,YLEO,-28.87809944152832,121.31500244140625,1217,8,O,Australia/Perth,airport,OurAirports
+6284,Lake Evella Airport,Lake Evella,Australia,LEL,YLEV,-12.498900413513184,135.80599975585938,256,9.5,O,Australia/Darwin,airport,OurAirports
+6285,Lord Howe Island Airport,Lord Howe Island,Australia,LDH,YLHI,-31.5382995605,159.07699585,5,10.5,O,Australia/Lord_Howe,airport,OurAirports
+6286,Lockhart River Airport,Lockhart River,Australia,IRG,YLHR,-12.7869,143.304993,77,10,O,Australia/Brisbane,airport,OurAirports
+6287,Lismore Airport,Lismore,Australia,LSY,YLIS,-28.8302993774,153.259994507,35,10,O,Australia/Sydney,airport,OurAirports
+6288,Lightning Ridge Airport,Lightning Ridge,Australia,LHG,YLRD,-29.45669937133789,147.98399353027344,540,10,O,Australia/Sydney,airport,OurAirports
+6289,Longreach Airport,Longreach,Australia,LRE,YLRE,-23.4342002869,144.279998779,627,10,O,Australia/Brisbane,airport,OurAirports
+6290,Leinster Airport,Leinster,Australia,LER,YLST,-27.843299865722656,120.7030029296875,1631,8,O,Australia/Perth,airport,OurAirports
+6291,Laverton Airport,Laverton,Australia,LVO,YLTN,-28.61359977722168,122.42400360107422,1530,8,O,Australia/Perth,airport,OurAirports
+6292,Mabuiag Island Airport,Mabuiag Island,Australia,UBB,YMAA,-9.949999809265137,142.18299865722656,0,10,O,Australia/Brisbane,airport,OurAirports
+6293,Meekatharra Airport,Meekatharra,Australia,MKR,YMEK,-26.6117000579834,118.5479965209961,1713,8,O,Australia/Perth,airport,OurAirports
+6294,Merimbula Airport,Merimbula,Australia,MIM,YMER,-36.9085998535,149.901000977,7,10,O,Australia/Sydney,airport,OurAirports
+6295,Milingimbi Airport,Milingimbi,Australia,MGT,YMGB,-12.0944004059,134.893997192,53,9.5,O,Australia/Darwin,airport,OurAirports
+6296,Maningrida Airport,Maningrida,Australia,MNG,YMGD,-12.0560998917,134.23399353,123,9.5,O,Australia/Darwin,airport,OurAirports
+6297,McArthur River Mine Airport,McArthur River Mine,Australia,MCV,YMHU,-16.4424991608,136.083999634,131,9.5,O,Australia/Darwin,airport,OurAirports
+6298,Mildura Airport,Mildura,Australia,MQL,YMIA,-34.229198455799995,142.085998535,167,10,O,Australia/Hobart,airport,OurAirports
+6299,Mount Magnet Airport,Mount Magnet,Australia,MMG,YMOG,-28.116100311279297,117.84200286865234,1354,8,O,Australia/Perth,airport,OurAirports
+6300,Moree Airport,Moree,Australia,MRZ,YMOR,-29.498899459799997,149.845001221,701,10,O,Australia/Sydney,airport,OurAirports
+6301,Moranbah Airport,Moranbah,Australia,MOV,YMRB,-22.057800293,148.07699585,770,10,O,Australia/Brisbane,airport,OurAirports
+6302,Moruya Airport,Moruya,Australia,MYA,YMRY,-35.8978004456,150.143997192,14,10,O,Australia/Sydney,airport,OurAirports
+6303,Mount Gambier Airport,Mount Gambier,Australia,MGB,YMTG,-37.745601654052734,140.78500366210938,212,9.5,O,Australia/Adelaide,airport,OurAirports
+6304,Mornington Island Airport,Mornington Island,Australia,ONG,YMTI,-16.662500381469727,139.17799377441406,33,10,O,Australia/Brisbane,airport,OurAirports
+6305,Murray Island Airport,Murray Island,Australia,MYI,YMUI,-9.91666984558,144.054992676,300,10,O,Australia/Brisbane,airport,OurAirports
+6306,Maryborough Airport,Maryborough,Australia,MBH,YMYB,-25.5133,152.714996,38,10,O,Australia/Brisbane,airport,OurAirports
+6307,Narrandera Airport,Narrandera,Australia,NRA,YNAR,-34.7022018433,146.511993408,474,10,O,Australia/Sydney,airport,OurAirports
+6308,Narrabri Airport,Narrabri,Australia,NAA,YNBR,-30.3192005157,149.82699585,788,10,O,Australia/Sydney,airport,OurAirports
+6309,Normanton Airport,Normanton,Australia,NTN,YNTN,-17.68409,141.069664,73,10,O,Australia/Brisbane,airport,OurAirports
+6310,Newman Airport,Newman,Australia,ZNE,YNWN,-23.417800903299998,119.803001404,1724,8,O,Australia/Perth,airport,OurAirports
+6311,Olympic Dam Airport,Olympic Dam,Australia,OLP,YOLD,-30.485000610399997,136.876998901,343,9.5,O,Australia/Adelaide,airport,OurAirports
+6312,Port Augusta Airport,Argyle,Australia,PUG,YPAG,-32.506900787353516,137.7169952392578,56,9.5,O,Australia/Adelaide,airport,OurAirports
+6313,Palm Island Airport,Palm Island,Australia,PMK,YPAM,-18.755300521850586,146.58099365234375,28,10,O,Australia/Brisbane,airport,OurAirports
+6314,Paraburdoo Airport,Paraburdoo,Australia,PBO,YPBO,-23.1711006165,117.745002747,1406,8,O,Australia/Perth,airport,OurAirports
+6315,Cocos (Keeling) Islands Airport,Cocos Keeling Island,Cocos (Keeling) Islands,CCK,YPCC,-12.1883001328,96.8339004517,10,6.5,U,Indian/Cocos,airport,OurAirports
+6316,Gove Airport,Gove,Australia,GOV,YPGV,-12.269399642899998,136.817993164,192,9.5,O,Australia/Darwin,airport,OurAirports
+6317,Parkes Airport,Parkes,Australia,PKE,YPKS,-33.131401062,148.238998413,1069,10,O,Australia/Sydney,airport,OurAirports
+6318,Port Lincoln Airport,Port Lincoln,Australia,PLO,YPLC,-34.6053009033,135.880004883,36,9.5,O,Australia/Adelaide,airport,OurAirports
+6319,Pormpuraaw Airport,Pormpuraaw,Australia,EDR,YPMP,-14.896451,141.60908,10,10,O,Australia/Brisbane,airport,OurAirports
+6320,Port Macquarie Airport,Port Macquarie,Australia,PQQ,YPMQ,-31.4358005524,152.863006592,12,10,O,Australia/Sydney,airport,OurAirports
+6321,Portland Airport,Portland,Australia,PTJ,YPOD,-38.31809997558594,141.4709930419922,265,10,O,Australia/Hobart,airport,OurAirports
+6322,Quilpie Airport,Quilpie,Australia,ULP,YQLP,-26.612199783325195,144.2530059814453,655,10,O,Australia/Brisbane,airport,OurAirports
+6323,Ramingining Airport,Ramingining,Australia,RAM,YRNG,-12.356399536132812,134.8979949951172,206,9.5,O,Australia/Darwin,airport,OurAirports
+6324,Roma Airport,Roma,Australia,RMA,YROM,-26.545000076300003,148.774993896,1032,10,O,Australia/Brisbane,airport,OurAirports
+6325,St George Airport,St George,Australia,SGO,YSGE,-28.049699783325195,148.59500122070312,656,10,O,Australia/Brisbane,airport,OurAirports
+6326,Shark Bay Airport,Shark Bay,Australia,MJK,YSHK,-25.8938999176,113.577003479,111,8,O,Australia/Perth,airport,OurAirports
+6327,Saibai Island Airport,Saibai Island,Australia,SBR,YSII,-9.378330230710002,142.625,15,10,O,Australia/Brisbane,airport,OurAirports
+6328,Strahan Airport,Strahan,Australia,SRN,YSRN,-42.154998779296875,145.29200744628906,20,10,O,Australia/Melbourne,airport,OurAirports
+6329,Thargomindah Airport,Thargomindah,Australia,XTG,YTGM,-27.986400604248047,143.81100463867188,433,10,O,Australia/Brisbane,airport,OurAirports
+6330,Tennant Creek Airport,Tennant Creek,Australia,TCA,YTNK,-19.6343994140625,134.18299865722656,1236,9.5,O,Australia/Darwin,airport,OurAirports
+6331,Victoria River Downs Airport,Victoria River Downs,Australia,VCD,YVRD,-16.402124404907227,131.00497436523438,89,9.5,O,Australia/Darwin,airport,OurAirports
+6332,Warraber Island Airport,Sue Islet,Australia,SYU,YWBS,-10.20829963684082,142.8249969482422,3,10,O,Australia/Brisbane,airport,OurAirports
+6333,Windorah Airport,Windorah,Australia,WNR,YWDH,-25.41309928894043,142.66700744628906,452,10,O,Australia/Brisbane,airport,OurAirports
+6334,Whyalla Airport,Whyalla,Australia,WYA,YWHA,-33.05889892578125,137.51400756835938,41,9.5,O,Australia/Adelaide,airport,OurAirports
+6335,Wiluna Airport,Wiluna,Australia,WUN,YWLU,-26.629199981689453,120.22100067138672,1649,8,O,Australia/Perth,airport,OurAirports
+6336,Wollongong Airport,Wollongong,Australia,WOL,YWOL,-34.561100006103516,150.78900146484375,31,10,O,Australia/Sydney,airport,OurAirports
+6337,Winton Airport,Winton,Australia,WIN,YWTN,-22.36359977722168,143.08599853515625,638,10,O,Australia/Brisbane,airport,OurAirports
+6338,Wynyard Airport,Burnie,Australia,BWT,YWYY,-40.9989013671875,145.7310028076172,62,10,O,Australia/Melbourne,airport,OurAirports
+6339,Yorke Island Airport,Yorke Island,Australia,OKR,YYKI,-9.752801,143.405673,10,10,O,Australia/Brisbane,airport,OurAirports
+6340,Yam Island Airport,Yam Island,Australia,XMY,YYMI,-9.90110969543457,142.7760009765625,0,10,O,Australia/Brisbane,airport,OurAirports
+6415,Waikoloa Heliport,Waikoloa Village,United States,WKL,HI07,19.9205,-155.8607,119,-10,N,Pacific/Honolulu,airport,OurAirports
+6419,Mount Keith Airport,Mount Keith,Australia,WME,YMNE,-27.286399841308594,120.55500030517578,1792,8,O,Australia/Perth,airport,OurAirports
+6511,Tekapo Aerodrome,Lake Tekapo,New Zealand,\N,NZTL,-44.0052986145,170.444000244,2496,12,Z,Pacific/Auckland,airport,OurAirports
+6758,Sege Airport,Sege,Solomon Islands,EGM,AGGS,-8.578889846801758,157.87600708007812,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+6771,Walaha Airport,Walaha,Vanuatu,WLH,NVSW,-15.411999702500001,167.690994263,151,11,U,Pacific/Efate,airport,OurAirports
+6792,Grafton Airport,Grafton,Australia,GFN,YGFN,-29.7593994140625,153.02999877929688,110,10,U,Australia/Sydney,airport,OurAirports
+6793,Orange Airport,Orange,Australia,OAG,YORG,-33.3816986084,149.132995605,3115,10,U,Australia/Sydney,airport,OurAirports
+6794,Taree Airport,Taree,Australia,TRO,YTRE,-31.8885993958,152.514007568,38,10,U,Australia/Sydney,airport,OurAirports
+6805,Goulburn Airport,Goulburn,Australia,GUL,YGLB,-34.810298919677734,149.7259979248047,2141,10,O,Australia/Sydney,airport,OurAirports
+6806,Cessnock Airport,Cessnock,Australia,CES,YCNK,-32.787498,151.341995,210,10,O,Australia/Sydney,airport,OurAirports
+6807,Scone Airport,Scone,Australia,NSO,YSCO,-32.037200927734375,150.83200073242188,745,10,O,Australia/Sydney,airport,OurAirports
+6808,Mudgee Airport,Mudgee,Australia,DGE,YMDG,-32.5625,149.610992432,1545,10,O,Australia/Sydney,airport,OurAirports
+6809,Maitland Airport,Maitland,Australia,MTL,YMND,-32.701265,151.492912,85,10,O,Australia/Sydney,airport,OurAirports
+6834,Great Barrier Aerodrome,Claris,New Zealand,GBZ,NZGB,-36.24140167236328,175.4720001220703,20,12,Z,Pacific/Auckland,airport,OurAirports
+6860,Bungle Bungle Airport,Bungle Bungle,Australia,\N,YBUU,-17.545299530029297,128.3070068359375,0,8,U,Australia/Perth,airport,OurAirports
+6867,Reykjahlíð Airport,Myvatn,Iceland,MVA,BIRL,65.65579986572266,-16.918100357055664,1030,0,N,Atlantic/Reykjavik,airport,OurAirports
+6870,Whitsunday Island Airport,Airlie Beach,Australia,WSY,YWHI,-20.27611,148.755,40,10,O,Australia/Brisbane,airport,OurAirports
+6896,RAAF Base Amberley,Amberley,Australia,\N,YAMB,-27.6406,152.712006,91,10,O,Australia/Brisbane,airport,OurAirports
+6897,Tindal Airport,Katherine,Australia,KTR,YPTN,-14.521100044250488,132.3780059814453,443,9.5,O,Australia/Darwin,airport,OurAirports
+6898,"RAAF Williams, Laverton Base",Laverton,Australia,\N,YLVT,-37.86360168457031,144.74600219726562,18,10,O,Australia/Hobart,airport,OurAirports
+6899,Nowra Airport,Nowra,Australia,NOA,YSNW,-34.94889831542969,150.53700256347656,400,10,O,Australia/Sydney,airport,OurAirports
+6914,RAAF Base Pearce,Perth,Australia,\N,YPEA,-31.667800903320312,116.01499938964844,149,8,O,Australia/Perth,airport,OurAirports
+6915,Bendigo Airport,Bendigo,Australia,BXG,YBDG,-36.7393989563,144.330001831,705,10,U,Australia/Hobart,airport,OurAirports
+6918,Ringi Cove Airport,Ringi Cove,Solomon Islands,RIN,AGRC,-8.12639045715332,157.14300537109375,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+6967,Naiu Airport,Niau,French Polynesia,NIU,NTKN,-16.1191,-146.3683,50,-10,U,Pacific/Tahiti,airport,OurAirports
+7128,Toowoomba Airport,Toowoomba,Australia,TWB,YTWB,-27.542801,151.916,2086,10,N,Australia/Brisbane,airport,OurAirports
+7129,Ballera Airport,Ballera,Australia,BBL,YLLE,-27.405633,141.809458,385,10,N,Australia/Brisbane,airport,OurAirports
+7130,Gatton Campus Airport,Gatton,Australia,\N,YGAT,-27.5604060653,152.340459824,0,10,N,Australia/Brisbane,airport,OurAirports
+7320,Abaiang Airport,Abaiang Atoll,Kiribati,ABF,NGAB,1.798609972000122,173.04100036621094,0,12,U,Pacific/Tarawa,airport,OurAirports
+7456,Raivavae Airport,Raivavae,French Polynesia,RVV,NTAV,-23.885200500499998,-147.662002563,7,-10,N,Pacific/Tahiti,airport,OurAirports
+7464,Bildudalur Airport,Bildudalur,Iceland,BIU,BIBD,65.64129638671875,-23.546199798583984,18,0,N,Atlantic/Reykjavik,airport,OurAirports
+7465,Gjögur Airport,Gjogur,Iceland,GJR,BIGJ,65.99530029296875,-21.326900482177734,83,0,N,Atlantic/Reykjavik,airport,OurAirports
+7466,Sauðárkrókur Airport,Saudarkrokur,Iceland,SAK,BIKR,65.73169708249999,-19.572799682599996,8,0,N,Atlantic/Reykjavik,airport,OurAirports
+7467,Selfoss Airport,Selfoss,Iceland,\N,BISF,63.92919921875,-21.037799835205078,45,0,N,Atlantic/Reykjavik,airport,OurAirports
+7517,Ryan's Creek Aerodrome,Stewart Island,New Zealand,SZS,NZRC,-46.8997,168.100998,62,12,U,Pacific/Auckland,airport,OurAirports
+7518,Assumption Island Airport,Assumption Island,Seychelles,\N,FSAS,-9.7422199993,46.506802,10,4,U,Indian/Mahe,airport,OurAirports
+7566,Barrow Island Airport,Barrow Island,Australia,BWB,YBWX,-20.86440086364746,115.40599822998047,26,8,U,Australia/Perth,airport,OurAirports
+7569,Derby Airport,Derby,Australia,DRB,YDBY,-17.3700008392334,123.66100311279297,24,8,U,Australia/Perth,airport,OurAirports
+7570,Walgett Airport,Walgett,Australia,WGE,YWLG,-30.032800674438477,148.12600708007812,439,10,U,Australia/Sydney,airport,OurAirports
+7571,Bathurst Island Airport,Bathurst Island,Australia,BRT,YBTI,-11.769200325012207,130.6199951171875,67,9.5,U,Australia/Darwin,airport,OurAirports
+7572,Dunk Island Airport,Dunk Island,Australia,DKI,YDKI,-17.9416999817,146.13999939,6,10,U,Australia/Brisbane,airport,OurAirports
+7573,Lizard Island Airport,Lizard Island,Australia,LZR,YLZI,-14.673273,145.454571,70,10,O,Australia/Brisbane,airport,OurAirports
+7574,Hamilton Airport,Hamilton,Australia,HLT,YHML,-37.64889907836914,142.06500244140625,803,10,O,Australia/Hobart,airport,OurAirports
+7575,Halls Creek Airport,Halls Creek,Australia,HCQ,YHLC,-18.23390007019043,127.66999816894531,1346,8,U,Australia/Perth,airport,OurAirports
+7576,Fitzroy Crossing Airport,Fitzroy Crossing,Australia,FIZ,YFTZ,-18.181900024414062,125.55899810791016,368,8,U,Australia/Perth,airport,OurAirports
+7577,Ravensthorpe Airport,Ravensthorpe,Australia,RVT,YNRV,-33.7971992493,120.208000183,197,8,U,Australia/Perth,airport,OurAirports
+7589,Marakei Airport,Marakei,Kiribati,MZK,NGMK,2.058609962463379,173.27099609375,10,12,U,Pacific/Tarawa,airport,OurAirports
+7590,Abemama Atoll Airport,Abemama,Kiribati,AEA,NGTB,0.49083301424980164,173.82899475097656,8,12,U,Pacific/Tarawa,airport,OurAirports
+7592,Kuria Airport,Kuria,Kiribati,KUC,NGKT,0.2186110019683838,173.44200134277344,0,12,U,Pacific/Tarawa,airport,OurAirports
+7593,Arorae Island Airport,Arorae,Kiribati,AIS,NGTR,-2.61611008644104,176.80299377441406,0,12,U,Pacific/Tarawa,airport,OurAirports
+7594,Tamana Island Airport,Tamana,Kiribati,TMN,NGTM,-2.485830068588257,175.97000122070312,0,12,U,Pacific/Tarawa,airport,OurAirports
+7595,Beru Airport,Beru Island,Kiribati,BEZ,NGBR,-1.3547199964523315,176.0070037841797,6,12,U,Pacific/Tarawa,airport,OurAirports
+7596,Nikunau Airport,Nikunau,Kiribati,NIG,NGNU,-1.31444001198,176.410003662,6,12,U,Pacific/Tarawa,airport,OurAirports
+7597,Butaritari Atoll Airport,Butaritari,Kiribati,BBG,NGTU,3.08583,172.811005,5,12,U,Pacific/Tarawa,airport,OurAirports
+7598,Makin Island Airport,Makin,Kiribati,MTK,NGMN,3.3744399547576904,172.99200439453125,0,12,U,Pacific/Tarawa,airport,OurAirports
+7599,Maiana Airport,Maiana,Kiribati,MNK,NGMA,1.0036100149154663,173.031005859375,8,12,U,Pacific/Tarawa,airport,OurAirports
+7600,Nonouti Airport,Nonouti,Kiribati,NON,NGTO,-0.6397219896316528,174.42799377441406,10,12,U,Pacific/Tarawa,airport,OurAirports
+7601,Tabiteuea South Airport,Tabiteuea,Kiribati,TSU,NGTS,-1.4744399785995483,175.06399536132812,0,12,U,Pacific/Tarawa,airport,OurAirports
+7610,Whitianga Airport,Whitianga,New Zealand,WTZ,NZWT,-36.83169937133789,175.6790008544922,10,12,U,Pacific/Auckland,airport,OurAirports
+7611,Takaka Airport,Takaka,New Zealand,KTF,NZTK,-40.81330108642578,172.77499389648438,102,12,U,Pacific/Auckland,airport,OurAirports
+7615,Afutara Aerodrome,Afutara,Solomon Islands,AFT,AGAF,-9.19138888889,160.948611111,23,11,U,Pacific/Guadalcanal,airport,OurAirports
+7616,Ulawa Airport,Ulawa,Solomon Islands,RNA,AGAR,-9.86054358262,161.979546547,40,11,U,Pacific/Guadalcanal,airport,OurAirports
+7617,Choiseul Bay Airport,Choiseul Bay,Solomon Islands,CHY,AGGC,-6.711944,156.396111,0,11,U,Pacific/Guadalcanal,airport,OurAirports
+7618,Santa Ana Airport,Santa Ana,Solomon Islands,NNB,AGGT,-10.847994,162.454108,3,11,U,Pacific/Guadalcanal,airport,OurAirports
+7619,Yandina Airport,Yandina,Solomon Islands,XYA,AGGY,-9.092816,159.21841,60,11,U,Pacific/Guadalcanal,airport,OurAirports
+7620,Batuna Aerodrome,Batuna,Solomon Islands,BPF,AGBT,-8.56202777778,158.119305556,24,11,U,Pacific/Guadalcanal,airport,OurAirports
+7627,Fitiuta Airport,Fiti\'uta,American Samoa,FTI,NSFQ,-14.2172,-169.425003,110,-11,U,Pacific/Pago_Pago,airport,OurAirports
+7674,Wake Island Airfield,Wake island,Wake Island,AWK,PWAK,19.282100677490234,166.63600158691406,14,-10,U,Pacific/Johnston,airport,OurAirports
+7704,Geelong Airport,Geelong,Australia,GEX,YGLG,-38.224998474121094,144.33299255371094,43,10,O,Australia/Hobart,airport,OurAirports
+7782,Penneshaw Airport,Penneshaw,Australia,PEA,YPSH,-35.7558462874,137.962875366,0,9.5,O,Australia/Adelaide,airport,OurAirports
+7811,Redcliffe Airport,Rothwell,Australia,\N,YRED,-27.20669937133789,153.0679931640625,2,10,U,Australia/Brisbane,airport,OurAirports
+7879,Phillip Island Airport,Phillip Island,Australia,\N,YPID,-38.52330017089844,145.32699584960938,13,10,O,Australia/Hobart,airport,OurAirports
+7912,Cooinda Airport,Cooinda,Australia,CDA,YCOO,-12.903300285339355,132.53199768066406,13,9.5,U,Australia/Darwin,airport,OurAirports
+7913,Jabiru Airport,Jabiru,Australia,JAB,YJAB,-12.658300399780273,132.89300537109375,85,9.5,U,Australia/Darwin,airport,OurAirports
+8165,Mykines Heliport,Mykines,Faroe Islands,\N,EKMS,62.1021003723,-7.645919799800001,110,0,E,Atlantic/Faeroe,airport,OurAirports
+8265,Telfer Airport,Telfer,Australia,TEF,YTEF,-21.71500015258789,122.22899627685547,970,8,N,Australia/Perth,airport,OurAirports
+8348,Renmark Airport,Renmark,Australia,RMK,YREN,-34.1963996887207,140.6739959716797,115,9.5,O,Australia/Adelaide,airport,OurAirports
+8349,Leigh Creek Airport,Leigh Creek,Australia,LGH,YLEC,-30.59830093383789,138.42599487304688,856,9.5,O,Australia/Adelaide,airport,OurAirports
+8350,Warburton Airport,Warburton Community,Australia,\N,YWBR,-26.128299713134766,126.58300018310547,1500,8,O,Australia/Perth,airport,OurAirports
+8351,Cunderdin Airport,Cunderdin,Australia,\N,YCUN,-31.62220001220703,117.21700286865234,705,8,O,Australia/Perth,airport,OurAirports
+8352,Rottnest Island Airport,Rottnest Island,Australia,RTS,YRTI,-32.006699,115.540001,12,8,O,Australia/Perth,airport,OurAirports
+8353,Forrest Airport,Forrest,Australia,FOS,YFRT,-30.83810043334961,128.11500549316406,511,8,O,Australia/Perth,airport,OurAirports
+8354,Ballarat Airport,Ballarat,Australia,\N,YBLT,-37.51169967651367,143.79100036621094,1433,10,O,Australia/Hobart,airport,OurAirports
+8380,Mallacoota Airport,Mallacoota,Australia,XMC,YMCO,-37.59830093383789,149.72000122070312,31,10,U,Australia/Hobart,airport,OurAirports
+8395,Yuendumu Airport,Yuendumu ,Australia,YUE,YYND,-22.254199981689453,131.78199768066406,2205,9.5,O,Australia/Darwin,airport,OurAirports
+8406,Yarram Airport,Yarram,Australia,\N,YYRM,-38.56669998168945,146.7550048828125,15,10,O,Australia/Hobart,airport,OurAirports
+8461,General Villamil Airport,Isabela,Ecuador,IBB,SEII,-0.942628026009,-90.9530029297,35,-6,N,Pacific/Galapagos,airport,OurAirports
+8472,Yalata Mission Airport,Yalata,Australia,KYI,YYTA,-31.470600128173828,131.8249969482422,0,9.5,O,Australia/Adelaide,airport,OurAirports
+8476,Wyndham Airport,Wyndham,Australia,WYN,YWYM,-15.51140022277832,128.1529998779297,14,8,U,Australia/Perth,airport,OurAirports
+8696,Beverley Airport,Mine Site,Australia,\N,YBEE,-30.18670082092285,139.55799865722656,116,9.5,O,Australia/Adelaide,airport,OurAirports
+8721,Antsirabe Airport,Antsirabe,Madagascar,ATJ,FMME,-19.8392214824,47.063713073699994,4997,3,U,Indian/Antananarivo,airport,OurAirports
+8722,Bekily Airport,Bekily,Madagascar,OVA,FMSL,-24.235694754699995,45.3045272827,1270,3,U,Indian/Antananarivo,airport,OurAirports
+8782,Cooma Hospital Helipad,Yuzhno-Kurilsk,Russia,\N,YXCM,-36.242155,149.130147,2656,10,N,Australia/Sydney,airport,OurAirports
+8820,Great Keppel Is Airport,Great Keppel Island,Australia,GKL,YGKL,-23.1833000183,150.942001343,21,10,U,Australia/Brisbane,airport,OurAirports
+8821,Roper Bar Airport,Roper Bar,Australia,RPB,YRRB,-14.734814,134.525485,92,9.5,U,Australia/Darwin,airport,OurAirports
+8822,Mount Garnet Airport,Mount Garnet,Australia,\N,YMRT,-17.700000762939453,145.14999389648438,657,10,U,Australia/Brisbane,airport,OurAirports
+8823,Innisfail Airport,Innisfail,Australia,IFL,YIFL,-17.55940055847168,146.01199340820312,46,10,U,Australia/Brisbane,airport,OurAirports
+8824,Kalaeloa Airport,Kapolei,United States,JRF,PHJR,21.3074,-158.070009,30,-10,U,Pacific/Honolulu,airport,OurAirports
+8831,Moomba Airport,Moomba,Australia,MOO,YOOM,-28.09939956665039,140.19700622558594,143,9.5,O,Australia/Adelaide,airport,OurAirports
+8840,Villa Airport,Maamigili,Maldives,VAM,VRMV,3.47055555556,72.8358333333,6,5,U,Indian/Maldives,airport,OurAirports
+8847,Onslow Airport,Onslow,Australia,ONS,YOLW,-21.668300628662,115.1129989624,7,8,O,Australia/Perth,airport,OurAirports
+8848,Theodore Airport,Theodore,Australia,TDR,YTDR,-24.99329948425293,150.09300231933594,171,10,N,Australia/Brisbane,airport,OurAirports
+8892,Kooddoo Airport,Kooddoo,Maldives,GKK,VRMO,0.7324,73.4336,29,5,U,Indian/Maldives,airport,OurAirports
+8980,Chinchilla Airport,Chinchilla,Australia,CCL,YCCA,-26.774999618530273,150.61700439453125,1028,10,O,Australia/Brisbane,airport,OurAirports
+8983,Motueka Airport,Motueka,New Zealand,MZP,NZMK,-41.12329864501953,172.98899841308594,39,12,Z,Pacific/Auckland,airport,OurAirports
+8984,Shute Harbour Airport,Shute Harbour,Australia,JHQ,YSHR,-20.277221,148.755556,12,10,O,Australia/Brisbane,airport,OurAirports
+8994,Shepparton Airport,Shepparton,Australia,SHT,YSHT,-36.42890167236328,145.39300537109375,374,10,O,Australia/Hobart,airport,OurAirports
+8995,Temora Airport,Temora,Australia,TEM,YTEM,-34.4213981628418,147.51199340820312,921,10,O,Australia/Sydney,airport,OurAirports
+8996,Gayndah Airport,Gayndah,Australia,GAH,YGAY,-25.61440086364746,151.61900329589844,369,10,N,Australia/Brisbane,airport,OurAirports
+8998,Wilcannia Airport,Wilcannia,Australia,WIO,YWCA,-31.526399612426758,143.375,250,10,O,Australia/Sydney,airport,OurAirports
+9001,Ivanhoe Airport,Ivanhoe,Australia,\N,YIVO,-32.88330078125,144.30999755859375,330,10,O,Australia/Sydney,airport,OurAirports
+9002,Menindee Airport,Menindee,Australia,\N,YMED,-32.36669921875,142.40499877929688,0,10,O,Australia/Sydney,airport,OurAirports
+9004,Pooncarie Airport,Pooncarie,Australia,\N,YPCE,-33.36669921875,142.58799743652344,50,10,O,Australia/Sydney,airport,OurAirports
+9006,Tilpa Airport,Tilpa,Australia,\N,YTLP,-30.933300018310547,144.41700744628906,0,10,O,Australia/Sydney,airport,OurAirports
+9065,Lake Macquarie Airport,Lake Macquarie,Australia,BEO,YPEC,-33.0667,151.647995,2,10,O,Australia/Sydney,airport,OurAirports
+9068,Brampton Island Airport,Brampton Island,Australia,BMP,YBPI,-20.803300857543945,149.27000427246094,11,10,O,Australia/Brisbane,airport,OurAirports
+9090,Busselton Regional Airport,Brusselton,Australia,BQB,YBLN,-33.6884231567,115.401596069,55,8,O,Australia/Perth,airport,OurAirports
+9095,Inverell Airport,Inverell,Australia,IVR,YIVL,-29.888299942,151.143997192,2667,10,O,Australia/Sydney,airport,OurAirports
+9096,Glen Innes Airport,Glen Innes,Australia,GLI,YGLI,-29.674999237060547,151.68899536132812,3433,10,O,Australia/Sydney,airport,OurAirports
+9127,Fortescue - Dave Forrest Aerodrome,Cloudbreak,Australia,KFE,YFDF,-22.290754,119.437143,1555,8,N,Australia/Perth,airport,OurAirports
+9146,Solomon Airport,Solomon,Australia,SLJ,YSOL,-22.2554,117.7627,2030,8,N,Australia/Perth,airport,OurAirports
+9175,Tetiaroa Airport,Tetiaroa,French Polynesia,TTI,NTTE,-17.0132999420166,-149.58700561523438,7,-10,N,Pacific/Tahiti,airport,OurAirports
+9193,Coonabarabran Airport,Coonabarabran,Australia,COJ,YCBB,-31.332500457763672,149.26699829101562,2117,10,O,Australia/Sydney,airport,OurAirports
+9207,Warnervale Airport,Warnervale Airport,Australia,\N,YWVA,-33.240278,151.429722,25,10,U,Australia/Sydney,airport,OurAirports
+9394,Norðfjörður Airport,Nordfjordur,Iceland,NOR,BINF,65.13189697265625,-13.746399879455566,13,0,E,Atlantic/Reykjavik,airport,OurAirports
+9402,Bairnsdale Airport,Bairnsdale,Australia,BSJ,YBNS,-37.88750076293945,147.5679931640625,165,10,O,Australia/Hobart,airport,OurAirports
+9532,Prominent Hill Airport,Prominent Hill,Australia,PXH,YPMH,-29.716,135.5244,745,9.5,O,Australia/Adelaide,airport,OurAirports
+9533,Cowra Airport,Chatsworth,Australia,CWT,YCWR,-33.84469985961914,148.6490020751953,966,10,A,Australia/Sydney,airport,OurAirports
+9542,Coral Bay Airport,Coral Bay,Australia,\N,YCOY,-23.1299991607666,113.7770004272461,5,8,O,Australia/Perth,airport,OurAirports
+9818,Lilydale Airport,Lilydale,Australia,\N,YLIL,-37.69169998168945,145.36700439453125,76,10,O,Australia/Hobart,airport,OurAirports
+9853,Toowoomba Wellcamp Airport,Toowoomba,Australia,WTB,YBWW,-27.558332,151.793335,1509,10,N,Australia/Brisbane,airport,OurAirports

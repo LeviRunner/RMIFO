@@ -1,0 +1,34 @@
+{
+  "input": {
+    "airports": "data/public_cache/airports.dat",
+    "routes": "data/public_cache/routes.dat"
+  },
+  "output_dir": "data/public_cache/continent_split",
+  "totals": {
+    "airports_rows": 7698,
+    "routes_rows": 67663,
+    "airports_mapped": 7698,
+    "routes_resolved": 67240,
+    "routes_unresolved": 423
+  },
+  "airports_by_continent": {
+    "Oceania": 633,
+    "America": 2593,
+    "Africa": 618,
+    "Europe": 1472,
+    "Arctic": 4,
+    "Asia": 1349,
+    "Unknown": 1021,
+    "Antarctica": 8
+  },
+  "routes_from_continent": {
+    "Europe": 19947,
+    "Asia": 20302,
+    "America": 20220,
+    "Africa": 3085,
+    "Oceania": 3176,
+    "Unknown": 507,
+    "Arctic": 3
+  },
+  "routes_by_pair_count": 38
+}
