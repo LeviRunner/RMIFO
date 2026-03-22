@@ -1,9 +1,0 @@
-index,continent,file_name,airports_count
-1,Africa,01_africa_airports.dat,618
-2,America,02_america_airports.dat,2593
-3,Antarctica,03_antarctica_airports.dat,8
-4,Arctic,04_arctic_airports.dat,4
-5,Asia,05_asia_airports.dat,1349
-6,Europe,06_europe_airports.dat,1472
-7,Oceania,07_oceania_airports.dat,633
-8,Unknown,08_unknown_airports.dat,1021

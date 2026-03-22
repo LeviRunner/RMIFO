@@ -1,8 +1,0 @@
-index,source_continent,file_name,routes_count
-1,Africa,01_africa_routes_from.dat,3085
-2,America,02_america_routes_from.dat,20220
-3,Arctic,03_arctic_routes_from.dat,3
-4,Asia,04_asia_routes_from.dat,20302
-5,Europe,05_europe_routes_from.dat,19947
-6,Oceania,06_oceania_routes_from.dat,3176
-7,Unknown,07_unknown_routes_from.dat,507
