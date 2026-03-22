@@ -135,11 +135,11 @@ def export_dataframe_to_csv(df, output_path: str, coalesce: bool = True) -> None
         
         df.write.csv(output_path, header=True, mode="overwrite")
         logger = get_logger(__name__)
-        logger.info(f"✓ DataFrame exportado para {output_path}")
+        self.logger.info(f"[OK] DataFrame exportado para {output_path}")
     
     except Exception as e:
         logger = get_logger(__name__)
-        logger.error(f"❌ Erro ao exportar DataFrame: {e}")
+        logger.error(f"[ERRO] Erro ao exportar DataFrame: {e}")
         raise
 
 
@@ -154,11 +154,11 @@ def export_dataframe_to_parquet(df, output_path: str) -> None:
     try:
         df.write.parquet(output_path, mode="overwrite")
         logger = get_logger(__name__)
-        logger.info(f"✓ DataFrame exportado para {output_path}")
+        logger.info(f"[OK] DataFrame exportado para {output_path}")
     
     except Exception as e:
         logger = get_logger(__name__)
-        logger.error(f"❌ Erro ao exportar DataFrame: {e}")
+        logger.error(f"[ERRO] Erro ao exportar DataFrame: {e}")
         raise
 
 
@@ -180,11 +180,11 @@ def export_results_to_json(results: Dict[str, Any], output_path: str) -> None:
             json.dump(results_serializable, f, indent=2, ensure_ascii=False)
         
         logger = get_logger(__name__)
-        logger.info(f"✓ Resultados exportados para {output_path}")
+        logger.info(f"[OK] Resultados exportados para {output_path}")
     
     except Exception as e:
         logger = get_logger(__name__)
-        logger.error(f"❌ Erro ao exportar JSON: {e}")
+        logger.error(f"[ERRO] Erro ao exportar JSON: {e}")
         raise
 
 
@@ -340,7 +340,7 @@ class Timer:
     
     def __exit__(self, *args):
         elapsed = (datetime.now() - self.start_time).total_seconds()
-        self.logger.info(f"⏱️  {self.name}: {elapsed:.2f}s")
+        self.logger.info(f"⏱  {self.name}: {elapsed:.2f}s")
 
 
 # ============================================================================

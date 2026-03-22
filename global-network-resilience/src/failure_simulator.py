@@ -86,7 +86,7 @@ class NodeFailureSimulator:
             
             degraded_graph = GraphFrame(vertices, edges)
             
-            self.logger.info(f"🔴 Nó {failed_node_id} falhou | Arestas removidas: {graph.edges.count() - edges.count()}")
+            self.logger.info(f" Nó {failed_node_id} falhou | Arestas removidas: {graph.edges.count() - edges.count()}")
             
             return degraded_graph
         
@@ -117,7 +117,7 @@ class NodeFailureSimulator:
             
             degraded_graph = GraphFrame(vertices, edges)
             
-            self.logger.info(f"🔴 {len(failed_node_ids)} nós falharam | Novo grafo: "
+            self.logger.info(f" {len(failed_node_ids)} nós falharam | Novo grafo: "
                            f"{vertices.count()} nós, {edges.count()} arestas")
             
             return degraded_graph
@@ -163,7 +163,7 @@ class EdgeFailureSimulator:
             
             degraded_graph = GraphFrame(graph.vertices, edges)
             
-            self.logger.info(f"🔗 Cabo {source_node_id}-{dest_node_id} foi cortado")
+            self.logger.info(f"[OK] Cabo {source_node_id}-{dest_node_id} foi cortado")
             
             return degraded_graph
         
@@ -195,7 +195,7 @@ class EdgeFailureSimulator:
             
             degraded_graph = GraphFrame(graph.vertices, edges)
             
-            self.logger.info(f"🔗 {len(edge_pairs)} cabos foram cortados | "
+            self.logger.info(f"[OK] {len(edge_pairs)} cabos foram cortados | "
                            f"Arestas restantes: {edges.count()}")
             
             return degraded_graph
@@ -291,7 +291,7 @@ class FailureSimulator:
     def set_base_graph(self, graph: GraphFrame) -> None:
         """Define grafo base para simulações."""
         self.original_graph = graph
-        self.logger.info(f"📌 Grafo base definido: {graph.vertices.count()} nós")
+        self.logger.info(f"[INFO] Grafo base definido: {graph.vertices.count()} nós")
     
     def simulate_node_failure(self, node_id: any) -> Tuple[GraphFrame, FailureImpact]:
         """Simula falha de um nó."""
@@ -367,7 +367,7 @@ class FailureSimulator:
                 _, impact = self.simulate_edge_failure(edge.src, edge.dst)
                 impacts.append(impact)
         
-        self.logger.info(f"✓ {num_scenarios} simulações de {failure_type} completadas")
+        self.logger.info(f"[OK] {num_scenarios} simulações de {failure_type} completadas")
         
         return impacts
     
@@ -379,7 +379,7 @@ class FailureSimulator:
         
         for impact in impacts[:5]:  # Mostra top 5
             self.logger.info(f"\n{impact.scenario}")
-            self.logger.info(f"  • Nós afetados: {impact.nodes_affected}")
-            self.logger.info(f"  • Arestas afetadas: {impact.edges_affected}")
-            self.logger.info(f"  • Perda de conectividade: {impact.connectivity_loss:.2f}%")
-            self.logger.info(f"  • Aumento de latência: {impact.avg_latency_increase:.2f}%")
+            self.logger.info(f"   Nós afetados: {impact.nodes_affected}")
+            self.logger.info(f"   Arestas afetadas: {impact.edges_affected}")
+            self.logger.info(f"   Perda de conectividade: {impact.connectivity_loss:.2f}%")
+            self.logger.info(f"   Aumento de latência: {impact.avg_latency_increase:.2f}%")

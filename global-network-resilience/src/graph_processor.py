@@ -66,7 +66,7 @@ class TopologyGraphBuilder:
             v_count = graph.vertices.count()
             e_count = graph.edges.count()
             
-            self.logger.info(f"✓ Grafo construído com sucesso: {v_count} vértices, {e_count} arestas")
+            self.logger.info(f"[OK] Grafo construído com sucesso: {v_count} vértices, {e_count} arestas")
             
             return graph
         
@@ -113,7 +113,7 @@ class GraphAnalyzer:
                 'density': (2 * num_edges) / (num_vertices * (num_vertices - 1)) if num_vertices > 1 else 0
             }
             
-            self.logger.info(f"📊 Métricas básicas: {num_vertices} vértices, {num_edges} arestas")
+            self.logger.info(f"[INFO] Métricas básicas: {num_vertices} vértices, {num_edges} arestas")
             return metrics
         
         except Exception as e:
@@ -136,7 +136,7 @@ class GraphAnalyzer:
             results = graph.pageRank.maxIter(max_iterations).resetProbability(reset_probability).run()
             pagerank_df = results.vertices.select("id", "pagerank")
             
-            self.logger.info(f"✓ PageRank computado ({max_iterations} iterações)")
+            self.logger.info(f"[OK] PageRank computado ({max_iterations} iterações)")
             return pagerank_df
         
         except Exception as e:
@@ -157,7 +157,7 @@ class GraphAnalyzer:
             components_df = results.vertices.select("id", "component")
             
             num_components = components_df.select("component").distinct().count()
-            self.logger.info(f"✓ {num_components} componentes conectadas encontradas")
+            self.logger.info(f"[OK] {num_components} componentes conectadas encontradas")
             
             return components_df
         
@@ -178,7 +178,7 @@ class GraphAnalyzer:
         try:
             results = graph.shortestPaths.landmarks(landmarks).run()
             
-            self.logger.info(f"✓ Caminhos mais curtos computados para {len(landmarks)} landmarks")
+            self.logger.info(f"[OK] Caminhos mais curtos computados para {len(landmarks)} landmarks")
             return results.vertices
         
         except Exception as e:
@@ -198,7 +198,7 @@ class GraphAnalyzer:
             results = graph.triangleCount.run()
             triangle_df = results.vertices.select("id", "count")
             
-            self.logger.info(f"✓ Contagem de triângulos computada")
+            self.logger.info(f"[OK] Contagem de triângulos computada")
             return triangle_df
         
         except Exception as e:
@@ -238,7 +238,7 @@ class CriticalityAnalyzer:
             
             critical_nodes = pagerank_df.filter(col("pagerank") >= percentile_value)
             
-            self.logger.info(f"🎯 {critical_nodes.count()} nós críticos identificados (threshold={threshold})")
+            self.logger.info(f"[INFO] {critical_nodes.count()} nós críticos identificados (threshold={threshold})")
             
             return critical_nodes.orderBy("pagerank", ascending=False)
         
@@ -260,7 +260,7 @@ class CriticalityAnalyzer:
             # Em produção, seria necessário algoritmo customizado
             pagerank_df = self.analyzer.compute_pagerank(graph)
             
-            self.logger.info("✓ Betweenness (aproximado via PageRank) calculado")
+            self.logger.info("[OK] Betweenness (aproximado via PageRank) calculado")
             return pagerank_df
         
         except Exception as e:
@@ -337,9 +337,9 @@ class GraphProcessor:
                 threshold=self.config.analysis_config.criticality_threshold
             )
             
-            self.logger.info("✓ Análise de rede completa!")
+            self.logger.info("[OK] Análise de rede completa!")
             return results
         
         except Exception as e:
-            self.logger.error(f"❌ Erro na análise de rede: {e}")
+            self.logger.error(f"[ERRO] Erro na análise de rede: {e}")
             raise

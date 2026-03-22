@@ -43,7 +43,7 @@ class RMIFOPipeline:
         
         self.results = {}
         
-        self.logger.info("✓ Pipeline RMIFO inicializado")
+        self.logger.info("[OK] Pipeline RMIFO inicializado")
     
     def _initialize_spark(self) -> SparkSession:
         """Inicializa SparkSession com configurações."""
@@ -60,10 +60,10 @@ class RMIFOPipeline:
             builder = builder.config("spark.jars.packages",
                                    "graphframes:graphframes:0.8.2-spark3.2-s_2.12")
         except:
-            self.logger.warning("⚠️ GraphFrames pode não estar instalado")
+            self.logger.warning("[AVISO] GraphFrames pode não estar instalado")
         
         spark = builder.getOrCreate()
-        self.logger.info(f"✓ SparkSession criado: {spark_config.app_name}")
+        self.logger.info(f"[OK] SparkSession criado: {spark_config.app_name}")
         
         return spark
     
@@ -78,10 +78,10 @@ class RMIFOPipeline:
         
         self.results['data'] = data
         
-        self.logger.info(f"✓ Topologia: {data['topology'].count()} nós")
-        self.logger.info(f"✓ Cabos: {data['cables'].count()} cabos")
+        self.logger.info(f"[OK] Topologia: {data['topology'].count()} nós")
+        self.logger.info(f"[OK] Cabos: {data['cables'].count()} cabos")
         if data['geoip']:
-            self.logger.info(f"✓ GeoIP: {data['geoip'].count()} registros")
+            self.logger.info(f"[OK] GeoIP: {data['geoip'].count()} registros")
         
         return data
     
@@ -111,16 +111,16 @@ class RMIFOPipeline:
         
         # Log dos resultados
         metrics = analysis_results['basic_metrics']
-        self.logger.info(f"\n📊 Métricas da Rede:")
-        self.logger.info(f"  • Vértices: {metrics['num_vertices']}")
-        self.logger.info(f"  • Arestas: {metrics['num_edges']}")
-        self.logger.info(f"  • Grau médio: {metrics['avg_in_degree']:.2f}")
-        self.logger.info(f"  • Densidade: {metrics['density']:.4f}")
+        self.logger.info(f"\n[INFO] Métricas da Rede:")
+        self.logger.info(f"  * Vértices: {metrics['num_vertices']}")
+        self.logger.info(f"  * Arestas: {metrics['num_edges']}")
+        self.logger.info(f"  * Grau médio: {metrics['avg_in_degree']:.2f}")
+        self.logger.info(f"  * Densidade: {metrics['density']:.4f}")
         
         critical_nodes = analysis_results['critical_nodes'].collect()
-        self.logger.info(f"\n🎯 Nós Críticos Identificados: {len(critical_nodes)}")
+        self.logger.info(f"\n[INFO] Nós Críticos Identificados: {len(critical_nodes)}")
         for row in critical_nodes[:5]:  # Top 5
-            self.logger.info(f"  • Nó {row.id}: PageRank = {row.pagerank:.4f}")
+            self.logger.info(f"  * Nó {row.id}: PageRank = {row.pagerank:.4f}")
         
         return analysis_results
     
@@ -156,8 +156,8 @@ class RMIFOPipeline:
         }
         
         # Análise de impactos
-        self.logger.info(f"\n📊 Análise de Impactos:")
-        self.logger.info(f"  • Falhas de Nó ({len(node_impacts)} cenários)")
+        self.logger.info(f"\n[INFO] Análise de Impactos:")
+        self.logger.info(f"  * Falhas de Nó ({len(node_impacts)} cenários)")
         
         if node_impacts:
             avg_connectivity_loss = sum(i.connectivity_loss for i in node_impacts) / len(node_impacts)
@@ -165,7 +165,7 @@ class RMIFOPipeline:
             self.logger.info(f"    - Perda de conectividade média: {avg_connectivity_loss:.2f}%")
             self.logger.info(f"    - Aumento de latência médio: {avg_latency:.2f}%")
         
-        self.logger.info(f"  • Falhas de Aresta ({len(edge_impacts)} cenários)")
+        self.logger.info(f"  * Falhas de Aresta ({len(edge_impacts)} cenários)")
         if edge_impacts:
             avg_connectivity_loss = sum(i.connectivity_loss for i in edge_impacts) / len(edge_impacts)
             avg_latency = sum(i.avg_latency_increase for i in edge_impacts) / len(edge_impacts)
@@ -204,7 +204,7 @@ class RMIFOPipeline:
                 export_dataframe_to_parquet(critical_nodes_df,
                                           str(output_path / "critical_nodes"))
         
-        self.logger.info(f"✓ Resultados exportados em {output_path}")
+        self.logger.info(f"[OK] Resultados exportados em {output_path}")
     
     def run_full_pipeline(self, output_dir: str = "results", num_simulations: int = 10) -> None:
         """
@@ -235,11 +235,11 @@ class RMIFOPipeline:
             self.stage_5_export_results(output_dir)
             
             self.logger.info("\n" + "="*70)
-            self.logger.info("✓ PIPELINE RMIFO COMPLETADO COM SUCESSO")
+            self.logger.info("[OK] PIPELINE RMIFO COMPLETADO COM SUCESSO")
             self.logger.info("="*70)
         
         except Exception as e:
-            self.logger.error(f"❌ ERRO NO PIPELINE: {e}")
+            self.logger.error(f"[ERRO] ERRO NO PIPELINE: {e}")
             raise
         
         finally:

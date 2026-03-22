@@ -19,15 +19,15 @@ Score de criticidade para cada nó/aresta que mensura o impacto sistêmico se in
 
 ```
 src/
-├── config.py                 # 🔧 Gerenciamento centralizado de configurações
-├── data_ingestion.py        # 📥 Carregamento de dados (CAIDA, cabos, GeoIP)
-├── graph_processor.py       # 📊 Processamento de grafos com GraphFrames
-├── failure_simulator.py     # ⚡ Simulação de falhas de nós/arestas
-├── utils.py                 # 🛠️ Funções auxiliares (logging, export, etc)
-└── __init__.py             # 📦 Exports do pacote
+ config.py                 #  Gerenciamento centralizado de configurações
+ data_ingestion.py        #  Carregamento de dados (CAIDA, cabos, GeoIP)
+ graph_processor.py       #  Processamento de grafos com GraphFrames
+ failure_simulator.py     #  Simulação de falhas de nós/arestas
+ utils.py                 #  Funções auxiliares (logging, export, etc)
+ __init__.py             #  Exports do pacote
 
-main.py                      # 🚀 Orquestrador do pipeline completo
-config/main_config.yaml      # ⚙️ Configurações centralizadas
+main.py                      #  Orquestrador do pipeline completo
+config/main_config.yaml      #  Configurações centralizadas
 ```
 
 ### Módulos & Responsabilidades
@@ -149,15 +149,15 @@ python main.py
 
 **Saída esperada:**
 ```
-✓ Pipeline RMIFO inicializado
-✓ SparkSession criado
-✓ Topologia carregada: 100 nós (dados de exemplo)
-✓ Cabos carregados: 50 cabos
-✓ Grafo construído: 100 vértices, 50 arestas
-✓ Análise de rede completa!
-✓ 10 simulações de nó completadas
-✓ 10 simulações de aresta completadas
-✓ Resultados exportados em results/
+ Pipeline RMIFO inicializado
+ SparkSession criado
+ Topologia carregada: 100 nós (dados de exemplo)
+ Cabos carregados: 50 cabos
+ Grafo construído: 100 vértices, 50 arestas
+ Análise de rede completa!
+ 10 simulações de nó completadas
+ 10 simulações de aresta completadas
+ Resultados exportados em results/
 ```
 
 ---
@@ -264,10 +264,9 @@ analysis:
 ---
 
 ## Extensibilidade
-
 A estrutura modularizada permite:
 
-### ➕ Adicionar novo carregador de dados
+###  Adicionar novo carregador de dados
 ```python
 # em src/data_ingestion.py
 class MyDataLoader:
@@ -276,7 +275,7 @@ class MyDataLoader:
         return df
 ```
 
-### ➕ Novo algoritmo de grafo
+###  Novo algoritmo de grafo
 ```python
 # em src/graph_processor.py
 def compute_my_metric(self, graph: GraphFrame) -> DataFrame:
@@ -284,7 +283,7 @@ def compute_my_metric(self, graph: GraphFrame) -> DataFrame:
     return results_df
 ```
 
-### ➕ Novo tipo de falha
+###  Novo tipo de falha
 ```python
 # em src/failure_simulator.py
 class RegionalFailureSimulator:
@@ -393,20 +392,20 @@ impacts = sim.batch_simulate_random_failures(num_scenarios=100)
 
 ## Troubleshooting
 
-### ❌ "Nenhum módulo nomeado 'graphframes'"
+###  "Nenhum módulo nomeado 'graphframes'"
 ```bash
 # Instale via conda (recomendado)
 conda install -c conda-forge graphframes
 ```
 
-### ❌ "SparkSession não inicializado"
+###  "SparkSession não inicializado"
 ```python
 # Certifique-se de chamar antes de usar qualquer módulo
 from pyspark.sql import SparkSession
 spark = SparkSession.builder.appName("App").getOrCreate()
 ```
 
-### ❌ "Arquivo de dados não encontrado"
+###  "Arquivo de dados não encontrado"
 ```python
 # Use dados de exemplo primeiro
 mgr.load_all_data(use_samples=True)
@@ -414,7 +413,7 @@ mgr.load_all_data(use_samples=True)
 # Depois coloque/vincule dados reais em data/raw/ e data/external/
 ```
 
-### ❌ "Memory/Performance lento"
+###  "Memory/Performance lento"
 ```yaml
 # Reduza em config/main_config.yaml:
 graph:

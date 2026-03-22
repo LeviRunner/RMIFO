@@ -60,7 +60,7 @@ class CAIDADataLoader:
             else:
                 raise DataLoaderError(f"Formato não suportado: {format}")
             
-            self.logger.info(f"✓ Topologia CAIDA carregada: {df.count()} nós")
+            self.logger.info(f"[OK] Topologia CAIDA carregada: {df.count()} nós")
             return df
         
         except Exception as e:
@@ -94,7 +94,7 @@ class CAIDADataLoader:
         ])
         
         df = self.spark.createDataFrame(nodes_data, schema=schema)
-        self.logger.info(f"✓ Topologia de exemplo criada: {num_nodes} nós")
+        self.logger.info(f"[OK] Topologia de exemplo criada: {num_nodes} nós")
         return df
 
 
@@ -142,7 +142,7 @@ class SubmarineCablesLoader:
             else:
                 raise DataLoaderError(f"Formato não suportado: {format}")
             
-            self.logger.info(f"✓ Cabos submarinos carregados: {df.count()} cabos")
+            self.logger.info(f"[OK] Cabos submarinos carregados: {df.count()} cabos")
             return df
         
         except Exception as e:
@@ -176,7 +176,7 @@ class SubmarineCablesLoader:
         ])
         
         df = self.spark.createDataFrame(cables_data, schema=schema)
-        self.logger.info(f"✓ Cabos de exemplo criados: {num_cables} cabos")
+        self.logger.info(f"[OK] Cabos de exemplo criados: {num_cables} cabos")
         return df
 
 
@@ -210,7 +210,7 @@ class GeoIPDataLoader:
         
         try:
             df = self.spark.read.csv(str(self.data_path), header=True, inferSchema=True)
-            self.logger.info(f"✓ Dados GeoIP carregados: {df.count()} registros")
+            self.logger.info(f"[OK] Dados GeoIP carregados: {df.count()} registros")
             return df
         
         except Exception as e:
@@ -252,18 +252,18 @@ class DataIngestManager:
         """
         try:
             if use_samples:
-                self.logger.info("📊 Carregando dados de EXEMPLO...")
+                self.logger.info("[INFO] Carregando dados de EXEMPLO...")
                 topology_df = self.caida_loader.create_sample_topology(100)
                 cables_df = self.cables_loader.create_sample_cables(50)
                 geoip_df = None
             else:
-                self.logger.info("📊 Carregando dados REAIS...")
+                self.logger.info("[INFO] Carregando dados REAIS...")
                 topology_df = self.caida_loader.load_topology(self.config.data_config.caida_format)
                 cables_df = self.cables_loader.load_cables(self.config.data_config.cables_format)
                 try:
                     geoip_df = self.geoip_loader.load_geoip()
                 except DataLoaderError:
-                    self.logger.warning("⚠️ Dados GeoIP não disponíveis, continuando sem...")
+                    self.logger.warning("[AVISO] Dados GeoIP não disponíveis, continuando sem...")
                     geoip_df = None
             
             # Cache
@@ -278,7 +278,7 @@ class DataIngestManager:
             }
         
         except Exception as e:
-            self.logger.error(f"❌ Erro ao carregar dados: {e}")
+            self.logger.error(f"[ERRO] Erro ao carregar dados: {e}")
             raise
     
     def get_topology(self, use_sample: bool = False) -> DataFrame:
