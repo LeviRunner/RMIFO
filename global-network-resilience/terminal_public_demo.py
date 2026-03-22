@@ -142,16 +142,16 @@ def estimate_route_latency_ms(
     routes_rows: List[Tuple[str, str, str, str]],
     airports_rows: List[Tuple[str, str, str, str, str, float, float]],
     sample_size: int = 3000,
-) -> float:
-    """Estima latência média por rota assumindo propagação em fibra."""
+) -> Dict[str, float]:
+    """Estima latência detalhada por rota assumindo propagação em fibra (200.000 km/s)."""
     airport_coords: Dict[str, Tuple[float, float]] = {}
     for row in airports_rows:
         airport_id = row[0].strip() if len(row) > 0 else None
         if not airport_id or airport_id == "\\N":
             continue
         try:
-            lat = float(row[5].strip()) if len(row) > 5 and row[5] else None
-            lon = float(row[6].strip()) if len(row) > 6 and row[6] else None
+            lat = float(row[6].strip()) if len(row) > 6 and row[6] else None
+            lon = float(row[7].strip()) if len(row) > 7 and row[7] else None
             if lat is not None and lon is not None:
                 airport_coords[airport_id] = (lat, lon)
         except (ValueError, IndexError, AttributeError):
@@ -170,20 +170,37 @@ def estimate_route_latency_ms(
         joined.append((src, dst, src_coords[0], src_coords[1], dst_coords[0], dst_coords[1]))
 
     if not joined:
-        return 0.0
+        return {"avg_rtt_ms": 0.0, "avg_one_way_ms": 0.0, "avg_distance_km": 0.0, "min_rtt_ms": 0.0, "max_rtt_ms": 0.0}
 
     random.seed(42)
     sample = random.sample(joined, min(sample_size, len(joined)))
 
-    # Velocidade aproximada na fibra: 200.000 km/s -> 5 ms por 1000 km (one-way)
-    # RTT aproximado = ida e volta
-    latencies = []
+    # Velocidade na fibra: 200.000 km/s (2/3 velocidade luz no vácuo)
+    distances = []
+    one_way_latencies = []
+    rtt_latencies = []
+    
     for row in sample:
         distance = haversine_km(row[2], row[3], row[4], row[5])
-        rtt_ms = (distance / 200000.0) * 1000.0 * 2.0
-        latencies.append(rtt_ms)
+        distances.append(distance)
+        one_way_ms = (distance / 200000.0) * 1000.0
+        rtt_ms = one_way_ms * 2.0
+        one_way_latencies.append(one_way_ms)
+        rtt_latencies.append(rtt_ms)
 
-    return sum(latencies) / len(latencies) if latencies else 0.0
+    avg_distance = sum(distances) / len(distances) if distances else 0.0
+    avg_one_way = sum(one_way_latencies) / len(one_way_latencies) if one_way_latencies else 0.0
+    avg_rtt = sum(rtt_latencies) / len(rtt_latencies) if rtt_latencies else 0.0
+    min_rtt = min(rtt_latencies) if rtt_latencies else 0.0
+    max_rtt = max(rtt_latencies) if rtt_latencies else 0.0
+
+    return {
+        "avg_rtt_ms": avg_rtt,
+        "avg_one_way_ms": avg_one_way,
+        "avg_distance_km": avg_distance,
+        "min_rtt_ms": min_rtt,
+        "max_rtt_ms": max_rtt,
+    }
 
 
 def summarize_graph(graph: nx.Graph) -> Dict[str, float]:
@@ -246,11 +263,11 @@ def simulate_targeted_cuts(graph: nx.Graph, cuts: int) -> List[Dict[str, float]]
 
 def print_results(
     summary: Dict[str, float],
-    avg_latency_ms: float,
+    latency_stats: Dict[str, float],
     top_nodes: List[Tuple[str, int]],
     cuts: List[Dict[str, float]],
 ) -> None:
-    """Imprime relatório final no terminal."""
+    """Imprime relatório final no terminal com explicações de latência."""
     print("=" * 72)
     print("RMIFO TERMINAL DEMO | Dados Publicos OpenFlights")
     print("=" * 72)
@@ -259,7 +276,12 @@ def print_results(
     print(f"Densidade: {summary['density']:.6f}")
     print(f"Grau medio: {summary['avg_degree']:.2f}")
     print(f"Maior componente: {summary['largest_component_ratio'] * 100:.2f}%")
-    print(f"Latencia media estimada (RTT): {avg_latency_ms:.2f} ms")
+    
+    print("\nLatencia de Propagacao (Fibra Optica @ 200.000 km/s):")
+    print(f"  Distancia media entre rotas: {latency_stats['avg_distance_km']:.0f} km")
+    print(f"  Latencia one-way (ida): {latency_stats['avg_one_way_ms']:.2f} ms")
+    print(f"  Latencia RTT (ida+volta): {latency_stats['avg_rtt_ms']:.2f} ms")
+    print(f"  Range RTT: {latency_stats['min_rtt_ms']:.2f} - {latency_stats['max_rtt_ms']:.2f} ms")
 
     print("\nTop 10 aeroportos por grau (proxy de criticidade):")
     for idx, (node, degree) in enumerate(top_nodes, start=1):
@@ -290,7 +312,7 @@ def run_analysis(
 
     graph = build_graph(routes_rows)
     summary = summarize_graph(graph)
-    avg_latency_ms = estimate_route_latency_ms(routes_rows, airports_rows)
+    latency_stats = estimate_route_latency_ms(routes_rows, airports_rows)
     top_nodes = sorted(graph.degree, key=lambda item: item[1], reverse=True)[:10]
     cuts_result = simulate_targeted_cuts(graph, cuts=cuts)
 
@@ -301,7 +323,7 @@ def run_analysis(
             "airports": str(airports_path),
         },
         "summary": summary,
-        "avg_latency_ms": avg_latency_ms,
+        "latency_stats": latency_stats,
         "top_nodes": [{"node": n, "degree": d} for n, d in top_nodes],
         "cuts": cuts_result,
     }
@@ -311,13 +333,15 @@ def print_comparison(base: Dict[str, object], other: Dict[str, object]) -> None:
     """Imprime comparação entre dois datasets com deltas principais."""
     base_summary = base["summary"]
     other_summary = other["summary"]
-    base_latency = float(base["avg_latency_ms"])
-    other_latency = float(other["avg_latency_ms"])
+    base_latency = float(base["latency_stats"]["avg_rtt_ms"])
+    other_latency = float(other["latency_stats"]["avg_rtt_ms"])
 
     delta_nodes = int(other_summary["nodes"] - base_summary["nodes"])
     delta_edges = int(other_summary["edges"] - base_summary["edges"])
     delta_lcc = (other_summary["largest_component_ratio"] - base_summary["largest_component_ratio"]) * 100.0
     delta_latency = other_latency - base_latency
+    
+    latency_direction = "mais lento" if delta_latency > 0 else "mais rapido" if delta_latency < 0 else "igual"
 
     print("\n" + "=" * 72)
     print(f"COMPARACAO: {base['dataset_name']} VS {other['dataset_name']}")
@@ -325,7 +349,7 @@ def print_comparison(base: Dict[str, object], other: Dict[str, object]) -> None:
     print(f"Delta nos: {delta_nodes:+d}")
     print(f"Delta arestas: {delta_edges:+d}")
     print(f"Delta maior componente: {delta_lcc:+.2f} p.p.")
-    print(f"Delta latencia media (RTT): {delta_latency:+.2f} ms")
+    print(f"Delta latencia media (RTT): {delta_latency:+.2f} ms ({latency_direction})")
 
 
 def prompt_path(message: str, default: Path) -> Path:
@@ -426,7 +450,7 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
             max_routes=args.max_routes,
             cuts=args.cuts,
         )
-        print_results(result["summary"], result["avg_latency_ms"], [(n["node"], n["degree"]) for n in result["top_nodes"]], result["cuts"])
+        print_results(result["summary"], result["latency_stats"], [(n["node"], n["degree"]) for n in result["top_nodes"]], result["cuts"])
         payload = {
             "mode": "single",
             "result": result,
@@ -443,9 +467,9 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
         other = run_analysis("dataset_B", other_routes, other_airports, args.max_routes, args.cuts)
 
         print("\n[Base] public_cache")
-        print_results(base["summary"], base["avg_latency_ms"], [(n["node"], n["degree"]) for n in base["top_nodes"]], base["cuts"])
+        print_results(base["summary"], base["latency_stats"], [(n["node"], n["degree"]) for n in base["top_nodes"]], base["cuts"])
         print("\n[Comparado] dataset_B")
-        print_results(other["summary"], other["avg_latency_ms"], [(n["node"], n["degree"]) for n in other["top_nodes"]], other["cuts"])
+        print_results(other["summary"], other["latency_stats"], [(n["node"], n["degree"]) for n in other["top_nodes"]], other["cuts"])
         print_comparison(base, other)
 
         payload = {
@@ -467,9 +491,9 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
         dataset_b = run_analysis("dataset_B", b_routes, b_airports, args.max_routes, args.cuts)
 
         print("\n[Dataset A]")
-        print_results(dataset_a["summary"], dataset_a["avg_latency_ms"], [(n["node"], n["degree"]) for n in dataset_a["top_nodes"]], dataset_a["cuts"])
+        print_results(dataset_a["summary"], dataset_a["latency_stats"], [(n["node"], n["degree"]) for n in dataset_a["top_nodes"]], dataset_a["cuts"])
         print("\n[Dataset B]")
-        print_results(dataset_b["summary"], dataset_b["avg_latency_ms"], [(n["node"], n["degree"]) for n in dataset_b["top_nodes"]], dataset_b["cuts"])
+        print_results(dataset_b["summary"], dataset_b["latency_stats"], [(n["node"], n["degree"]) for n in dataset_b["top_nodes"]], dataset_b["cuts"])
         print_comparison(dataset_a, dataset_b)
 
         payload = {
@@ -505,9 +529,9 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
         dataset_b = run_analysis(name_b, routes_file_b, airports_file_b, args.max_routes, args.cuts)
 
         print(f"\n[{name_a}]")
-        print_results(dataset_a["summary"], dataset_a["avg_latency_ms"], [(n["node"], n["degree"]) for n in dataset_a["top_nodes"]], dataset_a["cuts"])
+        print_results(dataset_a["summary"], dataset_a["latency_stats"], [(n["node"], n["degree"]) for n in dataset_a["top_nodes"]], dataset_a["cuts"])
         print(f"\n[{name_b}]")
-        print_results(dataset_b["summary"], dataset_b["avg_latency_ms"], [(n["node"], n["degree"]) for n in dataset_b["top_nodes"]], dataset_b["cuts"])
+        print_results(dataset_b["summary"], dataset_b["latency_stats"], [(n["node"], n["degree"]) for n in dataset_b["top_nodes"]], dataset_b["cuts"])
         print_comparison(dataset_a, dataset_b)
 
         payload = {
@@ -534,7 +558,7 @@ def run_interactive_menu(args: argparse.Namespace) -> None:
             return
 
         result = run_analysis(name, routes_file, airports_file, args.max_routes, args.cuts)
-        print_results(result["summary"], result["avg_latency_ms"], [(n["node"], n["degree"]) for n in result["top_nodes"]], result["cuts"])
+        print_results(result["summary"], result["latency_stats"], [(n["node"], n["degree"]) for n in result["top_nodes"]], result["cuts"])
         payload = {
             "mode": "single",
             "result": result,
@@ -616,7 +640,7 @@ def main() -> None:
     )
 
     top_nodes_tuples = [(n["node"], n["degree"]) for n in run["top_nodes"]]
-    print_results(run["summary"], run["avg_latency_ms"], top_nodes_tuples, run["cuts"])
+    print_results(run["summary"], run["latency_stats"], top_nodes_tuples, run["cuts"])
 
     output_payload = {
         "mode": "single",
