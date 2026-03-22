@@ -1,0 +1,107 @@
+# ============================================================================
+# RMIFO - Configuração Principal
+# Arquivo de configuração centralizado para todos os parâmetros do projeto
+# ============================================================================
+
+# CONFIGURAÇÃO SPARK
+# =================
+spark:
+  app_name: "RMIFO-Network-Resilience"
+  master: "local[*]"  # local[*], spark://master:7077, yarn
+  memory: "4g"        # Memória do driver
+  cores: 4            # Cores por executor
+  shuffle_partitions: 200  # Partições de shuffle
+
+# CONFIGURAÇÃO DE DADOS
+# ====================
+data:
+  # Diretórios base
+  base_path: "data"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  external_dir: "data/external"
+  
+  # Arquivos de entrada
+  caida_topology_file: "caida_topology.gz"
+  submarine_cables_file: "submarine_cables.geojson"
+  geoip_database_file: "geoip_database.csv"
+  
+  # Formatos suportados
+  caida_format: "parquet"  # parquet, csv, json
+  cables_format: "geojson"  # geojson, csv, parquet
+
+# CONFIGURAÇÃO DE GRAFOS
+# ======================
+graph:
+  # Limites de dados (null = sem limite)
+  max_vertices: null
+  max_edges: null
+  
+  # Algoritmos a ativar
+  enable_betweenness_centrality: true
+  enable_closeness_centrality: true
+  enable_pagerank: true
+  
+  # Parâmetros de algoritmos
+  pagerank_iterations: 20
+  pagerank_reset_probability: 0.15
+  
+  # Cache
+  cache_processed_graph: true
+
+# CONFIGURAÇÃO DE SIMULAÇÃO
+# =========================
+simulation:
+  # Tipos de falha
+  failure_modes:
+    - "node"      # Falha de nó (PoP/Cidade)
+    - "edge"      # Falha de aresta (Cabo)
+    # - "regional"  # Falha regional
+    # - "cascade"   # Falha em cascata
+  
+  # Parâmetros
+  max_simulations: 100
+  seed: 42  # Seed para reprodutibilidade
+  
+  # Métricas
+  metrics_to_compute:
+    - "latency"
+    - "throughput"
+    - "availability"
+
+# CONFIGURAÇÃO DE ANÁLISE
+# ======================
+analysis:
+  # Limiar de criticidade (0-1, onde 1 = 100% crítico)
+  criticality_threshold: 0.7
+  
+  # Regiões alvo (vazio = todas)
+  target_regions: []
+    # - "Americas"
+    # - "Europe"
+    # - "Asia-Pacific"
+  
+  # Análise avançada
+  include_cascading_failures: true
+
+# ============================================================================
+# DIRETRIZES DE CUSTOMIZAÇÃO
+# ============================================================================
+# 
+# Para dados REAIS:
+# 1. Baixe arquivo CAIDA ITDK (https://www.caida.org/data/internet-topology/)
+# 2. Baixe dados de cabos submarinos (https://www.telegeography.com/)
+# 3. Coloque em data/raw/ e data/external/ respectivamente
+# 4. Altere data.base_path para caminho dos dados
+# 
+# Para aumentar performance:
+# 1. Aumente spark.cores e spark.memory
+# 2. Reduza shuffle_partitions (padrão: 200)
+# 3. Use cache_processed_graph: true
+# 4. Ative compressão: spark.sql.shuffle.compress: true
+#
+# Para debug:
+# 1. Reduza max_simulations para testes rápidos
+# 2. Use max_vertices/max_edges para limitar dados
+# 3. Configure logging para DEBUG em utils.setup_logging()
+# ============================================================================
