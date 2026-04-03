@@ -1,0 +1,39 @@
+# Ambientes virtuais Python
+.venv*/
+venv/
+env/
+ENV/
+
+# Dados volumosos (GeoIP, datasets)
+global-network-resilience/data/external/*.csv
+global-network-resilience/data/external/*.zip
+global-network-resilience/data/raw/*.gz
+global-network-resilience/data/processed/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Resultados de simulations
+results/
+outputs/
+
+# Spark/Parquet temporários
+metastore_db/
+derby.log

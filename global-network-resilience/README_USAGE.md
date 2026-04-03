@@ -227,6 +227,30 @@ export_results_to_json(results_dict, "results/analysis.json")
 
 ---
 
+## Ingestão GeoIP (IP2Location LITE)
+
+O arquivo `data/external/geoip_database.csv` pode ser gerado com o script abaixo:
+
+```bash
+cd global-network-resilience
+python scripts/export_geoip_ip2location.py
+```
+
+Esse comando usa o dataset público DB1 (nível país), sem necessidade de login.
+
+Para usar um pacote mais rico (com latitude/longitude), utilize token + código de download da sua conta IP2Location:
+
+```bash
+cd global-network-resilience
+python scripts/export_geoip_ip2location.py \
+  --download-token "SEU_TOKEN" \
+  --download-code "SEU_DOWNLOAD_CODE"
+```
+
+Obs.: desde 2025, os downloads autenticados usam redirecionamento para URL pré-assinada, então seu cliente HTTP precisa seguir redirects (o script já faz isso).
+
+---
+
 ## Configuração (main_config.yaml)
 
 Arquivo YAML centralizado com todos os parâmetros:
