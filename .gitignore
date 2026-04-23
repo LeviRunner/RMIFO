@@ -18,7 +18,6 @@ __pycache__/
 .coverage
 
 # IDEs
-.vscode/
 .idea/
 *.swp
 *.swo
