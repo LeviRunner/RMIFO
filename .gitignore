@@ -24,6 +24,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Ambiente local do projeto
+global-network-resilience/.local/
+
 # Resultados de simulations
 results/
 outputs/

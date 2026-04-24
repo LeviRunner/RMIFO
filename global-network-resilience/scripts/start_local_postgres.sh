@@ -3,6 +3,9 @@ set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PG_ROOT="${PG_ROOT:-${BASE_DIR}/.local/postgresql}"
+if [[ -z "${PG_VERSION:-}" ]]; then
+  PG_VERSION="$(find "${PG_ROOT}/usr/lib/postgresql" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)"
+fi
 PG_VERSION="${PG_VERSION:-17}"
 PG_BIN="${PG_ROOT}/usr/lib/postgresql/${PG_VERSION}/bin"
 PG_DATA="${PG_DATA:-${BASE_DIR}/.local/pgdata}"

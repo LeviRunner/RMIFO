@@ -141,6 +141,218 @@ function fetchCableDetails(PDO $pdo, string $cableId): array
     ];
 }
 
+function listCountries(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT DISTINCT country_name
+         FROM landing_points
+         WHERE country_name IS NOT NULL AND country_name <> ''
+         ORDER BY country_name"
+    );
+    return array_map(static fn(array $row): string => (string) $row['country_name'], $stmt->fetchAll());
+}
+
+function buildCountryGraph(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT
+            clp.cable_id,
+            c.cable_name,
+            c.length_km,
+            lp.country_name
+         FROM cable_landing_points clp
+         JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id
+         JOIN cables c ON c.cable_id = clp.cable_id
+         WHERE lp.country_name IS NOT NULL AND lp.country_name <> ''"
+    );
+
+    $cableCountries = [];
+    $cableMeta = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $cableId = (string) $row['cable_id'];
+        $country = (string) $row['country_name'];
+        $cableCountries[$cableId][$country] = true;
+        $cableMeta[$cableId] = [
+            'name' => (string) $row['cable_name'],
+            'length_km' => (int) ($row['length_km'] ?? 0),
+        ];
+    }
+
+    $graph = [];
+    foreach ($cableCountries as $cableId => $countriesMap) {
+        $countries = array_keys($countriesMap);
+        $countryCount = count($countries);
+        if ($countryCount < 2) {
+            continue;
+        }
+
+        $length = max(1, (int) ($cableMeta[$cableId]['length_km'] ?? 0));
+        $weight = max(20.0, $length / max(1, $countryCount - 1));
+
+        for ($i = 0; $i < $countryCount; $i++) {
+            for ($j = $i + 1; $j < $countryCount; $j++) {
+                $a = $countries[$i];
+                $b = $countries[$j];
+                $edge = [
+                    'to' => $b,
+                    'cable_id' => $cableId,
+                    'cable_name' => $cableMeta[$cableId]['name'],
+                    'weight' => $weight,
+                    'length_km' => $length,
+                ];
+                $graph[$a][] = $edge;
+                $edge['to'] = $a;
+                $graph[$b][] = $edge;
+            }
+        }
+    }
+
+    return $graph;
+}
+
+function findTopRoutes(array $graph, string $countryA, string $countryB, int $limit = 3, ?string $blockedCableId = null): array
+{
+    if ($countryA === $countryB) {
+        return [];
+    }
+
+    $queue = new SplPriorityQueue();
+    $queue->setExtractFlags(SplPriorityQueue::EXTR_BOTH);
+    $queue->insert([
+        'country' => $countryA,
+        'countries' => [$countryA],
+        'cables' => [],
+        'score' => 0.0,
+        'distance_km' => 0,
+    ], 0.0);
+
+    $routes = [];
+    $seenSignatures = [];
+    $iterations = 0;
+    $maxIterations = 20000;
+    $maxDepth = 6;
+
+    while (!$queue->isEmpty() && count($routes) < $limit && $iterations < $maxIterations) {
+        $iterations++;
+        $item = $queue->extract()['data'];
+        $current = (string) $item['country'];
+
+        if ($current === $countryB && count($item['cables']) > 0) {
+            $signature = implode('|', array_map(static fn(array $c): string => $c['cable_id'], $item['cables']));
+            if (!isset($seenSignatures[$signature])) {
+                $seenSignatures[$signature] = true;
+                $routes[] = [
+                    'score' => round((float) $item['score'], 2),
+                    'distance_km' => (int) $item['distance_km'],
+                    'hops' => count($item['cables']),
+                    'countries' => $item['countries'],
+                    'cables' => $item['cables'],
+                ];
+            }
+            continue;
+        }
+
+        if (count($item['countries']) > $maxDepth) {
+            continue;
+        }
+
+        foreach (($graph[$current] ?? []) as $edge) {
+            if ($blockedCableId !== null && $edge['cable_id'] === $blockedCableId) {
+                continue;
+            }
+
+            $next = (string) $edge['to'];
+            if (in_array($next, $item['countries'], true)) {
+                continue;
+            }
+
+            $newCountries = $item['countries'];
+            $newCountries[] = $next;
+            $newCables = $item['cables'];
+            $newCables[] = [
+                'cable_id' => (string) $edge['cable_id'],
+                'cable_name' => (string) $edge['cable_name'],
+                'from' => $current,
+                'to' => $next,
+            ];
+            $newScore = (float) $item['score'] + (float) $edge['weight'];
+            $newDistance = (int) $item['distance_km'] + (int) $edge['length_km'];
+
+            $queue->insert([
+                'country' => $next,
+                'countries' => $newCountries,
+                'cables' => $newCables,
+                'score' => $newScore,
+                'distance_km' => $newDistance,
+            ], -$newScore);
+        }
+    }
+
+    usort($routes, static fn(array $a, array $b): int => $a['score'] <=> $b['score']);
+    return array_slice($routes, 0, $limit);
+}
+
+function hasCountryPath(array $graph, string $countryA, string $countryB, ?string $blockedCableId = null, int $maxDepth = 8): bool
+{
+    if ($countryA === $countryB) {
+        return true;
+    }
+
+    $queue = new SplQueue();
+    $queue->enqueue([$countryA, 0]);
+    $visited = [$countryA => true];
+
+    while (!$queue->isEmpty()) {
+        [$current, $depth] = $queue->dequeue();
+        if ($depth >= $maxDepth) {
+            continue;
+        }
+
+        foreach (($graph[$current] ?? []) as $edge) {
+            if ($blockedCableId !== null && $edge['cable_id'] === $blockedCableId) {
+                continue;
+            }
+            $next = (string) $edge['to'];
+            if ($next === $countryB) {
+                return true;
+            }
+            if (isset($visited[$next])) {
+                continue;
+            }
+            $visited[$next] = true;
+            $queue->enqueue([$next, $depth + 1]);
+        }
+    }
+
+    return false;
+}
+
+function cableTelemetry(array $details): array
+{
+    $cable = $details['cable'];
+    $lengthKm = max(100, (int) ($cable['length_km'] ?? 1000));
+    $capacityGbps = max(1.0, (float) ($cable['capacity_gbps'] ?? max(2.0, 12000 / $lengthKm)));
+    $endpointCount = max(2, (int) ($cable['landing_points_count'] ?? 2));
+
+    $latencyMs = round(max(12.0, ($lengthKm / 200.0) * 1.35), 2);
+    $trafficMbps = round($capacityGbps * 1000.0 * (0.45 + min(0.4, $endpointCount / 100.0)), 2);
+    $packetsPerSecond = (int) round(($trafficMbps * 1000000.0) / (8.0 * 900.0));
+    $connectedMachines = (int) round(($trafficMbps * 1000000.0) / 2500000.0);
+
+    return [
+        'latency_ms' => $latencyMs,
+        'traffic_mbps' => $trafficMbps,
+        'packets_per_second' => $packetsPerSecond,
+        'connected_machines_estimate' => $connectedMachines,
+        'formula_notes' => [
+            'latency' => 'estimativa por comprimento do cabo',
+            'traffic' => 'capacidade efetiva aproximada por ocupacao media',
+            'machines' => 'estimativa de 2.5 Mbps por maquina ativa',
+        ],
+    ];
+}
+
 if (isset($_GET['api'])) {
     try {
         if (!extension_loaded('pdo_pgsql')) {
@@ -151,8 +363,13 @@ if (isset($_GET['api'])) {
         $mode = $_GET['mode'] ?? 'all';
         $q = trim((string) ($_GET['q'] ?? ''));
         $cols = cableColumns('c');
+        $countryA = trim((string) ($_GET['countryA'] ?? ''));
+        $countryB = trim((string) ($_GET['countryB'] ?? ''));
 
         switch ($mode) {
+            case 'countries':
+                jsonResponse(['data' => listCountries($pdo)]);
+
             case 'all':
                 $stmt = $pdo->query("SELECT {$cols} FROM cables c ORDER BY c.cable_id");
                 $rows = $stmt->fetchAll();
@@ -238,6 +455,105 @@ if (isset($_GET['api'])) {
                     throw new InvalidArgumentException('Selecione um cabo para visualizar os detalhes.');
                 }
                 jsonResponse(fetchCableDetails($pdo, $q));
+
+            case 'top_routes':
+                if ($countryA === '' || $countryB === '') {
+                    throw new InvalidArgumentException('Selecione dois paises para calcular as rotas.');
+                }
+                $graph = buildCountryGraph($pdo);
+                $routes = findTopRoutes($graph, $countryA, $countryB, 3, null);
+                jsonResponse([
+                    'from' => $countryA,
+                    'to' => $countryB,
+                    'total' => count($routes),
+                    'routes' => $routes,
+                ]);
+
+            case 'critical_cables':
+                if ($countryA === '' || $countryB === '') {
+                    throw new InvalidArgumentException('Selecione dois paises para analisar isolamento por corte de cabo.');
+                }
+                $graph = buildCountryGraph($pdo);
+                $routes = findTopRoutes($graph, $countryA, $countryB, 3, null);
+                $cables = [];
+                foreach ($routes as $route) {
+                    foreach ($route['cables'] as $cable) {
+                        $id = $cable['cable_id'];
+                        if (!isset($cables[$id])) {
+                            $cables[$id] = [
+                                'cable_id' => $id,
+                                'cable_name' => $cable['cable_name'],
+                                'routes_hit' => 0,
+                            ];
+                        }
+                        $cables[$id]['routes_hit']++;
+                    }
+                }
+
+                $critical = [];
+                foreach ($cables as $cableId => $meta) {
+                    $stillConnected = hasCountryPath($graph, $countryA, $countryB, $cableId, 8);
+                    if (!$stillConnected) {
+                        $meta['impact'] = 'isolamento entre os paises alvo';
+                        $critical[] = $meta;
+                    }
+                }
+
+                usort($critical, static fn(array $a, array $b): int => $b['routes_hit'] <=> $a['routes_hit']);
+                jsonResponse([
+                    'from' => $countryA,
+                    'to' => $countryB,
+                    'routes_analyzed' => count($routes),
+                    'critical_cables' => array_values($critical),
+                ]);
+
+            case 'endpoint_risk':
+                if ($q === '') {
+                    throw new InvalidArgumentException('Selecione um pais para listar endpoints com risco.');
+                }
+                $stmt = $pdo->prepare(
+                    "SELECT
+                        lp.endpoint_id,
+                        lp.endpoint_name,
+                        lp.city_name,
+                        lp.country_name,
+                        COUNT(DISTINCT clp.cable_id) AS cable_degree,
+                        COUNT(DISTINCT lp2.country_name) AS country_reach
+                     FROM landing_points lp
+                     JOIN cable_landing_points clp ON clp.endpoint_id = lp.endpoint_id
+                     LEFT JOIN cable_landing_points clp2 ON clp2.cable_id = clp.cable_id
+                     LEFT JOIN landing_points lp2 ON lp2.endpoint_id = clp2.endpoint_id
+                     WHERE lp.country_name = :country
+                     GROUP BY lp.endpoint_id, lp.endpoint_name, lp.city_name, lp.country_name
+                     ORDER BY cable_degree DESC, country_reach DESC, lp.endpoint_name
+                     LIMIT 25"
+                );
+                $stmt->execute([':country' => $q]);
+                $endpoints = $stmt->fetchAll();
+                foreach ($endpoints as &$endpoint) {
+                    $degree = (int) $endpoint['cable_degree'];
+                    $reach = (int) $endpoint['country_reach'];
+                    $riskScore = round(($degree * 3.2) + ($reach * 1.8), 2);
+                    $endpoint['risk_score'] = $riskScore;
+                    $endpoint['packet_loss_risk_pct'] = min(95, round(18 + ($riskScore * 1.7), 1));
+                    $endpoint['congestion_level'] = $riskScore >= 38 ? 'alto' : ($riskScore >= 24 ? 'medio' : 'baixo');
+                }
+                unset($endpoint);
+                jsonResponse([
+                    'country' => $q,
+                    'total' => count($endpoints),
+                    'endpoints' => $endpoints,
+                ]);
+
+            case 'telemetry':
+                if ($q === '') {
+                    throw new InvalidArgumentException('Selecione um cabo para visualizar telemetria.');
+                }
+                $details = fetchCableDetails($pdo, $q);
+                jsonResponse([
+                    'details' => $details,
+                    'telemetry' => cableTelemetry($details),
+                ]);
 
             default:
                 jsonResponse(['error' => 'Modo desconhecido.'], 400);
@@ -614,6 +930,74 @@ tr.bs-found {
 .ip-table td {
     padding: 8px 10px;
 }
+.function-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+.function-card {
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    background: #0f151c;
+    padding: 12px;
+}
+.fn-name {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #f6f8fa;
+    background: rgba(246, 248, 250, 0.08);
+    border: 1px solid rgba(246, 248, 250, 0.25);
+    border-radius: 999px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+.fn-action {
+    margin-top: 10px;
+    width: 100%;
+}
+.function-result {
+    margin-top: 14px;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    background: #0f151c;
+    padding: 14px;
+}
+.route-card {
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: rgba(88, 166, 255, 0.05);
+}
+.telemetry-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-top: 10px;
+}
+.gauge {
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    background: #11161d;
+    padding: 12px;
+    text-align: center;
+}
+.gauge svg {
+    width: 120px;
+    height: 120px;
+}
+.gauge .value {
+    font-size: 18px;
+    font-weight: 700;
+}
+.gauge .label {
+    color: #8b949e;
+    font-size: 12px;
+    margin-top: 5px;
+}
 @media (max-width: 920px) {
     .layout {
         grid-template-columns: 1fr;
@@ -668,6 +1052,7 @@ tr.bs-found {
         <div class="tabs">
             <button class="tab-btn active" data-tab="search">Busca</button>
             <button class="tab-btn" data-tab="detail">Detalhes do cabo</button>
+            <button class="tab-btn" data-tab="functions">Funções de análise</button>
         </div>
 
         <div class="panel-body tab-panel active" id="tab-search">
@@ -713,6 +1098,59 @@ tr.bs-found {
                 <div class="endpoint-list" id="endpoint-list"></div>
             </div>
         </div>
+
+        <div class="panel-body tab-panel" id="tab-functions">
+            <div class="function-grid">
+                <section class="function-card">
+                    <div class="fn-name">FUNCAO_ROTA_TOP3</div>
+                    <div class="field">
+                        <label for="route-country-a">Pais origem</label>
+                        <select id="route-country-a"></select>
+                    </div>
+                    <div class="field">
+                        <label for="route-country-b">Pais destino</label>
+                        <select id="route-country-b"></select>
+                    </div>
+                    <button class="btn primary fn-action" id="btn-top-routes">Top 3 Rotas</button>
+                </section>
+
+                <section class="function-card">
+                    <div class="fn-name">FUNCAO_CORTE_ISOLAMENTO</div>
+                    <div class="field">
+                        <label for="cut-country-a">Pais origem</label>
+                        <select id="cut-country-a"></select>
+                    </div>
+                    <div class="field">
+                        <label for="cut-country-b">Pais destino</label>
+                        <select id="cut-country-b"></select>
+                    </div>
+                    <button class="btn primary fn-action" id="btn-critical-cuts">Cabos que isolam</button>
+                </section>
+
+                <section class="function-card">
+                    <div class="fn-name">FUNCAO_ENDPOINT_RISCO</div>
+                    <div class="field">
+                        <label for="risk-country">Pais</label>
+                        <select id="risk-country"></select>
+                    </div>
+                    <button class="btn primary fn-action" id="btn-endpoint-risk">Endpoints com risco</button>
+                </section>
+
+                <section class="function-card">
+                    <div class="fn-name">FUNCAO_TELEMETRIA_CABO</div>
+                    <div class="field">
+                        <label for="telemetry-cable">Cabo</label>
+                        <input id="telemetry-cable" list="cable-list" placeholder="Selecione um cable_id">
+                    </div>
+                    <button class="btn primary fn-action" id="btn-telemetry">Buscar telemetria</button>
+                </section>
+            </div>
+
+            <div class="error" id="function-error"></div>
+            <div class="function-result" id="function-result">
+                Escolha uma função e execute a análise. A busca principal permanece inalterada.
+            </div>
+        </div>
     </main>
 </div>
 
@@ -725,6 +1163,7 @@ const state = {
     binaryIndex: 0,
     binaryTimer: null,
     selectedCable: null,
+    countries: [],
 };
 
 const modes = {
@@ -757,6 +1196,7 @@ const dom = {
     panels: {
         search: document.getElementById('tab-search'),
         detail: document.getElementById('tab-detail'),
+        functions: document.getElementById('tab-functions'),
     },
     binaryBox: document.getElementById('binary-box'),
     binaryStep: document.getElementById('binary-step'),
@@ -774,6 +1214,18 @@ const dom = {
     detailContent: document.getElementById('detail-content'),
     detailSummary: document.getElementById('detail-summary'),
     endpointList: document.getElementById('endpoint-list'),
+    functionError: document.getElementById('function-error'),
+    functionResult: document.getElementById('function-result'),
+    routeCountryA: document.getElementById('route-country-a'),
+    routeCountryB: document.getElementById('route-country-b'),
+    cutCountryA: document.getElementById('cut-country-a'),
+    cutCountryB: document.getElementById('cut-country-b'),
+    riskCountry: document.getElementById('risk-country'),
+    telemetryCable: document.getElementById('telemetry-cable'),
+    btnTopRoutes: document.getElementById('btn-top-routes'),
+    btnCriticalCuts: document.getElementById('btn-critical-cuts'),
+    btnEndpointRisk: document.getElementById('btn-endpoint-risk'),
+    btnTelemetry: document.getElementById('btn-telemetry'),
 };
 
 function esc(value) {
@@ -809,6 +1261,21 @@ function clearError(node) {
 
 async function api(mode, q = '') {
     const response = await fetch(`?api=1&mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(q)}`);
+    const payload = await response.json();
+    if (payload.error) {
+        throw new Error(payload.error);
+    }
+    return payload;
+}
+
+async function apiWithParams(mode, params = {}) {
+    const searchParams = new URLSearchParams({ api: '1', mode });
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+            searchParams.set(key, String(value));
+        }
+    });
+    const response = await fetch(`?${searchParams.toString()}`);
     const payload = await response.json();
     if (payload.error) {
         throw new Error(payload.error);
@@ -1121,6 +1588,176 @@ function populateDatalist() {
     )).join('');
 }
 
+function setFunctionResult(html) {
+    dom.functionResult.innerHTML = html;
+}
+
+function populateCountrySelects(countries) {
+    const options = countries.map((country) => `<option value="${esc(country)}">${esc(country)}</option>`).join('');
+    [dom.routeCountryA, dom.routeCountryB, dom.cutCountryA, dom.cutCountryB, dom.riskCountry].forEach((select) => {
+        select.innerHTML = options;
+    });
+    if (countries.length > 1) {
+        dom.routeCountryA.value = countries[0];
+        dom.cutCountryA.value = countries[0];
+        dom.routeCountryB.value = countries[1];
+        dom.cutCountryB.value = countries[1];
+        dom.riskCountry.value = countries[0];
+    }
+}
+
+function renderTopRoutes(payload) {
+    if (!payload.routes.length) {
+        setFunctionResult('<div class="muted">Nenhuma rota encontrada para o par de paises selecionado.</div>');
+        return;
+    }
+
+    const html = payload.routes.map((route, idx) => {
+        const cables = route.cables.map((cable) => `${esc(cable.cable_name)} <span class="muted">(${esc(cable.from)} → ${esc(cable.to)})</span>`).join('<br>');
+        return `
+            <div class="route-card">
+                <strong>#${idx + 1}</strong> score ${esc(route.score)} · hops ${esc(route.hops)} · ${esc(route.distance_km)} km<br>
+                <div class="muted">${esc(route.countries.join(' → '))}</div>
+                <div style="margin-top:8px">${cables}</div>
+            </div>
+        `;
+    }).join('');
+
+    setFunctionResult(`<h3>Top 3 rotas (${esc(payload.from)} → ${esc(payload.to)})</h3>${html}`);
+}
+
+function renderCriticalCuts(payload) {
+    if (!payload.critical_cables.length) {
+        setFunctionResult('<div class="muted">Nao foram encontrados cabos que isolem completamente o par de paises dentro das rotas analisadas.</div>');
+        return;
+    }
+
+    const rows = payload.critical_cables.map((cable) => `
+        <tr>
+            <td class="mono">${esc(cable.cable_id)}</td>
+            <td>${esc(cable.cable_name)}</td>
+            <td>${esc(cable.routes_hit)}</td>
+            <td>${esc(cable.impact)}</td>
+        </tr>
+    `).join('');
+
+    setFunctionResult(`
+        <h3>Cabos cujo corte pode isolar ${esc(payload.from)} ↔ ${esc(payload.to)}</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>cable_id</th><th>cabo</th><th>rotas impactadas</th><th>impacto</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `);
+}
+
+function renderEndpointRisk(payload) {
+    if (!payload.endpoints.length) {
+        setFunctionResult('<div class="muted">Nao ha endpoints suficientes para calcular risco no pais selecionado.</div>');
+        return;
+    }
+
+    const rows = payload.endpoints.map((endpoint) => `
+        <tr>
+            <td class="mono">${esc(endpoint.endpoint_id)}</td>
+            <td>${esc(endpoint.endpoint_name)}</td>
+            <td>${esc(endpoint.city_name)}</td>
+            <td>${esc(endpoint.cable_degree)}</td>
+            <td>${esc(endpoint.country_reach)}</td>
+            <td>${esc(endpoint.risk_score)}</td>
+            <td>${esc(endpoint.packet_loss_risk_pct)}%</td>
+            <td>${esc(endpoint.congestion_level)}</td>
+        </tr>
+    `).join('');
+
+    setFunctionResult(`
+        <h3>Endpoints com risco em ${esc(payload.country)}</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>endpoint_id</th><th>endpoint</th><th>cidade</th><th>conexoes</th><th>alcance</th><th>risco</th><th>perda pacotes</th><th>nivel</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `);
+}
+
+function animateGauge(gaugeId, valueNodeId, target, maxValue, unit) {
+    const circle = document.getElementById(gaugeId);
+    const valueNode = document.getElementById(valueNodeId);
+    const radius = 48;
+    const circumference = 2 * Math.PI * radius;
+    const clampedTarget = Math.min(target, maxValue);
+    const decimalPlaces = unit === 'pps' || unit === 'maq' ? 0 : 1;
+    const start = performance.now();
+
+    function tick(now) {
+        const progress = Math.min(1, (now - start) / 1300);
+        const current = clampedTarget * progress;
+        const ratio = current / maxValue;
+        const offset = circumference * (1 - ratio);
+        circle.style.strokeDasharray = `${circumference}`;
+        circle.style.strokeDashoffset = `${offset}`;
+        valueNode.textContent = `${current.toFixed(decimalPlaces)} ${unit}`;
+        if (progress < 1) {
+            requestAnimationFrame(tick);
+        }
+    }
+
+    requestAnimationFrame(tick);
+}
+
+function renderTelemetry(payload) {
+    const cable = payload.details.cable;
+    const telemetry = payload.telemetry;
+    setFunctionResult(`
+        <h3>Telemetria simulada · ${esc(cable.cable_name)} (${esc(cable.cable_id)})</h3>
+        <div class="telemetry-grid">
+            <div class="gauge">
+                <svg viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
+                    <circle id="gauge-latency" cx="60" cy="60" r="48" fill="none" stroke="#58a6ff" stroke-width="10" transform="rotate(-90 60 60)"></circle>
+                </svg>
+                <div class="value" id="value-latency">0 ms</div>
+                <div class="label">latencia estimada</div>
+            </div>
+            <div class="gauge">
+                <svg viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
+                    <circle id="gauge-pps" cx="60" cy="60" r="48" fill="none" stroke="#3fb950" stroke-width="10" transform="rotate(-90 60 60)"></circle>
+                </svg>
+                <div class="value" id="value-pps">0 pps</div>
+                <div class="label">pacotes por segundo</div>
+            </div>
+            <div class="gauge">
+                <svg viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
+                    <circle id="gauge-machines" cx="60" cy="60" r="48" fill="none" stroke="#f2cc60" stroke-width="10" transform="rotate(-90 60 60)"></circle>
+                </svg>
+                <div class="value" id="value-machines">0 maq</div>
+                <div class="label">maquinas conectadas</div>
+            </div>
+        </div>
+        <div style="margin-top:10px" class="muted">
+            trafego estimado: ${esc(telemetry.traffic_mbps)} Mbps · endpoints: ${esc(cable.landing_points_count)}
+        </div>
+    `);
+
+    animateGauge('gauge-latency', 'value-latency', Number(telemetry.latency_ms), 250, 'ms');
+    animateGauge('gauge-pps', 'value-pps', Number(telemetry.packets_per_second), 3000000, 'pps');
+    animateGauge('gauge-machines', 'value-machines', Number(telemetry.connected_machines_estimate), 1200000, 'maq');
+}
+
+async function runFunction(handler) {
+    clearError(dom.functionError);
+    try {
+        await handler();
+        switchTab('functions');
+    } catch (error) {
+        showError(dom.functionError, error.message);
+    }
+}
+
 dom.modeList.addEventListener('click', (event) => {
     const button = event.target.closest('.mode-btn');
     if (!button) {
@@ -1184,11 +1821,46 @@ dom.binaryReset.addEventListener('click', () => {
     }
 });
 
+dom.btnTopRoutes.addEventListener('click', () => runFunction(async () => {
+    const payload = await apiWithParams('top_routes', {
+        countryA: dom.routeCountryA.value,
+        countryB: dom.routeCountryB.value,
+    });
+    renderTopRoutes(payload);
+}));
+
+dom.btnCriticalCuts.addEventListener('click', () => runFunction(async () => {
+    const payload = await apiWithParams('critical_cables', {
+        countryA: dom.cutCountryA.value,
+        countryB: dom.cutCountryB.value,
+    });
+    renderCriticalCuts(payload);
+}));
+
+dom.btnEndpointRisk.addEventListener('click', () => runFunction(async () => {
+    const payload = await api('endpoint_risk', dom.riskCountry.value);
+    renderEndpointRisk(payload);
+}));
+
+dom.btnTelemetry.addEventListener('click', () => runFunction(async () => {
+    const cableId = dom.telemetryCable.value.trim();
+    if (!cableId) {
+        throw new Error('Selecione um cabo para a telemetria.');
+    }
+    const payload = await api('telemetry', cableId);
+    renderTelemetry(payload);
+}));
+
 (async function init() {
     try {
-        const payload = await api('all');
+        const [payload, countriesPayload] = await Promise.all([
+            api('all'),
+            api('countries'),
+        ]);
         state.allCables = payload.data;
+        state.countries = countriesPayload.data;
         populateDatalist();
+        populateCountrySelects(state.countries);
         dom.resultCount.textContent = `${payload.total} cabos carregados e prontos para busca.`;
     } catch (error) {
         showError(dom.searchError, `Falha ao carregar o catalogo: ${error.message}`);

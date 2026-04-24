@@ -3,9 +3,12 @@ set -euo pipefail
 
 DB_NAME="${DB_NAME:-global_network_resilience}"
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SQL_FILE="${SQL_FILE:-${BASE_DIR}/implementacoes/teste.SQL}"
+SQL_FILE="${SQL_FILE:-${BASE_DIR}/Mods/teste.SQL}"
 PYTHON_BIN="${PYTHON_BIN:-${BASE_DIR}/../.venv/bin/python}"
 PG_ROOT="${PG_ROOT:-${BASE_DIR}/.local/postgresql}"
+if [[ -z "${PG_VERSION:-}" ]]; then
+  PG_VERSION="$(find "${PG_ROOT}/usr/lib/postgresql" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)"
+fi
 PG_VERSION="${PG_VERSION:-17}"
 PG_BIN="${PG_ROOT}/usr/lib/postgresql/${PG_VERSION}/bin"
 PG_SOCKET_DIR="${PG_SOCKET_DIR:-${BASE_DIR}/.local/run}"
@@ -37,7 +40,7 @@ if [[ -z "${PYTHON_BIN}" ]]; then
   exit 1
 fi
 
-"${BASE_DIR}/scripts/start_local_postgres.sh" >/dev/null
+bash "${BASE_DIR}/scripts/start_local_postgres.sh" >/dev/null
 
 PSQL_CMD=("${PSQL}" -h "${PG_SOCKET_DIR}" -p "${PG_PORT}" -U postgres)
 

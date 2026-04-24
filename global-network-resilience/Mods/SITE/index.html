@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Busca Binária - Cabos Submarinos</title>
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+<header>
+    <div>🌐</div>
+    <h1>Busca Binária e Catálogo Detalhado de Cabos</h1>
+    <div class="pill">PostgreSQL local · porta 55432</div>
+</header>
+
+<div class="layout">
+    <aside class="panel">
+        <div class="panel-head"><h2>Métodos de busca</h2></div>
+        <div class="panel-body">
+            <div class="mode-list" id="mode-list">
+                <button class="mode-btn active" data-mode="cable_id">🔢 cable_id <span class="mode-meta">binária</span></button>
+                <button class="mode-btn" data-mode="name">📛 cable_name <span class="mode-meta">texto</span></button>
+                <button class="mode-btn" data-mode="owners">🏢 owners <span class="mode-meta">texto</span></button>
+                <button class="mode-btn" data-mode="year">📅 rfs_year <span class="mode-meta">ano</span></button>
+                <button class="mode-btn" data-mode="operational">⚡ is_operational <span class="mode-meta">bool</span></button>
+                <button class="mode-btn" data-mode="landing">⚓ landing_points <span class="mode-meta">número</span></button>
+                <button class="mode-btn" data-mode="suppliers">🔧 suppliers <span class="mode-meta">texto</span></button>
+                <button class="mode-btn" data-mode="endpoint">📍 endpoint <span class="mode-meta">novo</span></button>
+                <button class="mode-btn" data-mode="country">🗺 país do endpoint <span class="mode-meta">novo</span></button>
+            </div>
+
+            <div class="field">
+                <label for="query-input" id="query-label">ID exato do cabo</label>
+                <input id="query-input" type="text" placeholder="ex: 2africa" autocomplete="off">
+                <select id="bool-input" style="display:none">
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                </select>
+            </div>
+
+            <div class="hint" id="binary-hint">
+                A busca binária trabalha sobre a lista ordenada por <span class="mono">cable_id</span> e mostra cada midpoint ate encontrar o cabo.
+            </div>
+
+            <div class="btn-row">
+                <button class="btn primary" id="search-btn">Buscar</button>
+                <button class="btn" id="clear-btn">Limpar</button>
+            </div>
+        </div>
+    </aside>
+
+    <main class="panel">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="search">Busca</button>
+            <button class="tab-btn" data-tab="detail">Detalhes do cabo</button>
+            <button class="tab-btn" data-tab="top-routes">Rotas Top 3</button>
+            <button class="tab-btn" data-tab="critical-cuts">Cortes Críticos</button>
+            <button class="tab-btn" data-tab="endpoint-risk">Risco de Endpoints</button>
+            <button class="tab-btn" data-tab="telemetry">Telemetria Avançada</button>
+        </div>
+
+        <div class="panel-body tab-panel active" id="tab-search">
+            <div class="result-bar">
+                <div class="result-count" id="result-count">Carregando catálogo...</div>
+            </div>
+
+            <div class="error" id="search-error"></div>
+
+            <div class="binary-box" id="binary-box">
+                <div class="binary-step" id="binary-step">-</div>
+                <div class="progress"><div id="binary-progress"></div></div>
+                <div class="binary-controls">
+                    <button class="btn primary" id="binary-play">Reproduzir</button>
+                    <button class="btn" id="binary-prev">Anterior</button>
+                    <button class="btn" id="binary-next">Proximo</button>
+                    <button class="btn" id="binary-reset">Reiniciar</button>
+                </div>
+                <div class="binary-log" id="binary-log"></div>
+            </div>
+
+            <div class="empty" id="search-empty">Selecione um método de busca e execute a consulta.</div>
+            <div class="table-wrap" id="search-table-wrap" style="display:none">
+                <table>
+                    <thead id="search-head"></thead>
+                    <tbody id="search-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel-body tab-panel" id="tab-detail">
+            <div class="detail-pick">
+                <input id="detail-picker" list="cable-list" placeholder="Digite ou selecione um cable_id para abrir os detalhes">
+                <datalist id="cable-list"></datalist>
+                <button class="detail-action primary" id="detail-load">Abrir detalhes</button>
+            </div>
+
+            <div class="error" id="detail-error"></div>
+            <div class="empty" id="detail-empty">Abra um cabo para ver endpoints, geografia e amostras de IP publico por endpoint.</div>
+            <div id="detail-content" style="display:none">
+                <div class="detail-summary" id="detail-summary"></div>
+                <div class="subhead">Endpoints e geografia</div>
+                <div class="endpoint-list" id="endpoint-list"></div>
+            </div>
+        </div>
+
+        <div class="panel-body tab-panel" id="tab-top-routes">
+            <section class="function-card">
+                <div class="fn-name">FUNCAO_ROTA_TOP3</div>
+                <div class="field">
+                    <label for="route-country-a">Pais origem</label>
+                    <select id="route-country-a"></select>
+                </div>
+                <div class="field">
+                    <label for="route-country-b">Pais destino</label>
+                    <select id="route-country-b"></select>
+                </div>
+                <button class="btn primary fn-action" id="btn-top-routes">Top 3 Rotas</button>
+            </section>
+
+            <div class="error" id="route-error"></div>
+            <div class="function-result" id="route-result">Selecione os países e execute a análise de rotas.</div>
+        </div>
+
+        <div class="panel-body tab-panel" id="tab-critical-cuts">
+            <section class="function-card">
+                <div class="fn-name">FUNCAO_CORTE_ISOLAMENTO</div>
+                <div class="field">
+                    <label for="cut-country-a">Pais origem</label>
+                    <select id="cut-country-a"></select>
+                </div>
+                <div class="field">
+                    <label for="cut-country-b">Pais destino</label>
+                    <select id="cut-country-b"></select>
+                </div>
+                <button class="btn primary fn-action" id="btn-critical-cuts">Cabos que isolam</button>
+            </section>
+
+            <div class="error" id="cuts-error"></div>
+            <div class="function-result" id="cuts-result">Selecione o par de países para analisar cabos críticos.</div>
+        </div>
+
+        <div class="panel-body tab-panel" id="tab-endpoint-risk">
+            <section class="function-card">
+                <div class="fn-name">FUNCAO_ENDPOINT_RISCO</div>
+                <div class="field">
+                    <label for="risk-country">Pais</label>
+                    <select id="risk-country"></select>
+                </div>
+                <button class="btn primary fn-action" id="btn-endpoint-risk">Endpoints com risco</button>
+            </section>
+
+            <div class="error" id="risk-error"></div>
+            <div class="function-result" id="risk-result">Selecione um país para mapear endpoints de risco.</div>
+        </div>
+
+        <div class="panel-body tab-panel" id="tab-telemetry">
+            <section class="function-card">
+                <div class="fn-name">FUNCAO_TELEMETRIA_CABO</div>
+                <div class="field">
+                    <label for="telemetry-cable">Cabo</label>
+                    <input id="telemetry-cable" list="cable-list" placeholder="Selecione um cable_id">
+                </div>
+                <button class="btn primary fn-action" id="btn-telemetry">Buscar telemetria</button>
+            </section>
+
+            <div class="error" id="telemetry-error"></div>
+            <div class="function-result" id="telemetry-result">Telemetria avançada: execute para ver indicadores do cabo e base para análises futuras.</div>
+        </div>
+    </main>
+</div>
+
+<script src="assets/js/app.js"></script>
+</body>
+</html>

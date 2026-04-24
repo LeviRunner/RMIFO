@@ -109,6 +109,43 @@ CREATE INDEX IF NOT EXISTS idx_cable_landing_points_endpoint ON cable_landing_po
 CREATE INDEX IF NOT EXISTS idx_landing_points_country ON landing_points(country_code, country_name);
 CREATE INDEX IF NOT EXISTS idx_endpoint_ip_samples_endpoint ON endpoint_ip_samples(endpoint_id, sample_order);
 
+-- Telemetria histórica por cabo para análise temporal e pesquisa.
+CREATE TABLE IF NOT EXISTS cable_telemetry_samples (
+    sample_id BIGSERIAL PRIMARY KEY,
+    cable_id VARCHAR(255) NOT NULL REFERENCES cables(cable_id) ON DELETE CASCADE,
+    measured_at TIMESTAMPTZ NOT NULL,
+    latency_ms DOUBLE PRECISION,
+    jitter_ms DOUBLE PRECISION,
+    packet_loss_pct DOUBLE PRECISION,
+    throughput_mbps DOUBLE PRECISION,
+    packets_per_second BIGINT,
+    availability_pct DOUBLE PRECISION,
+    route_error_count INTEGER,
+    source VARCHAR(80) NOT NULL DEFAULT 'synthetic',
+    method VARCHAR(120) NOT NULL DEFAULT 'heuristic',
+    confidence_score DOUBLE PRECISION NOT NULL DEFAULT 0.55,
+    estimated BOOLEAN NOT NULL DEFAULT TRUE,
+    telemetry_model_version VARCHAR(40) NOT NULL DEFAULT '1.0.0',
+    metadata JSONB,
+    UNIQUE (cable_id, measured_at)
+);
+
+-- Faixas de referência por cabo para calibração e avaliação automática.
+CREATE TABLE IF NOT EXISTS cable_telemetry_reference (
+    cable_id VARCHAR(255) PRIMARY KEY REFERENCES cables(cable_id) ON DELETE CASCADE,
+    baseline_latency_ms DOUBLE PRECISION,
+    baseline_jitter_ms DOUBLE PRECISION,
+    baseline_packet_loss_pct DOUBLE PRECISION,
+    baseline_throughput_mbps DOUBLE PRECISION,
+    baseline_availability_pct DOUBLE PRECISION,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_cable_time ON cable_telemetry_samples(cable_id, measured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_time ON cable_telemetry_samples(measured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_source_method ON cable_telemetry_samples(source, method);
+
 -- Consultas de validação rápida (somente leitura)
 -- 1) Quantidade de registros por tabela
 -- SELECT 'nodes' AS tabela, COUNT(*) AS total FROM nodes
