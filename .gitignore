@@ -17,11 +17,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 
-# IDEs
-.idea/
-*.swp
-*.swo
-
 # OS
 .DS_Store
 Thumbs.db

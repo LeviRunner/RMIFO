@@ -22,6 +22,7 @@ pyyaml>=5.4.0                  # Parsing YAML para configuração
 numpy>=1.21.0                  # Computação numérica
 scipy>=1.7.0                   # Algoritmos científicos
 networkx>=2.6.0                # Análise de grafos (complementar)
+psycopg2-binary>=2.9.0         # Cliente PostgreSQL para importadores locais
 
 # DESENVOLVIMENTO E TESTES
 # ========================
