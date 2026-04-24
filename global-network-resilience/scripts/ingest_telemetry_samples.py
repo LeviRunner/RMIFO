@@ -28,6 +28,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+# ---------------------------------------------------------------------------
+# Log local de pacotes de rede
+# ---------------------------------------------------------------------------
+
+def get_log_dir(base_dir: Path) -> Path:
+    log_dir = base_dir / "data" / "local" / "log" / "telemetry"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
+
+
+def append_packet_log(log_dir: Path, measured_at: datetime, record: dict) -> None:
+    """Grava uma linha JSONL no arquivo de log diário dos pacotes de rede."""
+    date_str = measured_at.strftime("%Y-%m-%d")
+    log_file = log_dir / f"{date_str}.jsonl"
+    with log_file.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+
 import psycopg2
 
 TELEMETRY_MODEL_VERSION = "1.2.0"
@@ -322,6 +339,7 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
     conn = db_connect(base_dir)
     conn.autocommit = False
 
+    log_dir = get_log_dir(base_dir)
     stats = {"mtr": 0, "tcp": 0, "http": 0, "synthetic": 0, "hops_total": 0}
 
     with conn:
@@ -451,6 +469,30 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
                 sample_id = row[0] if row else None
                 inserted += 1
 
+                # ---- persiste no log local de pacotes de rede ---------------
+                packet_record = {
+                    "cable_id":                cable_id,
+                    "measured_at":             measured_at.isoformat(),
+                    "sent_at":                 sent_at.isoformat() if sent_at else None,
+                    "received_at":             received_at.isoformat() if received_at else None,
+                    "latency_ms":              round(latency_ms, 3),
+                    "jitter_ms":               round(jitter_ms, 3),
+                    "packet_loss_pct":         round(packet_loss_pct, 3),
+                    "throughput_mbps":         round(throughput_mbps, 3),
+                    "packets_per_second":      max(1000, packets_per_second),
+                    "availability_pct":        round(availability_pct, 3),
+                    "route_error_count":       route_error_count,
+                    "source":                  source,
+                    "method":                  method,
+                    "confidence_score":        round(confidence, 3),
+                    "estimated":               estimated,
+                    "telemetry_model_version": TELEMETRY_MODEL_VERSION,
+                    "metadata":                metadata,
+                    "hops":                    hops if hops else [],
+                }
+                append_packet_log(log_dir, measured_at, packet_record)
+                # -------------------------------------------------------------
+
                 if sample_id and hops:
                     for hop in hops:
                         if hop.get("ip") is None:
@@ -493,7 +535,8 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
         f"  TCP SYN-ACK     : {stats['tcp']}\n"
         f"  HTTP curl       : {stats['http']}\n"
         f"  Sintético       : {stats['synthetic']}\n"
-        f"  Hops gravados   : {stats['hops_total']}"
+        f"  Hops gravados   : {stats['hops_total']}\n"
+        f"  Log de pacotes  : {log_dir}"
     )
 
 
