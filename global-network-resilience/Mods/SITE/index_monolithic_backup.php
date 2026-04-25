@@ -998,6 +998,29 @@ tr.bs-found {
     font-size: 12px;
     margin-top: 5px;
 }
+#alert-ticker {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 8px 24px;
+}
+.alert-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    border: 1px solid transparent;
+}
+.alert-item:last-child { margin-bottom: 0; }
+.alert-item.warning {
+    background: rgba(210, 153, 34, 0.15);
+    color: #d29922;
+    border-color: rgba(210, 153, 34, 0.35);
+}
+.alert-item.critical {
+    background: rgba(248, 81, 73, 0.15);
+    color: #ff7b72;
+    border-color: rgba(248, 81, 73, 0.35);
+}
 @media (max-width: 920px) {
     .layout {
         grid-template-columns: 1fr;
@@ -1011,6 +1034,7 @@ tr.bs-found {
     <h1>Busca Binária e Catálogo Detalhado de Cabos</h1>
     <div class="pill">PostgreSQL local · porta 55432</div>
 </header>
+<div id="alert-ticker" style="display:none"></div>
 
 <div class="layout">
     <aside class="panel">
@@ -1141,6 +1165,15 @@ tr.bs-found {
                     <div class="field">
                         <label for="telemetry-cable">Cabo</label>
                         <input id="telemetry-cable" list="cable-list" placeholder="Selecione um cable_id">
+                    </div>
+                    <div class="field">
+                        <label for="telemetry-hours">Janela Histórica</label>
+                        <select id="telemetry-hours">
+                            <option value="24">Últimas 24 horas (Tempo Real)</option>
+                            <option value="168">Últimos 7 dias (Agregado 5m)</option>
+                            <option value="720">Últimos 30 dias (Agregado 1h)</option>
+                            <option value="2160">Últimos 90 dias (Tendência)</option>
+                        </select>
                     </div>
                     <button class="btn primary fn-action" id="btn-telemetry">Buscar telemetria</button>
                 </section>

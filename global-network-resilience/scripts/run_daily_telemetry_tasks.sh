@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# run_daily_telemetry_tasks.sh — Orquestra a saúde da rede
+
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-${BASE_DIR}/../.venv/bin/python}"
+PYTHON_BIN="${BASE_DIR}/../.venv/bin/python"
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then
-  PYTHON_BIN="$(command -v python3 || true)"
+    PYTHON_BIN="python3"
 fi
 
-if [[ -z "${PYTHON_BIN}" ]]; then
-  echo "Erro: Python nao encontrado."
-  exit 1
+echo "--- [$(date)] Iniciando Ciclo de Telemetria ---"
+
+# 1. Processa Rollups (Garante que a lógica adaptativa tenha dados frescos)
+echo "[1/3] Atualizando Rollups de performance..."
+"${PYTHON_BIN}" "${BASE_DIR}/scripts/compute_telemetry_rollups.py"
+
+# 2. Ingestão Adaptativa (Usa os rollups para decidir o esforço)
+echo "[2/3] Executando ingestão adaptativa (mtr/tcp/http)..."
+"${PYTHON_BIN}" "${BASE_DIR}/scripts/ingest_telemetry_samples.py" --mtr-cycles 3 --timeout 8
+
+# 3. Validação de Baseline (Opcional, gera alertas se houver desvio)
+if [[ -f "${BASE_DIR}/scripts/validate_telemetry_baseline.py" ]]; then
+    echo "[3/3] Validando métricas contra o baseline..."
+    "${PYTHON_BIN}" "${BASE_DIR}/scripts/validate_telemetry_baseline.py"
 fi
 
-# Garante que o banco local esteja em execucao.
-bash "${BASE_DIR}/scripts/start_local_postgres.sh" >/dev/null
-
-# 1) Ingestao de telemetria (coleta + fallback controlado)
-"${PYTHON_BIN}" "${BASE_DIR}/scripts/ingest_telemetry_samples.py" --limit "${TELEMETRY_LIMIT:-120}" --timeout "${TELEMETRY_TIMEOUT:-8}"
-
-# 2) Validacao contra baseline e emissao de relatorio
-"${PYTHON_BIN}" "${BASE_DIR}/scripts/validate_telemetry_baseline.py" --hours "${VALIDATION_WINDOW_HOURS:-24}" --output-dir "results/telemetry_validation"
-
-echo "Pipeline diario de telemetria concluido."
+echo "--- [$(date)] Ciclo concluído com sucesso ---"

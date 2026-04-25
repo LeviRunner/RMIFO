@@ -7,6 +7,15 @@ $pgPort = (int) (getenv('PG_PORT') ?: 55432);
 $pgDbname = 'global_network_resilience';
 $pgUser = 'postgres';
 
+// Evita warnings/notices em HTML antes do JSON da API.
+ini_set('display_errors', '0');
+set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
 function getDb(string $socket, int $port, string $dbname, string $user): PDO
 {
     $dsn = "pgsql:host={$socket};port={$port};dbname={$dbname}";
@@ -159,29 +168,50 @@ function buildCountryGraph(PDO $pdo): array
             clp.cable_id,
             c.cable_name,
             c.length_km,
+            clp.endpoint_order,
             lp.country_name
          FROM cable_landing_points clp
          JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id
          JOIN cables c ON c.cable_id = clp.cable_id
-         WHERE lp.country_name IS NOT NULL AND lp.country_name <> ''"
+         WHERE lp.country_name IS NOT NULL AND lp.country_name <> ''
+         ORDER BY clp.cable_id, clp.endpoint_order, lp.country_name"
     );
 
     $cableCountries = [];
     $cableMeta = [];
 
     foreach ($stmt->fetchAll() as $row) {
-        $cableId = (string) $row['cable_id'];
-        $country = (string) $row['country_name'];
-        $cableCountries[$cableId][$country] = true;
+        $cableId = (string) ($row['cable_id'] ?? '');
+        $country = (string) ($row['country_name'] ?? '');
+        if ($cableId === '' || $country === '') {
+            continue;
+        }
+        $order = (int) ($row['endpoint_order'] ?? 0);
+        $cableCountries[$cableId][] = [
+            'order' => $order,
+            'country' => $country,
+        ];
         $cableMeta[$cableId] = [
-            'name' => (string) $row['cable_name'],
+            'name' => (string) ($row['cable_name'] ?? $cableId),
             'length_km' => (int) ($row['length_km'] ?? 0),
         ];
     }
 
     $graph = [];
-    foreach ($cableCountries as $cableId => $countriesMap) {
-        $countries = array_keys($countriesMap);
+    foreach ($cableCountries as $cableId => $orderedStops) {
+        usort($orderedStops, static fn(array $a, array $b): int => $a['order'] <=> $b['order']);
+
+        $countries = [];
+        foreach ($orderedStops as $stop) {
+            $country = (string) ($stop['country'] ?? '');
+            if ($country === '') {
+                continue;
+            }
+            if ($countries === [] || $countries[count($countries) - 1] !== $country) {
+                $countries[] = $country;
+            }
+        }
+
         $countryCount = count($countries);
         if ($countryCount < 2) {
             continue;
@@ -190,21 +220,23 @@ function buildCountryGraph(PDO $pdo): array
         $length = max(1, (int) ($cableMeta[$cableId]['length_km'] ?? 0));
         $weight = max(20.0, $length / max(1, $countryCount - 1));
 
-        for ($i = 0; $i < $countryCount; $i++) {
-            for ($j = $i + 1; $j < $countryCount; $j++) {
-                $a = $countries[$i];
-                $b = $countries[$j];
-                $edge = [
-                    'to' => $b,
-                    'cable_id' => $cableId,
-                    'cable_name' => $cableMeta[$cableId]['name'],
-                    'weight' => $weight,
-                    'length_km' => $length,
-                ];
-                $graph[$a][] = $edge;
-                $edge['to'] = $a;
-                $graph[$b][] = $edge;
+        for ($i = 0; $i < $countryCount - 1; $i++) {
+            $a = $countries[$i];
+            $b = $countries[$i + 1];
+            if ($a === $b) {
+                continue;
             }
+
+            $edge = [
+                'to' => $b,
+                'cable_id' => $cableId,
+                'cable_name' => (string) ($cableMeta[$cableId]['name'] ?? $cableId),
+                'weight' => $weight,
+                'length_km' => $length,
+            ];
+            $graph[$a][] = $edge;
+            $edge['to'] = $a;
+            $graph[$b][] = $edge;
         }
     }
 
@@ -360,49 +392,50 @@ function telemetryTableAvailable(PDO $pdo): bool
     return !empty($row['table_name']);
 }
 
-function fetchTelemetrySeries(PDO $pdo, string $cableId, int $hours = 24, int $limit = 288): array
+function fetchTelemetrySeries(PDO $pdo, string $cableId, int $hours = 24): array
 {
     if (!telemetryTableAvailable($pdo)) {
         return [];
     }
 
+    // Resolução Dinâmica: 
+    // < 24h: Raw (1 amostra/min aprox)
+    // < 7 dias: Rollup 5m
+    // > 7 dias: Rollup 1h
+    $table = 'cable_telemetry_samples';
+    $timeColumn = 'measured_at';
+    $fields = 'measured_at, latency_ms, jitter_ms, packet_loss_pct, throughput_mbps, packets_per_second, availability_pct, route_error_count, confidence_score, estimated';
+    
+    if ($hours > 168) {
+        $table = 'telemetry_rollup_1h';
+        $timeColumn = 'bucket';
+        $fields = 'bucket AS measured_at, avg_latency_ms AS latency_ms, avg_jitter_ms AS jitter_ms, avg_packet_loss_pct AS packet_loss_pct, avg_throughput_mbps AS throughput_mbps, NULL::bigint AS packets_per_second, NULL::double precision AS availability_pct, NULL::integer AS route_error_count, confidence_avg AS confidence_score, false AS estimated';
+    } elseif ($hours > 24) {
+        $table = 'telemetry_rollup_5m';
+        $timeColumn = 'bucket';
+        $fields = 'bucket AS measured_at, avg_latency_ms AS latency_ms, avg_jitter_ms AS jitter_ms, avg_packet_loss_pct AS packet_loss_pct, NULL::double precision AS throughput_mbps, NULL::bigint AS packets_per_second, NULL::double precision AS availability_pct, NULL::integer AS route_error_count, 1.0 AS confidence_score, false AS estimated';
+    }
+
     $stmt = $pdo->prepare(
-        "SELECT
-            measured_at,
-            latency_ms,
-            jitter_ms,
-            packet_loss_pct,
-            throughput_mbps,
-            packets_per_second,
-            availability_pct,
-            route_error_count,
-            source,
-            method,
-            confidence_score,
-            estimated,
-            telemetry_model_version
-         FROM cable_telemetry_samples
-         WHERE cable_id = :cable_id
-           AND measured_at >= (NOW() - (:hours::text || ' hours')::interval)
-         ORDER BY measured_at ASC
-         LIMIT :limit"
+        "SELECT {$fields} FROM {$table} 
+            WHERE cable_id = :cable_id AND {$timeColumn} >= (NOW() - (:hours::text || ' hours')::interval)
+            ORDER BY {$timeColumn} ASC LIMIT 1000"
     );
     $stmt->bindValue(':cable_id', $cableId, PDO::PARAM_STR);
     $stmt->bindValue(':hours', $hours, PDO::PARAM_INT);
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
 
     $rows = $stmt->fetchAll();
     foreach ($rows as &$row) {
-        $row['latency_ms'] = $row['latency_ms'] !== null ? (float) $row['latency_ms'] : null;
-        $row['jitter_ms'] = $row['jitter_ms'] !== null ? (float) $row['jitter_ms'] : null;
-        $row['packet_loss_pct'] = $row['packet_loss_pct'] !== null ? (float) $row['packet_loss_pct'] : null;
-        $row['throughput_mbps'] = $row['throughput_mbps'] !== null ? (float) $row['throughput_mbps'] : null;
-        $row['packets_per_second'] = $row['packets_per_second'] !== null ? (int) $row['packets_per_second'] : null;
-        $row['availability_pct'] = $row['availability_pct'] !== null ? (float) $row['availability_pct'] : null;
-        $row['route_error_count'] = $row['route_error_count'] !== null ? (int) $row['route_error_count'] : null;
-        $row['confidence_score'] = $row['confidence_score'] !== null ? (float) $row['confidence_score'] : 0.5;
-        $row['estimated'] = normalizeBool($row['estimated']) ?? true;
+        $row['latency_ms'] = ($row['latency_ms'] ?? null) !== null ? (float) $row['latency_ms'] : null;
+        $row['jitter_ms'] = ($row['jitter_ms'] ?? null) !== null ? (float) $row['jitter_ms'] : null;
+        $row['packet_loss_pct'] = ($row['packet_loss_pct'] ?? null) !== null ? (float) $row['packet_loss_pct'] : null;
+        $row['throughput_mbps'] = ($row['throughput_mbps'] ?? null) !== null ? (float) $row['throughput_mbps'] : null;
+        $row['packets_per_second'] = ($row['packets_per_second'] ?? null) !== null ? (int) $row['packets_per_second'] : null;
+        $row['availability_pct'] = ($row['availability_pct'] ?? null) !== null ? (float) $row['availability_pct'] : null;
+        $row['route_error_count'] = ($row['route_error_count'] ?? null) !== null ? (int) $row['route_error_count'] : null;
+        $row['confidence_score'] = ($row['confidence_score'] ?? null) !== null ? (float) $row['confidence_score'] : 0.5;
+        $row['estimated'] = normalizeBool($row['estimated'] ?? null) ?? true;
     }
     unset($row);
 
@@ -696,12 +729,16 @@ if (isset($_GET['api'])) {
                 $routes = findTopRoutes($graph, $countryA, $countryB, 3, null);
                 $cables = [];
                 foreach ($routes as $route) {
-                    foreach ($route['cables'] as $cable) {
-                        $id = $cable['cable_id'];
+                    $routeCables = is_array($route['cables'] ?? null) ? $route['cables'] : [];
+                    foreach ($routeCables as $cable) {
+                        $id = (string) ($cable['cable_id'] ?? '');
+                        if ($id === '') {
+                            continue;
+                        }
                         if (!isset($cables[$id])) {
                             $cables[$id] = [
                                 'cable_id' => $id,
-                                'cable_name' => $cable['cable_name'],
+                                'cable_name' => (string) ($cable['cable_name'] ?? $id),
                                 'routes_hit' => 0,
                             ];
                         }
@@ -768,8 +805,9 @@ if (isset($_GET['api'])) {
                 if ($q === '') {
                     throw new InvalidArgumentException('Selecione um cabo para visualizar telemetria.');
                 }
+                $hours = filter_var($_GET['hours'] ?? 24, FILTER_VALIDATE_INT) ?: 24;
                 $details = fetchCableDetails($pdo, $q);
-                $series = fetchTelemetrySeries($pdo, $q);
+                $series = fetchTelemetrySeries($pdo, $q, $hours);
                 $fallbackUsed = false;
                 if (!$series) {
                     $series = generateSyntheticTelemetrySeries($details, 96, 15);

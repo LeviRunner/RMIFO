@@ -90,7 +90,7 @@ Scripts envolvidos:
 
 Comandos que funcionam agora:
 
-1. cd /workspaces/RMIFO/global-network- resilience
+1. cd /workspaces/RMIFO/global-network-resilience
 
 2. ./scripts/start_local_postgres.sh
 
@@ -102,7 +102,7 @@ Comandos que funcionam agora:
 
 Alternativa mais robusta (mesmo se perder permissão no futuro):
 
-1. cd /workspaces/RMIFO/global-network- resilience
+1. cd /workspaces/RMIFO/global-network-resilience
 
 2. bash ./scripts/start_local_postgres.sh
 

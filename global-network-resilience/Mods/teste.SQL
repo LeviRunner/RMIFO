@@ -130,6 +130,50 @@ CREATE TABLE IF NOT EXISTS cable_telemetry_samples (
     UNIQUE (cable_id, measured_at)
 );
 
+-- Tabelas de Rollup para Telemetria (Agregação para performance)
+CREATE TABLE IF NOT EXISTS telemetry_rollup_1h (
+    cable_id VARCHAR(255) NOT NULL REFERENCES cables(cable_id) ON DELETE CASCADE,
+    bucket TIMESTAMPTZ NOT NULL,
+    avg_latency_ms DOUBLE PRECISION,
+    avg_jitter_ms DOUBLE PRECISION,
+    max_latency_ms DOUBLE PRECISION,
+    p95_latency_ms DOUBLE PRECISION,
+    avg_packet_loss_pct DOUBLE PRECISION,
+    avg_throughput_mbps DOUBLE PRECISION,
+    sample_count INTEGER,
+    confidence_avg DOUBLE PRECISION,
+    PRIMARY KEY (cable_id, bucket)
+);
+
+CREATE TABLE IF NOT EXISTS telemetry_rollup_5m (
+    cable_id VARCHAR(255) NOT NULL REFERENCES cables(cable_id) ON DELETE CASCADE,
+    bucket TIMESTAMPTZ NOT NULL,
+    avg_latency_ms DOUBLE PRECISION,
+    avg_jitter_ms DOUBLE PRECISION,
+    max_latency_ms DOUBLE PRECISION,
+    avg_packet_loss_pct DOUBLE PRECISION,
+    sample_count INTEGER,
+    PRIMARY KEY (cable_id, bucket)
+);
+
+-- Índices para buscas temporais rápidas
+CREATE INDEX IF NOT EXISTS idx_rollup_1h_time ON telemetry_rollup_1h(bucket DESC);
+CREATE INDEX IF NOT EXISTS idx_rollup_5m_time ON telemetry_rollup_5m(bucket DESC);
+
+-- Tabela de Alertas Operacionais
+CREATE TABLE IF NOT EXISTS telemetry_alerts (
+    alert_id      SERIAL PRIMARY KEY,
+    cable_id      VARCHAR(255) NOT NULL REFERENCES cables(cable_id) ON DELETE CASCADE,
+    metric        VARCHAR(50) NOT NULL, -- latency, packet_loss, jitter
+    severity      VARCHAR(20) NOT NULL, -- warning, critical
+    current_value DOUBLE PRECISION,
+    baseline_value DOUBLE PRECISION,
+    detected_at   TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at   TIMESTAMPTZ,
+    description   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_active ON telemetry_alerts(detected_at) WHERE resolved_at IS NULL;
+
 -- Faixas de referência por cabo para calibração e avaliação automática.
 CREATE TABLE IF NOT EXISTS cable_telemetry_reference (
     cable_id VARCHAR(255) PRIMARY KEY REFERENCES cables(cable_id) ON DELETE CASCADE,

@@ -76,6 +76,7 @@ const dom = {
     cutCountryB: document.getElementById('cut-country-b'),
     riskCountry: document.getElementById('risk-country'),
     telemetryCable: document.getElementById('telemetry-cable'),
+    telemetryHours: document.getElementById('telemetry-hours'),
     btnTopRoutes: document.getElementById('btn-top-routes'),
     btnCriticalCuts: document.getElementById('btn-critical-cuts'),
     btnEndpointRisk: document.getElementById('btn-endpoint-risk'),
@@ -115,7 +116,14 @@ function clearError(node) {
 
 async function api(mode, q = '') {
     const response = await fetch(`${API_BASE}?api=1&mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(q)}`);
-    const payload = await response.json();
+    const raw = await response.text();
+    let payload;
+    try {
+        payload = JSON.parse(raw);
+    } catch {
+        const snippet = String(raw).slice(0, 160).replace(/\s+/g, ' ').trim();
+        throw new Error(`Resposta invalida da API (${response.status}). Trecho: ${snippet || 'vazio'}`);
+    }
     if (payload.error) {
         throw new Error(payload.error);
     }
@@ -130,7 +138,14 @@ async function apiWithParams(mode, params = {}) {
         }
     });
     const response = await fetch(`${API_BASE}?${searchParams.toString()}`);
-    const payload = await response.json();
+    const raw = await response.text();
+    let payload;
+    try {
+        payload = JSON.parse(raw);
+    } catch {
+        const snippet = String(raw).slice(0, 160).replace(/\s+/g, ' ').trim();
+        throw new Error(`Resposta invalida da API (${response.status}). Trecho: ${snippet || 'vazio'}`);
+    }
     if (payload.error) {
         throw new Error(payload.error);
     }
@@ -599,11 +614,10 @@ function buildBandPolygon(values, halfWidth, width, height, padding) {
     }).reverse();
 
     return upperPoints.concat(lowerPoints).join(' ');
-}
-
-function renderTelemetryChart(history, ciLatency) {
+    }
+    function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label = 'Latência (ms)') {
     const valid = history
-        .map((row) => Number(row.latency_ms))
+        .map((row) => Number(row[metric]))
         .filter((value) => Number.isFinite(value));
 
     if (valid.length < 2) {
@@ -616,20 +630,26 @@ function renderTelemetryChart(history, ciLatency) {
     const linePoints = buildLinePoints(valid, width, height, padding);
 
     let halfWidth = 0;
-    if (Array.isArray(ciLatency) && ciLatency.length === 2) {
+    // Banda de confiança apenas para latência por enquanto
+    if (metric === 'latency_ms' && Array.isArray(ciLatency) && ciLatency.length === 2) {
         halfWidth = Math.abs((Number(ciLatency[1]) - Number(ciLatency[0])) / 2);
     }
     const bandPoints = buildBandPolygon(valid, halfWidth, width, height, padding);
 
     return `
         <div class="telemetry-chart-wrap">
+            <div class="chart-controls" style="margin-bottom:8px; display:flex; gap:8px;">
+                <button class="btn btn-sm ${metric === 'latency_ms' ? 'primary' : ''}" onclick="window.updateTelemetryMetric('latency_ms', 'Latência (ms)')">Latência</button>
+                <button class="btn btn-sm ${metric === 'jitter_ms' ? 'primary' : ''}" onclick="window.updateTelemetryMetric('jitter_ms', 'Jitter (ms)')">Jitter</button>
+                <button class="btn btn-sm ${metric === 'packet_loss_pct' ? 'primary' : ''}" onclick="window.updateTelemetryMetric('packet_loss_pct', 'Perda (%)')">Perda</button>
+            </div>
             <svg class="telemetry-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
                 <line class="telemetry-axis" x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}"></line>
                 <line class="telemetry-axis" x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}"></line>
                 ${bandPoints ? `<polygon class="telemetry-band" points="${bandPoints}"></polygon>` : ''}
                 <polyline class="telemetry-line" points="${linePoints}"></polyline>
             </svg>
-            <div class="telemetry-legend">Latência ao longo da janela de análise${bandPoints ? ' com banda de confiança (95%)' : ''}.</div>
+            <div class="telemetry-legend">${label} ao longo da janela de análise.</div>
         </div>
     `;
 }
@@ -641,38 +661,23 @@ function renderTelemetry(payload) {
     const throughputP = telemetry.percentiles?.throughput_mbps || {};
     const packetLossP = telemetry.percentiles?.packet_loss_pct || {};
     const history = Array.isArray(telemetry.history) ? telemetry.history : [];
-    const recentRows = history.slice(-10).reverse().map((row) => `
-        <tr>
-            <td>${esc(row.measured_at || '-')}</td>
-            <td>${esc(row.latency_ms)}</td>
-            <td>${esc(row.jitter_ms)}</td>
-            <td>${esc(row.packet_loss_pct)}</td>
-            <td>${esc(row.throughput_mbps)}</td>
-            <td>${esc(row.availability_pct)}</td>
-            <td>${esc(row.confidence_score)}</td>
-            <td>${esc(row.source)}</td>
-        </tr>
-    `).join('');
+    
+    // Cache do payload para trocas de métrica sem nova requisição
+    window.lastTelemetryPayload = payload;
 
-    const ciLatency = telemetry.confidence_interval_latency_ms;
-    const ciText = Array.isArray(ciLatency) && ciLatency.length === 2
-        ? `${esc(ciLatency[0])} ms a ${esc(ciLatency[1])} ms`
-        : '<span class="muted">indisponivel</span>';
-    const chartHtml = renderTelemetryChart(history, ciLatency);
+    window.updateTelemetryMetric = (metric, label) => {
+        const chartContainer = document.getElementById('telemetry-chart-container');
+        if (chartContainer) {
+            chartContainer.innerHTML = renderTelemetryChart(history, telemetry.confidence_interval_latency_ms, metric, label);
+        }
+    };
 
-    setPanelResult(dom.telemetryResult, `
-        <h3>Telemetria avançada · ${esc(cable.cable_name)} (${esc(cable.cable_id)})</h3>
+    const htmlOverview = `
         <div class="detail-summary" style="margin-bottom:12px;">
-            <div class="summary-card"><div class="k">janela</div><div class="v">${esc(telemetry.window_start)}<br>${esc(telemetry.window_end)}</div></div>
-            <div class="summary-card"><div class="k">amostras</div><div class="v">${esc(telemetry.sample_size)}</div></div>
-            <div class="summary-card"><div class="k">qualidade dos dados</div><div class="v">${esc(telemetry.data_quality_score)} / 100</div></div>
-            <div class="summary-card"><div class="k">origem / método</div><div class="v">${esc(telemetry.source)} · ${esc(telemetry.method)}</div></div>
-            <div class="summary-card"><div class="k">modelo</div><div class="v">${esc(telemetry.telemetry_model_version)}</div></div>
-            <div class="summary-card"><div class="k">estimado</div><div class="v">${telemetry.estimated ? 'sim' : 'nao'}${telemetry.fallback_used ? ' (fallback)' : ''}</div></div>
+            <div class="summary-card"><div class="k">janela</div><div class="v">${esc(telemetry.window_start)}</div></div>
+            <div class="summary-card"><div class="k">qualidade</div><div class="v">${esc(telemetry.data_quality_score)} / 100</div></div>
+            <div class="summary-card"><div class="k">origem</div><div class="v">${esc(telemetry.source)}</div></div>
         </div>
-
-        ${chartHtml}
-
         <div class="telemetry-grid">
             <div class="gauge">
                 <svg viewBox="0 0 120 120">
@@ -699,44 +704,42 @@ function renderTelemetry(payload) {
                 <div class="label">maquinas conectadas</div>
             </div>
         </div>
-        <div style="margin-top:10px" class="muted">
-            trafego atual: ${esc(telemetry.traffic_mbps)} Mbps · endpoints: ${esc(cable.landing_points_count)} · perda de pacote: ${esc(telemetry.packet_loss_pct)}%
-        </div>
+    `;
 
-        <div class="subhead">Percentis para analise</div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>metrica</th><th>p50</th><th>p95</th><th>p99</th></tr></thead>
-                <tbody>
-                    <tr><td>latencia (ms)</td><td>${esc(latencyP.p50)}</td><td>${esc(latencyP.p95)}</td><td>${esc(latencyP.p99)}</td></tr>
-                    <tr><td>throughput (Mbps)</td><td>${esc(throughputP.p50)}</td><td>${esc(throughputP.p95)}</td><td>${esc(throughputP.p99)}</td></tr>
-                    <tr><td>perda pacote (%)</td><td>${esc(packetLossP.p50)}</td><td>${esc(packetLossP.p95)}</td><td>${esc(packetLossP.p99)}</td></tr>
-                </tbody>
-            </table>
-        </div>
+    const ciLatency = telemetry.confidence_interval_latency_ms;
+    const chartHtml = renderTelemetryChart(history, ciLatency);
 
-        <div class="subhead">Confianca estatistica</div>
-        <div class="hint" style="margin-top:0;">
-            Intervalo de confianca (95%) da latencia media: ${ciText}
-        </div>
-
-        <div class="subhead">Historico recente</div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>timestamp</th><th>latencia</th><th>jitter</th><th>perda %</th><th>throughput</th><th>disponibilidade %</th><th>confianca</th><th>fonte</th></tr></thead>
-                <tbody>${recentRows || '<tr><td colspan="8" class="muted">Sem histórico disponível.</td></tr>'}</tbody>
-            </table>
-        </div>
-
-        <div class="subhead">Metodologia</div>
-        <div class="hint" style="margin-top:0;">
-            Esta resposta já inclui estrutura para pesquisa: janela temporal, tamanho de amostra, percentis p50/p95/p99, intervalo de confiança e score de qualidade.
-        </div>
+    setPanelResult(dom.telemetryResult, `
+        <h3>Análise Modular · ${esc(cable.cable_name)}</h3>
+        ${htmlOverview}
+        <div class="subhead">Série Temporal</div>
+        <div id="telemetry-chart-container">${chartHtml}</div>
+        <div class="subhead">Análise Estatística (Baseline)</div>
+        <div class="hint">Confiança 95%: ${Array.isArray(ciLatency) ? ciLatency.join(' - ') + ' ms' : 'N/A'}</div>
     `);
 
     animateGauge('gauge-latency', 'value-latency', Number(telemetry.latency_ms), 250, 'ms');
     animateGauge('gauge-pps', 'value-pps', Number(telemetry.packets_per_second), 3000000, 'pps');
     animateGauge('gauge-machines', 'value-machines', Number(telemetry.connected_machines_estimate), 1200000, 'maq');
+}
+
+async function checkAlerts() {
+    try {
+        const payload = await api('alerts');
+        const container = document.getElementById('alert-ticker');
+        if (!container) return;
+
+        if (payload.alerts.length > 0) {
+            container.innerHTML = payload.alerts.map(a => `
+                <div class="alert-item ${a.severity}">
+                    <strong>${esc(a.cable_name)}</strong>: ${esc(a.description)}
+                </div>
+            `).join('');
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    } catch (e) { console.error("Erro ao checar alertas", e); }
 }
 
 async function runPanelFunction(errorNode, targetTab, handler) {
@@ -838,7 +841,11 @@ dom.btnTelemetry.addEventListener('click', () => runPanelFunction(dom.telemetryE
     if (!cableId) {
         throw new Error('Selecione um cabo para a telemetria.');
     }
-    const payload = await api('telemetry', cableId);
+    const hours = dom.telemetryHours ? dom.telemetryHours.value : 24;
+    const payload = await apiWithParams('telemetry', {
+        q: cableId,
+        hours: hours
+    });
     renderTelemetry(payload);
 }));
 

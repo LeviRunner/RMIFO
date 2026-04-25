@@ -47,7 +47,7 @@ def append_packet_log(log_dir: Path, measured_at: datetime, record: dict) -> Non
 
 import psycopg2
 
-TELEMETRY_MODEL_VERSION = "1.2.0"
+TELEMETRY_MODEL_VERSION = "1.3.0"
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,21 @@ def db_connect(base_dir: Path):
         dbname=os.getenv("DB_NAME", "global_network_resilience"),
         user=os.getenv("PGUSER", "postgres"),
     )
+
+def get_cable_health_map(conn) -> dict[str, dict]:
+    """Busca o estado de saúde recente (últimos 30m) para decidir a agressividade da coleta."""
+    health_map = {}
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT cable_id, avg_packet_loss_pct, avg_jitter_ms 
+            FROM telemetry_rollup_5m 
+            WHERE bucket >= NOW() - INTERVAL '30 minutes'
+        """)
+        for cid, loss, jitter in cur.fetchall():
+            # Define se o cabo está em 'alerta'
+            is_unstable = (loss or 0) > 2.0 or (jitter or 0) > 5.0
+            health_map[cid] = {"is_unstable": is_unstable}
+    return health_map
 
 
 # ---------------------------------------------------------------------------
@@ -341,9 +356,14 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
 
     log_dir = get_log_dir(base_dir)
     stats = {"mtr": 0, "tcp": 0, "http": 0, "synthetic": 0, "hops_total": 0}
+    
+    # Orçamento de rede: Máximo de ciclos MTR por execução para não saturar
+    mtr_budget = 250 
+    used_budget = 0
 
     with conn:
         ensure_telemetry_schema(conn)
+        health_map = get_cable_health_map(conn)
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT c.cable_id, c.length_km, c.capacity_gbps,
@@ -369,16 +389,23 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
         confidence = 0.56
         estimated = True
 
+        # Amostragem Adaptativa: Se instável, triplica os ciclos. 
+        # Se o budget acabou, reduz para o mínimo.
+        current_cycles = mtr_cycles * 3 if health_map.get(cable_id, {}).get("is_unstable") else mtr_cycles
+        if used_budget + current_cycles > mtr_budget:
+            current_cycles = 1 # Coleta mínima para manter histórico sem pesar
+
         # 1. mtr
-        if host:
+        if host and used_budget < mtr_budget:
             mtr_lat, hops, sent_at, received_at, source, method = probe_mtr(
-                host, cycles=mtr_cycles, timeout=timeout
+                host, cycles=current_cycles, timeout=timeout
             )
             if mtr_lat is not None and mtr_lat > 0:
                 latency_ms = round((baseline["latency_ms"] * 0.4) + (mtr_lat * 0.6), 3)
                 confidence = 0.90
                 estimated = False
                 stats["mtr"] += 1
+                used_budget += current_cycles
 
         # 2. TCP connect
         if latency_ms is None and host:
