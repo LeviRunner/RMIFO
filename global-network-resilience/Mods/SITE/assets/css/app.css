@@ -654,6 +654,16 @@ tr.bs-found {
     color: var(--text-soft);
 }
 
+.telemetry-source-legend {
+    margin: 4px 0 12px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--accent);
+    background: color-mix(in srgb, var(--panel) 78%, black 22%);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
 @media (max-width: 1060px) {
     .layout {
         grid-template-columns: 1fr;

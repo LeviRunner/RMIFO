@@ -672,12 +672,37 @@ function renderTelemetry(payload) {
         }
     };
 
+    const buildSourceLegend = () => {
+        const source = String(telemetry.source || 'unknown');
+        const method = String(telemetry.method || 'n/a');
+        const sampleSize = Number(telemetry.sample_size || history.length || 0);
+
+        if (telemetry.fallback_used || source === 'synthetic') {
+            return `Origem dos dados: série sintética de fallback (${sampleSize} amostras), usada quando não há coleta ativa disponível na janela.`;
+        }
+
+        if (source === 'active_mtr') {
+            return `Origem dos dados: coleta ativa via MTR (${sampleSize} amostras). Método: ${method}.`;
+        }
+
+        if (source === 'active_tcp_connect') {
+            return `Origem dos dados: coleta ativa via TCP connect (${sampleSize} amostras). Método: ${method}.`;
+        }
+
+        if (source === 'active_http_probe') {
+            return `Origem dos dados: coleta ativa via HTTP probe (${sampleSize} amostras). Método: ${method}.`;
+        }
+
+        return `Origem dos dados: ${source} (${sampleSize} amostras). Método: ${method}.`;
+    };
+
     const htmlOverview = `
         <div class="detail-summary" style="margin-bottom:12px;">
             <div class="summary-card"><div class="k">janela</div><div class="v">${esc(telemetry.window_start)}</div></div>
             <div class="summary-card"><div class="k">qualidade</div><div class="v">${esc(telemetry.data_quality_score)} / 100</div></div>
             <div class="summary-card"><div class="k">origem</div><div class="v">${esc(telemetry.source)}</div></div>
         </div>
+        <div class="telemetry-source-legend">${esc(buildSourceLegend())}</div>
         <div class="telemetry-grid">
             <div class="gauge">
                 <svg viewBox="0 0 120 120">
