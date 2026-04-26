@@ -74,5 +74,7 @@ def export(base_dir: Path) -> Path:
 
 
 if __name__ == "__main__":
-    base_dir = Path(__file__).resolve().parent.parent
+    base_dir = Path(
+        os.getenv("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent))
+    )
     export(base_dir)

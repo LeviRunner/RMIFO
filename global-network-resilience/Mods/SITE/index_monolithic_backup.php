@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-$projectRoot = dirname(__DIR__, 2);
-$pgSocket = getenv('PG_SOCKET') ?: $projectRoot . '/.local/run';
+$workspaceRoot = getenv('WORKSPACE_ROOT') ?: dirname(__DIR__, 3);
+$pgSocket = getenv('PG_SOCKET') ?: $workspaceRoot . '/.local/run';
 $pgPort = (int) (getenv('PG_PORT') ?: 55432);
 $pgDbname = 'global_network_resilience';
 $pgUser = 'postgres';

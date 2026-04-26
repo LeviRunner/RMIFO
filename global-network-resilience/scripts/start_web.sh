@@ -2,13 +2,14 @@
 # start_web.sh — inicia servidor PHP embutido para a aplicação de busca binária
 set -euo pipefail
 
-BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PG_ROOT="${PG_ROOT:-${BASE_DIR}/.local/postgresql}"
-PHP_ROOT="${PHP_ROOT:-${BASE_DIR}/.local/php_root}"
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+BASE_DIR="${WORKSPACE_ROOT}/global-network-resilience"
+PG_ROOT="${PG_ROOT:-${WORKSPACE_ROOT}/.local/postgresql}"
+PHP_ROOT="${PHP_ROOT:-${WORKSPACE_ROOT}/.local/php_root}"
 PHP_BIN=""
 PHP_EXT_DIR=""
 PG_LIB="${PG_ROOT}/usr/lib/x86_64-linux-gnu"
-PHP_INI="${BASE_DIR}/.local/php_cli.ini"
+PHP_INI="${WORKSPACE_ROOT}/.local/php_cli.ini"
 DOC_ROOT="${BASE_DIR}/Mods/SITE"
 HOST="${HOST:-localhost}"
 PORT="${PORT:-8080}"
@@ -50,6 +51,7 @@ fi
 
 # ── Exporta libs necessárias ─────────────────────────────────────────────────
 export LD_LIBRARY_PATH="${PG_LIB}:${LD_LIBRARY_PATH:-}"
+export WORKSPACE_ROOT
 
 # ── Inicia servidor ───────────────────────────────────────────────────────────
 echo ""

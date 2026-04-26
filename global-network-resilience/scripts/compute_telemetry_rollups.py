@@ -78,5 +78,7 @@ def run_rollups(base_dir: Path):
         conn.close()
 
 if __name__ == "__main__":
-    base_dir = Path(__file__).resolve().parent.parent
+    base_dir = Path(
+        os.getenv("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent))
+    )
     run_rollups(base_dir)

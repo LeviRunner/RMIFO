@@ -264,7 +264,6 @@ def ensure_telemetry_schema(conn) -> None:
                 UNIQUE (cable_id, measured_at)
             );
         """)
-        # Colunas adicionadas em v1.2 – idempotentes
         cur.execute("""
             ALTER TABLE cable_telemetry_samples
                 ADD COLUMN IF NOT EXISTS sent_at     TIMESTAMPTZ,
@@ -585,7 +584,7 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
     ingest(
-        Path(__file__).resolve().parent.parent,
+        Path(os.getenv("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent))),
         args.limit,
         args.seed,
         args.timeout,

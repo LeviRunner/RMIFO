@@ -3,8 +3,9 @@ set -euo pipefail
 
 # run_daily_telemetry_tasks.sh — Orquestra a saúde da rede
 
-BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${BASE_DIR}/../.venv/bin/python"
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+BASE_DIR="${WORKSPACE_ROOT}/global-network-resilience"
+PYTHON_BIN="${WORKSPACE_ROOT}/.venv/bin/python"
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then
     PYTHON_BIN="python3"

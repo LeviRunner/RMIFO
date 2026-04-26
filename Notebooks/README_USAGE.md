@@ -23,7 +23,7 @@ cd global-network-resilience
 ```bash
 cd global-network-resilience
 python3 -m venv ../.venv
-../.venv/bin/python -m pip install -r ../Notebooks/requirements.txt
+../.venv/bin/python -m pip install "psycopg2-binary>=2.9.0"
 ```
 
 ## Criar e popular banco

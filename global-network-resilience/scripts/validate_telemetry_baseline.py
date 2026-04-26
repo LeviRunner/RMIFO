@@ -52,4 +52,6 @@ def validate_performance(base_dir: Path):
         conn.close()
 
 if __name__ == "__main__":
-    validate_performance(Path(__file__).resolve().parent.parent)
+    validate_performance(
+        Path(os.getenv("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent)))
+    )

@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PG_ROOT="${PG_ROOT:-${BASE_DIR}/.local/postgresql}"
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+BASE_DIR="${WORKSPACE_ROOT}/global-network-resilience"
+PG_ROOT="${PG_ROOT:-${WORKSPACE_ROOT}/.local/postgresql}"
 PG_VERSION="${PG_VERSION:-$(apt-cache search '^postgresql-[0-9]+$' | sed -E 's/^postgresql-([0-9]+).*/\1/' | sort -n | tail -n 1)}"
-TMP_DIR="${BASE_DIR}/.local/tmp_pg_download"
+TMP_DIR="${WORKSPACE_ROOT}/.local/tmp_pg_download"
 
 mkdir -p "${PG_ROOT}" "${TMP_DIR}"
 cd "${TMP_DIR}"
 
-PHP_ROOT="${PHP_ROOT:-${BASE_DIR}/.local/php_root}"
-TMP_PHP_DIR="${BASE_DIR}/.local/tmp_php_download"
+PHP_ROOT="${PHP_ROOT:-${WORKSPACE_ROOT}/.local/php_root}"
+TMP_PHP_DIR="${WORKSPACE_ROOT}/.local/tmp_php_download"
 PHP_PACKAGE_PREFIX="${PHP_PACKAGE_PREFIX:-$(if command -v php >/dev/null 2>&1; then php -r 'echo "php", PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;'; else apt-cache search '^php8\.[0-9]+-pgsql$' | sed -E 's/^(php8\.[0-9]+)-pgsql.*/\1/' | sort -V | tail -n 1; fi)}"
 
 mkdir -p "${PG_ROOT}" "${TMP_DIR}" "${PHP_ROOT}" "${TMP_PHP_DIR}"
