@@ -1,8 +1,10 @@
 # Ambientes virtuais Python
-.venv*/
-venv/
-env/
-ENV/
+.venv/
+workspace/RMIFO/.venv/bin/python
+workspace/RMIFO/.venv/bin/python3
+workspace/RMIFO/.venv/bin/python3.12
+
+.local/
 
 # Dados volumosos (GeoIP, datasets)
 global-network-resilience/data/external/*.csv
