@@ -7,10 +7,7 @@ workspace/RMIFO/.venv/bin/python3.12
 .local/
 
 # Dados volumosos (GeoIP, datasets)
-global-network-resilience/data/external/*.csv
-global-network-resilience/data/external/*.zip
-global-network-resilience/data/raw/*.gz
-global-network-resilience/data/processed/
+data/
 
 # Cache Python
 __pycache__/
