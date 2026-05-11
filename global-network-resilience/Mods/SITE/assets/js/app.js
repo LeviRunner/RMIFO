@@ -45,6 +45,7 @@ const dom = {
         'critical-cuts': document.getElementById('tab-critical-cuts'),
         'endpoint-risk': document.getElementById('tab-endpoint-risk'),
         telemetry: document.getElementById('tab-telemetry'),
+        'network-probe': document.getElementById('tab-network-probe'),
     },
     binaryBox: document.getElementById('binary-box'),
     binaryStep: document.getElementById('binary-step'),
@@ -614,8 +615,9 @@ function buildBandPolygon(values, halfWidth, width, height, padding) {
     }).reverse();
 
     return upperPoints.concat(lowerPoints).join(' ');
-    }
-    function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label = 'Latência (ms)') {
+}
+
+function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label = 'Latência (ms)') {
     const valid = history
         .map((row) => Number(row[metric]))
         .filter((value) => Number.isFinite(value));
@@ -657,7 +659,7 @@ function buildBandPolygon(values, halfWidth, width, height, padding) {
 function renderTelemetry(payload) {
     const cable = payload.details.cable;
     const telemetry = payload.telemetry;
-    const latencyP = telemetry.percentiles?.latency_ms || {};
+    const latencyP    = telemetry.percentiles?.latency_ms     || {};
     const throughputP = telemetry.percentiles?.throughput_mbps || {};
     const packetLossP = telemetry.percentiles?.packet_loss_pct || {};
     const history = Array.isArray(telemetry.history) ? telemetry.history : [];
@@ -665,10 +667,12 @@ function renderTelemetry(payload) {
     // Cache do payload para trocas de métrica sem nova requisição
     window.lastTelemetryPayload = payload;
 
+    window._lastTelemetryHistory = history;
+    window._lastTelemetryCiLatency = telemetry.confidence_interval_latency_ms;
     window.updateTelemetryMetric = (metric, label) => {
         const chartContainer = document.getElementById('telemetry-chart-container');
         if (chartContainer) {
-            chartContainer.innerHTML = renderTelemetryChart(history, telemetry.confidence_interval_latency_ms, metric, label);
+            chartContainer.innerHTML = renderTelemetryChart(window._lastTelemetryHistory, window._lastTelemetryCiLatency, metric, label);
         }
     };
 
@@ -740,7 +744,17 @@ function renderTelemetry(payload) {
         <div class="subhead">Série Temporal</div>
         <div id="telemetry-chart-container">${chartHtml}</div>
         <div class="subhead">Análise Estatística (Baseline)</div>
-        <div class="hint">Confiança 95%: ${Array.isArray(ciLatency) ? ciLatency.join(' - ') + ' ms' : 'N/A'}</div>
+        <div class="hint">Confiança 95% latência: ${Array.isArray(ciLatency) ? ciLatency.join(' – ') + ' ms' : 'N/A'}</div>
+        <div class="table-wrap" style="margin-top:8px;">
+            <table>
+                <thead><tr><th>Métrica</th><th>p50</th><th>p95</th><th>p99</th></tr></thead>
+                <tbody>
+                    <tr><td>Latência (ms)</td><td>${latencyP.p50 ?? 'N/A'}</td><td>${latencyP.p95 ?? 'N/A'}</td><td>${latencyP.p99 ?? 'N/A'}</td></tr>
+                    <tr><td>Throughput (Mbps)</td><td>${throughputP.p50 ?? 'N/A'}</td><td>${throughputP.p95 ?? 'N/A'}</td><td>${throughputP.p99 ?? 'N/A'}</td></tr>
+                    <tr><td>Perda pacotes (%)</td><td>${packetLossP.p50 ?? 'N/A'}</td><td>${packetLossP.p95 ?? 'N/A'}</td><td>${packetLossP.p99 ?? 'N/A'}</td></tr>
+                </tbody>
+            </table>
+        </div>
     `);
 
     animateGauge('gauge-latency', 'value-latency', Number(telemetry.latency_ms), 250, 'ms');
@@ -749,14 +763,13 @@ function renderTelemetry(payload) {
 }
 
 async function checkAlerts() {
+    const container = document.getElementById('alert-ticker');
+    if (!container) return;
     try {
         const payload = await api('alerts');
-        const container = document.getElementById('alert-ticker');
-        if (!container) return;
-
-        if (payload.alerts.length > 0) {
-            container.innerHTML = payload.alerts.map(a => `
-                <div class="alert-item ${a.severity}">
+        if (payload.alerts && payload.alerts.length > 0) {
+            container.innerHTML = payload.alerts.map((a) => `
+                <div class="alert-item ${esc(a.severity)}">
                     <strong>${esc(a.cable_name)}</strong>: ${esc(a.description)}
                 </div>
             `).join('');
@@ -764,7 +777,9 @@ async function checkAlerts() {
         } else {
             container.style.display = 'none';
         }
-    } catch (e) { console.error("Erro ao checar alertas", e); }
+    } catch (e) {
+        container.style.display = 'none';
+    }
 }
 
 async function runPanelFunction(errorNode, targetTab, handler) {
@@ -866,13 +881,157 @@ dom.btnTelemetry.addEventListener('click', () => runPanelFunction(dom.telemetryE
     if (!cableId) {
         throw new Error('Selecione um cabo para a telemetria.');
     }
-    const hours = dom.telemetryHours ? dom.telemetryHours.value : 24;
-    const payload = await apiWithParams('telemetry', {
-        q: cableId,
-        hours: hours
-    });
+    const hours = dom.telemetryHours ? parseInt(dom.telemetryHours.value, 10) || 24 : 24;
+    const payload = await apiWithParams('telemetry', { q: cableId, hours });
     renderTelemetry(payload);
 }));
+
+const probeElements = {
+    cable: document.getElementById('probe-cable'),
+    endpoint: document.getElementById('probe-endpoint-select'),
+    ip: document.getElementById('probe-ip'),
+    fullScan: document.getElementById('probe-full-scan'),
+    btn: document.getElementById('btn-probe'),
+    error: document.getElementById('probe-error'),
+    result: document.getElementById('probe-result'),
+};
+
+async function loadProbeEndpoints() {
+    const cableId = probeElements.cable ? probeElements.cable.value.trim() : '';
+    if (!cableId || !probeElements.endpoint) return;
+    try {
+        const payload = await api('details', cableId);
+        const endpoints = payload.endpoints || [];
+        probeElements.endpoint.innerHTML = endpoints.map((ep) => {
+            const ipSamples = ep.ip_samples || [];
+            const firstIp = ipSamples.length ? ipSamples[0].ip_start || '' : '';
+            return `<option value="${esc(ep.endpoint_id)}" data-ip="${esc(firstIp)}">${esc(ep.endpoint_name)} — ${esc(ep.city_name)}, ${esc(ep.country_name)}</option>`;
+        }).join('');
+        if (probeElements.endpoint.options.length && probeElements.ip) {
+            const selected = probeElements.endpoint.options[0];
+            probeElements.ip.value = selected.dataset.ip || '';
+        }
+    } catch (e) {
+        if (probeElements.error) showError(probeElements.error, e.message);
+    }
+}
+
+function renderProbeResult(payload) {
+    const r = payload.result;
+    const statusClass = r.reachable ? 'yes' : 'no';
+    const statusText  = r.reachable ? 'Acessível' : 'Inacessível';
+
+    const hopsRows = (r.hops || []).map((hop, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td class="mono">${esc(hop.ip || '*')}</td>
+            <td>${esc(hop.host || '*')}</td>
+            <td>${hop.rtt_ms != null ? `${hop.rtt_ms} ms` : '*'}</td>
+        </tr>
+    `).join('');
+
+    const portsBadge = (r.ports_tested || []).length
+        ? `<span class="muted" style="font-size:12px;">portas: ${r.ports_tested.join(' · ')}</span>`
+        : '';
+
+    const fullBadge = r.full_scan
+        ? `<span class="mode-meta" style="margin-left:6px;">sonda completa</span>`
+        : '';
+
+    const historyBadge = payload.history_file
+        ? `<div class="probe-history-badge">&#10003; Histórico salvo: <span class="mono">${esc(payload.history_file)}</span></div>`
+        : '';
+
+    // Cadeia de protocolos tentados: TCP → ICMP → HTTP
+    const PROTO_LABEL = { tcp: 'TCP', icmp: 'ICMP', http: 'HTTP' };
+    const PROTO_DESC  = {
+        tcp:  'TCP SYN/ACK connect — verifica porta aberta (camada 4)',
+        icmp: 'ICMP Echo Request — ping camada 3, passa em firewalls sem estado',
+        http: 'HTTP HEAD — handshake Web via porta 80/443',
+    };
+    const steps = r.probe_steps || [];
+    const methodStep = r.method?.startsWith('tcp') ? 'tcp'
+        : r.method === 'icmp-echo' ? 'icmp'
+        : r.method?.startsWith('http') ? 'http'
+        : null;
+
+    const probeChain = steps.length ? `
+        <div class="probe-chain" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            ${steps.map((s, i) => {
+                const succeeded = s === methodStep;
+                const cls = succeeded ? 'badge yes' : 'badge no';
+                const arrow = i < steps.length - 1 ? '<span class="muted">→</span>' : '';
+                return `<span title="${esc(PROTO_DESC[s] || s)}" class="${cls}" style="font-size:11px;">${PROTO_LABEL[s] || s.toUpperCase()}</span>${arrow}`;
+            }).join('')}
+            ${methodStep ? `<span class="muted" style="font-size:11px;">passou via ${PROTO_LABEL[methodStep] || methodStep}</span>` : ''}
+            ${!methodStep && r.method === 'synthetic_fallback' ? `<span class="mode-meta" style="font-size:11px;">estimativa sintética</span>` : ''}
+        </div>` : '';
+
+    const lossClass   = (r.packet_loss_pct ?? 0) > 5 ? 'danger-text' : 'ok-text';
+    const jitterClass = (r.jitter_ms ?? 0) > 20 ? 'danger-text' : 'ok-text';
+
+    const html = `
+        <div class="probe-status">
+            <span class="badge ${statusClass}">${statusText}</span>
+            <span class="muted" style="margin-left:10px;">${esc(r.target_ip || payload.target || '')}</span>
+            ${fullBadge}
+        </div>
+        ${probeChain}
+        ${portsBadge ? `<div style="margin-top:4px;">${portsBadge}</div>` : ''}
+        ${historyBadge}
+        <div class="telemetry-grid" style="margin-top:12px;">
+            <div class="gauge-mini"><div class="k">RTT Médio</div><div class="v accent">${r.avg_rtt_ms != null ? r.avg_rtt_ms + ' ms' : 'N/A'}</div></div>
+            <div class="gauge-mini"><div class="k">Jitter</div><div class="v ${jitterClass}">${r.jitter_ms != null ? r.jitter_ms + ' ms' : 'N/A'}</div></div>
+            <div class="gauge-mini"><div class="k">Perda de Pacotes</div><div class="v ${lossClass}">${r.packet_loss_pct != null ? r.packet_loss_pct + '%' : 'N/A'}</div></div>
+            <div class="gauge-mini"><div class="k">Throughput Est.</div><div class="v">${r.throughput_mbps != null ? r.throughput_mbps + ' Mbps' : 'N/A'}</div></div>
+            <div class="gauge-mini"><div class="k">Protocolo</div><div class="v">${esc(r.method || 'synthetic')}</div></div>
+            <div class="gauge-mini"><div class="k">Amostras</div><div class="v">${r.samples ?? '-'}</div></div>
+        </div>
+        ${hopsRows ? `
+        <div class="subhead" style="margin-top:14px;">Rota simulada (hops)</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>#</th><th>IP</th><th>Host</th><th>RTT</th></tr></thead>
+                <tbody>${hopsRows}</tbody>
+            </table>
+        </div>` : ''}
+        <div class="telemetry-source-legend" style="margin-top:12px;">${esc(r.note || '')}</div>
+    `;
+    if (probeElements.result) probeElements.result.innerHTML = html;
+}
+
+if (probeElements.cable) {
+    probeElements.cable.addEventListener('change', loadProbeEndpoints);
+    probeElements.cable.addEventListener('blur', loadProbeEndpoints);
+}
+
+if (probeElements.endpoint) {
+    probeElements.endpoint.addEventListener('change', () => {
+        const selected = probeElements.endpoint.options[probeElements.endpoint.selectedIndex];
+        if (selected && probeElements.ip) {
+            probeElements.ip.value = selected.dataset.ip || '';
+        }
+    });
+}
+
+if (probeElements.btn) {
+    probeElements.btn.addEventListener('click', () => runPanelFunction(probeElements.error, 'network-probe', async () => {
+        const cableId = probeElements.cable ? probeElements.cable.value.trim() : '';
+        const endpointId = probeElements.endpoint ? probeElements.endpoint.value.trim() : '';
+        const ip = probeElements.ip ? probeElements.ip.value.trim() : '';
+        if (!cableId) throw new Error('Selecione um cabo para a sonda.');
+        probeElements.btn.disabled = true;
+        probeElements.btn.textContent = 'Sondando...';
+        try {
+            const full = probeElements.fullScan?.checked ? '1' : '0';
+            const payload = await apiWithParams('probe', { q: cableId, endpoint_id: endpointId, ip, full });
+            renderProbeResult(payload);
+        } finally {
+            probeElements.btn.disabled = false;
+            probeElements.btn.textContent = 'Iniciar Sonda';
+        }
+    }));
+}
 
 (async function init() {
     try {
@@ -884,7 +1043,14 @@ dom.btnTelemetry.addEventListener('click', () => runPanelFunction(dom.telemetryE
         state.countries = countriesPayload.data;
         populateDatalist();
         populateCountrySelects(state.countries);
+        if (probeElements.cable) {
+            probeElements.cable.innerHTML = state.allCables.map((row) => (
+                `<option value="${esc(row.cable_id)}">${esc(row.cable_name)}</option>`
+            )).join('');
+        }
         dom.resultCount.textContent = `${payload.total} cabos carregados e prontos para busca.`;
+        checkAlerts();
+        setInterval(checkAlerts, 60000);
     } catch (error) {
         showError(dom.searchError, `Falha ao carregar o catalogo: ${error.message}`);
     }

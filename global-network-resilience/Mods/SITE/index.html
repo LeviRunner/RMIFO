@@ -15,6 +15,7 @@
     <h1>Busca Binária e Catálogo Detalhado de Cabos</h1>
     <div class="pill">PostgreSQL local · porta 55432</div>
 </header>
+<div class="alert-ticker" id="alert-ticker"></div>
 
 <div class="layout">
     <aside class="panel">
@@ -60,6 +61,7 @@
             <button class="tab-btn" data-tab="critical-cuts">Cortes Críticos</button>
             <button class="tab-btn" data-tab="endpoint-risk">Risco de Endpoints</button>
             <button class="tab-btn" data-tab="telemetry">Telemetria Avançada</button>
+            <button class="tab-btn" data-tab="network-probe">Sonda de Rede</button>
         </div>
 
         <div class="panel-body tab-panel active" id="tab-search">
@@ -163,11 +165,52 @@
                     <label for="telemetry-cable">Cabo</label>
                     <input id="telemetry-cable" list="cable-list" placeholder="Selecione um cable_id">
                 </div>
+                <div class="field">
+                    <label for="telemetry-hours">Janela de tempo</label>
+                    <select id="telemetry-hours">
+                        <option value="6">Últimas 6 horas</option>
+                        <option value="24" selected>Últimas 24 horas</option>
+                        <option value="72">Últimos 3 dias</option>
+                        <option value="168">Última semana</option>
+                        <option value="720">Último mês</option>
+                    </select>
+                </div>
                 <button class="btn primary fn-action" id="btn-telemetry">Buscar telemetria</button>
             </section>
 
             <div class="error" id="telemetry-error"></div>
             <div class="function-result" id="telemetry-result">Telemetria avançada: execute para ver indicadores do cabo e base para análises futuras.</div>
+        </div>
+
+        <div class="panel-body tab-panel" id="tab-network-probe">
+            <section class="function-card">
+                <div class="fn-name">SONDA_DE_REDE</div>
+                <div class="field">
+                    <label for="probe-cable">Cabo</label>
+                    <select id="probe-cable"></select>
+                </div>
+                <div class="field">
+                    <label for="probe-endpoint-select">Endpoint</label>
+                    <select id="probe-endpoint-select"><option value="">— selecione um cabo primeiro —</option></select>
+                </div>
+                <div class="field">
+                    <label for="probe-ip">IP alvo (preenchido automaticamente ou manual)</label>
+                    <input id="probe-ip" type="text" placeholder="ex: 196.216.2.1" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label class="probe-full-label">
+                        <input type="checkbox" id="probe-full-scan">
+                        Sonda completa <span class="mode-meta">portas 443 · 80 · 22 · 8080 · 8443 · 5 amostras · jitter · throughput</span>
+                    </label>
+                </div>
+                <button class="btn primary fn-action" id="btn-probe">Iniciar Sonda</button>
+            </section>
+
+            <div class="error" id="probe-error"></div>
+            <div class="function-result" id="probe-result">
+                Selecione um cabo e endpoint para executar a sonda de conectividade de rede.
+                A sonda testa TCP connect, estima RTT e perda de pacotes, e simula a rota de hops até o endpoint.
+            </div>
         </div>
     </main>
 </div>

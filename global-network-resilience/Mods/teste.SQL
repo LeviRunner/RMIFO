@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS cables (
     cable_id VARCHAR(255) PRIMARY KEY, -- Slug identificador (ex: americas-i-north)
     cable_name VARCHAR(255) NOT NULL,
     owners TEXT,                       -- Lista de proprietários (ex: AT&T, América Móvil)
-    capacity_gbps INTEGER,             -- Capacidade de design em Gbps
+    capacity_gbps DOUBLE PRECISION,     -- Capacidade de design em Gbps
     length_km INTEGER,                 -- Comprimento convertido para inteiro
     rfs_year INTEGER,                  -- Ano de entrada em operação (Ready For Service)
     is_operational BOOLEAN DEFAULT TRUE,
@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS telemetry_rollup_5m (
     avg_jitter_ms DOUBLE PRECISION,
     max_latency_ms DOUBLE PRECISION,
     avg_packet_loss_pct DOUBLE PRECISION,
+    avg_throughput_mbps DOUBLE PRECISION,
     sample_count INTEGER,
     PRIMARY KEY (cable_id, bucket)
 );
@@ -189,6 +190,18 @@ CREATE TABLE IF NOT EXISTS cable_telemetry_reference (
 CREATE INDEX IF NOT EXISTS idx_telemetry_cable_time ON cable_telemetry_samples(cable_id, measured_at DESC);
 CREATE INDEX IF NOT EXISTS idx_telemetry_time ON cable_telemetry_samples(measured_at DESC);
 CREATE INDEX IF NOT EXISTS idx_telemetry_source_method ON cable_telemetry_samples(source, method);
+
+-- Índice parcial para alertas ativos (resolved_at IS NULL é o caso dominante de consulta)
+CREATE INDEX IF NOT EXISTS idx_alerts_cable_active ON telemetry_alerts(cable_id) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON telemetry_alerts(severity, detected_at DESC) WHERE resolved_at IS NULL;
+
+-- Rollup 5m: índice com cable_id para leitura por janela de tempo
+CREATE INDEX IF NOT EXISTS idx_rollup_5m_cable_time ON telemetry_rollup_5m(cable_id, bucket DESC);
+-- Rollup 1h: idem
+CREATE INDEX IF NOT EXISTS idx_rollup_1h_cable_time ON telemetry_rollup_1h(cable_id, bucket DESC);
+
+-- Índice para busca de IPs por endpoint (utilizado pela sonda de rede)
+CREATE INDEX IF NOT EXISTS idx_endpoint_ip_start ON endpoint_ip_samples(endpoint_id, ip_start);
 
 -- Consultas de validação rápida (somente leitura)
 -- 1) Quantidade de registros por tabela
