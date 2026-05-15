@@ -9,7 +9,7 @@
 # O que faz:
 #   1. Inicia o PostgreSQL local (binários em .local/postgresql/)
 #   2. Cria o banco global_network_resilience
-#   3. Aplica o schema (Mods/teste.SQL)
+#   3. Aplica o schema (db/schema.sql)
 #   4. Aplica dados de seed (db/seed.sql)
 #   5. Imprime string de conexão pronta para uso
 # ─────────────────────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ PG_LOG="${WORKSPACE_ROOT}/.local/postgres.log"
 PG_USER="postgres"
 DB_NAME="${DB_NAME:-global_network_resilience}"
 
-SCHEMA_SQL="${BASE_DIR}/Mods/teste.SQL"
+SCHEMA_SQL="${BASE_DIR}/db/schema.sql"
 SEED_SQL="${SCRIPT_DIR}/seed.sql"
 PSQL="${PG_BIN}/psql"
 
@@ -136,6 +136,6 @@ echo -e "  ${YELLOW}export PG_PORT=${PG_PORT}${NC}"
 echo -e "  ${YELLOW}export PGDATABASE=${DB_NAME}${NC}"
 echo -e "  ${YELLOW}export PGUSER=${PG_USER}${NC}"
 echo ""
-echo -e "  ${BOLD}Terminal C:${NC}   ${CYAN}cd Mods/TERMINAL && ./rmifo${NC}"
-echo -e "  ${BOLD}Dashboard Python:${NC} ${CYAN}python Mods/TERMINAL/dashboard.py${NC}"
+echo -e "  ${BOLD}Terminal C:${NC}   ${CYAN}cd terminal && make && ./rmifo${NC}"
+echo -e "  ${BOLD}Dashboard Python:${NC} ${CYAN}python dashboard/dashboard.py${NC}"
 echo ""

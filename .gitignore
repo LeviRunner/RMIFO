@@ -1,35 +1,33 @@
-# Ambientes virtuais Python
+# ── Ambientes Python ──────────────────────────────────────────────────────────
 .venv/
-workspace/RMIFO/.venv/bin/python
-workspace/RMIFO/.venv/bin/python3
-workspace/RMIFO/.venv/bin/python3.12
-
-.local/
-
-# Dados volumosos (GeoIP, datasets)
-data/
-
-# Cache Python
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
 .coverage
 
-# OS
+# ── Build C (artefatos compilados) ────────────────────────────────────────────
+*.o
+terminal/rmifo
+dashboard/dist/
+
+# ── Runtime PostgreSQL local ──────────────────────────────────────────────────
+.local/
+global-network-resilience/.local/
+
+# ── Dados de runtime e logs ───────────────────────────────────────────────────
+data/local/
+
+# ── Dados externos volumosos (GeoIP, datasets) ────────────────────────────────
+data/external/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Logs
+# ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
 
-# Ambiente local do projeto
-global-network-resilience/.local/
-
-# Resultados de simulations
+# ── Resultados de simulações ──────────────────────────────────────────────────
 results/
 outputs/
-
-# Spark/Parquet temporários
-metastore_db/
-derby.log

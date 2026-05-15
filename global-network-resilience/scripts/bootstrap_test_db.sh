@@ -4,7 +4,7 @@ set -euo pipefail
 DB_NAME="${DB_NAME:-global_network_resilience}"
 WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 BASE_DIR="${WORKSPACE_ROOT}/global-network-resilience"
-SQL_FILE="${SQL_FILE:-${BASE_DIR}/Mods/teste.SQL}"
+SQL_FILE="${SQL_FILE:-${BASE_DIR}/db/schema.sql}"
 PYTHON_BIN="${PYTHON_BIN:-${WORKSPACE_ROOT}/.venv/bin/python}"
 PG_ROOT="${PG_ROOT:-${WORKSPACE_ROOT}/.local/postgresql}"
 if [[ -z "${PG_VERSION:-}" ]]; then
