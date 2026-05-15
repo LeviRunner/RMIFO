@@ -60,10 +60,10 @@ def db_connect() -> Optional[object]:
         return None
     try:
         ws   = os.environ.get("WORKSPACE_ROOT", "/workspaces/RMIFO")
-        host = os.environ.get("PG_SOCKET", os.environ.get("PGHOST", f"{ws}/.pgsql/run"))
-        port = os.environ.get("PG_PORT",   os.environ.get("PGPORT", "5432"))
-        db   = os.environ.get("PGDATABASE", "rmifo")
-        user = os.environ.get("PGUSER",     "rmifo")
+        host = os.environ.get("PG_SOCKET", os.environ.get("PGHOST", f"{ws}/.local/run"))
+        port = os.environ.get("PG_PORT",   os.environ.get("PGPORT", "55432"))
+        db   = os.environ.get("PGDATABASE", "global_network_resilience")
+        user = os.environ.get("PGUSER",     "postgres")
         conn = psycopg2.connect(host=host, port=port, dbname=db, user=user, connect_timeout=4)
         conn.autocommit = True
         return conn
@@ -385,26 +385,28 @@ class RMIFOApp(tk.Tk):
             rows = demo_cables()
         elif field == "nome":
             rows = db_query(self.conn,
-                "SELECT cable_id, cable_name, length_km, owners, operational "
+                "SELECT cable_id, cable_name, length_km, owners, is_operational AS operational "
                 "FROM cables WHERE cable_name ILIKE %s ORDER BY cable_name LIMIT 200",
                 (f"%{term}%",))
         elif field == "país":
             rows = db_query(self.conn,
-                "SELECT DISTINCT c.cable_id, c.cable_name, c.length_km, c.owners, c.operational "
-                "FROM cables c JOIN endpoints e ON e.cable_id = c.cable_id "
-                "WHERE e.country ILIKE %s ORDER BY c.cable_name LIMIT 200", (f"%{term}%",))
+                "SELECT DISTINCT c.cable_id, c.cable_name, c.length_km, c.owners, c.is_operational AS operational "
+                "FROM cables c "
+                "JOIN cable_landing_points clp ON clp.cable_id = c.cable_id "
+                "JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id "
+                "WHERE lp.country_name ILIKE %s ORDER BY c.cable_name LIMIT 200", (f"%{term}%",))
         elif field == "proprietário":
             rows = db_query(self.conn,
-                "SELECT cable_id, cable_name, length_km, owners, operational "
+                "SELECT cable_id, cable_name, length_km, owners, is_operational AS operational "
                 "FROM cables WHERE owners ILIKE %s ORDER BY cable_name LIMIT 200", (f"%{term}%",))
         elif field == "ano":
             rows = db_query(self.conn,
-                "SELECT cable_id, cable_name, length_km, owners, operational "
-                "FROM cables WHERE year_ready::text LIKE %s ORDER BY cable_name LIMIT 200",
+                "SELECT cable_id, cable_name, length_km, owners, is_operational AS operational "
+                "FROM cables WHERE rfs_year::text LIKE %s ORDER BY cable_name LIMIT 200",
                 (f"%{term}%",))
         else:
             rows = db_query(self.conn,
-                "SELECT cable_id, cable_name, length_km, owners, operational "
+                "SELECT cable_id, cable_name, length_km, owners, is_operational AS operational "
                 "FROM cables WHERE cable_id ILIKE %s ORDER BY cable_name LIMIT 200",
                 (f"%{term}%",))
 
@@ -462,8 +464,12 @@ class RMIFOApp(tk.Tk):
         ep_tree.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         eps = db_query(self.conn,
-            "SELECT endpoint_id, country, city, ip_sample, endpoint_order "
-            "FROM endpoints WHERE cable_id = %s ORDER BY endpoint_order", (cable_id,))
+            "SELECT clp.endpoint_id, lp.country_name AS country, lp.city_name AS city, "
+            "eis.ip_start::text AS ip_sample, clp.endpoint_order "
+            "FROM cable_landing_points clp "
+            "JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id "
+            "LEFT JOIN endpoint_ip_samples eis ON eis.endpoint_id = clp.endpoint_id AND eis.sample_order = 0 "
+            "WHERE clp.cable_id = %s ORDER BY clp.endpoint_order", (cable_id,))
         for e in eps:
             ep_tree.insert("", "end", values=(
                 e.get("endpoint_id", ""), e.get("country", ""),
@@ -740,10 +746,12 @@ class RMIFOApp(tk.Tk):
             return
         rows = db_query(self.conn,
             "SELECT DISTINCT c.cable_id, c.cable_name, "
-            "e1.country AS orig_country, e2.country AS dest_country "
+            "lp1.country_name AS orig_country, lp2.country_name AS dest_country "
             "FROM cables c "
-            "JOIN endpoints e1 ON e1.cable_id = c.cable_id AND e1.country ILIKE %s "
-            "JOIN endpoints e2 ON e2.cable_id = c.cable_id AND e2.country ILIKE %s "
+            "JOIN cable_landing_points clp1 ON clp1.cable_id = c.cable_id "
+            "JOIN landing_points lp1 ON lp1.endpoint_id = clp1.endpoint_id AND lp1.country_name ILIKE %s "
+            "JOIN cable_landing_points clp2 ON clp2.cable_id = c.cable_id "
+            "JOIN landing_points lp2 ON lp2.endpoint_id = clp2.endpoint_id AND lp2.country_name ILIKE %s "
             "LIMIT 20", (f"%{orig}%", f"%{dest}%"))
         if not rows:
             self._r_out.insert("end", "Nenhuma rota direta encontrada.\n")
