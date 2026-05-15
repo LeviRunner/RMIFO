@@ -1,1057 +1,1348 @@
-const state = {
-    mode: 'cable_id',
-    allCables: [],
-    filteredRows: [],
-    binarySteps: [],
-    binaryIndex: 0,
-    binaryTimer: null,
-    selectedCable: null,
-    countries: [],
-};
+/* ============================================================
+   Global Network Resilience — SPA app.js
+   Architecture: 6 pages (map, search, detail, routes, telemetry, probe)
+   Backend: api.php  |  Globe: globe.gl (loaded before this file)
+   ============================================================ */
+
+'use strict';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE = 'api.php';
 
-const modes = {
-    cable_id: { label: 'ID exato do cabo', placeholder: 'ex: 2africa', type: 'text', api: 'all' },
-    name: { label: 'Nome do cabo', placeholder: 'ex: Africa', type: 'text', api: 'name' },
-    owners: { label: 'Owner', placeholder: 'ex: AT&T', type: 'text', api: 'owners' },
-    year: { label: 'Ano RFS', placeholder: 'ex: 2024', type: 'number', api: 'year' },
-    operational: { label: 'Status operacional', placeholder: '', type: 'bool', api: 'operational' },
-    landing: { label: 'Quantidade de endpoints', placeholder: 'ex: 4', type: 'number', api: 'landing' },
-    suppliers: { label: 'Fornecedor', placeholder: 'ex: ASN', type: 'text', api: 'suppliers' },
-    endpoint: { label: 'Nome/cidade do endpoint', placeholder: 'ex: Marseille', type: 'text', api: 'endpoint' },
-    country: { label: 'Pais do endpoint', placeholder: 'ex: Brazil ou BR', type: 'text', api: 'country' },
+const ACTION_ALIAS = {
+  detail:         'details',
+  critical_cuts:  'critical_cables',
+  search:         null,
 };
 
-const dom = {
-    modeList: document.getElementById('mode-list'),
-    queryLabel: document.getElementById('query-label'),
-    queryInput: document.getElementById('query-input'),
-    boolInput: document.getElementById('bool-input'),
-    searchBtn: document.getElementById('search-btn'),
-    clearBtn: document.getElementById('clear-btn'),
-    binaryHint: document.getElementById('binary-hint'),
-    resultCount: document.getElementById('result-count'),
-    searchError: document.getElementById('search-error'),
-    searchEmpty: document.getElementById('search-empty'),
-    tableWrap: document.getElementById('search-table-wrap'),
-    searchHead: document.getElementById('search-head'),
-    searchBody: document.getElementById('search-body'),
-    tabs: Array.from(document.querySelectorAll('.tab-btn')),
-    panels: {
-        search: document.getElementById('tab-search'),
-        detail: document.getElementById('tab-detail'),
-        'top-routes': document.getElementById('tab-top-routes'),
-        'critical-cuts': document.getElementById('tab-critical-cuts'),
-        'endpoint-risk': document.getElementById('tab-endpoint-risk'),
-        telemetry: document.getElementById('tab-telemetry'),
-        'network-probe': document.getElementById('tab-network-probe'),
-    },
-    binaryBox: document.getElementById('binary-box'),
-    binaryStep: document.getElementById('binary-step'),
-    binaryProgress: document.getElementById('binary-progress'),
-    binaryLog: document.getElementById('binary-log'),
-    binaryPlay: document.getElementById('binary-play'),
-    binaryPrev: document.getElementById('binary-prev'),
-    binaryNext: document.getElementById('binary-next'),
-    binaryReset: document.getElementById('binary-reset'),
-    detailPicker: document.getElementById('detail-picker'),
-    detailDatalist: document.getElementById('cable-list'),
-    detailLoad: document.getElementById('detail-load'),
-    detailError: document.getElementById('detail-error'),
-    detailEmpty: document.getElementById('detail-empty'),
-    detailContent: document.getElementById('detail-content'),
-    detailSummary: document.getElementById('detail-summary'),
-    endpointList: document.getElementById('endpoint-list'),
-    routeError: document.getElementById('route-error'),
-    routeResult: document.getElementById('route-result'),
-    cutsError: document.getElementById('cuts-error'),
-    cutsResult: document.getElementById('cuts-result'),
-    riskError: document.getElementById('risk-error'),
-    riskResult: document.getElementById('risk-result'),
-    telemetryError: document.getElementById('telemetry-error'),
-    telemetryResult: document.getElementById('telemetry-result'),
-    routeCountryA: document.getElementById('route-country-a'),
-    routeCountryB: document.getElementById('route-country-b'),
-    cutCountryA: document.getElementById('cut-country-a'),
-    cutCountryB: document.getElementById('cut-country-b'),
-    riskCountry: document.getElementById('risk-country'),
-    telemetryCable: document.getElementById('telemetry-cable'),
-    telemetryHours: document.getElementById('telemetry-hours'),
-    btnTopRoutes: document.getElementById('btn-top-routes'),
-    btnCriticalCuts: document.getElementById('btn-critical-cuts'),
-    btnEndpointRisk: document.getElementById('btn-endpoint-risk'),
-    btnTelemetry: document.getElementById('btn-telemetry'),
-};
+// ─── Utility ──────────────────────────────────────────────────────────────────
 
 function esc(value) {
-    if (value === null || value === undefined || value === '') {
-        return '<span class="muted">-</span>';
-    }
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+  if (value === null || value === undefined || value === '') {
+    return '<span class="muted">–</span>';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function fmtBool(value) {
-    if (value === true || value === 'true' || value === 't') {
-        return '<span class="badge yes">Sim</span>';
-    }
-    if (value === false || value === 'false' || value === 'f') {
-        return '<span class="badge no">Nao</span>';
-    }
-    return '<span class="muted">-</span>';
+  if (value === true || value === 'true' || value === 't' || value === 1) {
+    return '<span class="badge yes">Sim</span>';
+  }
+  if (value === false || value === 'false' || value === 'f' || value === 0) {
+    return '<span class="badge no">Não</span>';
+  }
+  return '<span class="muted">–</span>';
 }
 
-function showError(node, message) {
-    node.textContent = message;
-    node.classList.add('show');
+function showError(el, msg) {
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? '' : 'none';
 }
 
-function clearError(node) {
-    node.textContent = '';
-    node.classList.remove('show');
+function clearEl(el) {
+  if (!el) return;
+  el.textContent = '';
+  el.style.display = 'none';
 }
 
-async function api(mode, q = '') {
-    const response = await fetch(`${API_BASE}?api=1&mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(q)}`);
-    const raw = await response.text();
-    let payload;
-    try {
-        payload = JSON.parse(raw);
-    } catch {
-        const snippet = String(raw).slice(0, 160).replace(/\s+/g, ' ').trim();
-        throw new Error(`Resposta invalida da API (${response.status}). Trecho: ${snippet || 'vazio'}`);
-    }
-    if (payload.error) {
-        throw new Error(payload.error);
-    }
-    return payload;
+async function apiFetch(params = {}) {
+  const p = { ...params };
+  if (p.action !== undefined) {
+    const alias = ACTION_ALIAS[p.action];
+    p.mode = alias !== undefined ? (alias || p.mode || p.action) : p.action;
+    delete p.action;
+  }
+  if (p.cable_id !== undefined && p.q === undefined) { p.q = p.cable_id; delete p.cable_id; }
+  p.api = 1;
+  const url = new URLSearchParams(p);
+  const response = await fetch(`${API_BASE}?${url.toString()}`);
+  const raw = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    const snippet = String(raw).slice(0, 200).replace(/\s+/g, ' ').trim();
+    throw new Error(`Resposta inválida da API (${response.status}): ${snippet || 'vazio'}`);
+  }
+  if (payload && payload.status === 'error') {
+    throw new Error(payload.message || 'Erro desconhecido da API.');
+  }
+  return payload;
 }
 
-async function apiWithParams(mode, params = {}) {
-    const searchParams = new URLSearchParams({ api: '1', mode });
-    Object.entries(params).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-            searchParams.set(key, String(value));
-        }
+async function apiPost(formData) {
+  const rawAction = formData.get('action') || 'all';
+  const alias = ACTION_ALIAS[rawAction];
+  const mode = alias !== undefined ? (alias || rawAction) : rawAction;
+  const response = await fetch(`${API_BASE}?api=1&mode=${encodeURIComponent(mode)}`, { method: 'POST', body: formData });
+  const raw = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    const snippet = String(raw).slice(0, 200).replace(/\s+/g, ' ').trim();
+    throw new Error(`Resposta inválida da API (${response.status}): ${snippet || 'vazio'}`);
+  }
+  if (payload && payload.status === 'error') {
+    throw new Error(payload.message || 'Erro desconhecido da API.');
+  }
+  return payload;
+}
+
+function extractData(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.data)) return payload.data;
+  return payload;
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
+const Router = {
+  current: 'map',
+  titles: {
+    map: 'Mapa Global',
+    search: 'Busca de Cabos',
+    detail: 'Detalhes do Cabo',
+    routes: 'Análise de Rotas',
+    telemetry: 'Telemetria',
+    probe: 'Sonda de Rede',
+  },
+  go(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const pageEl = document.getElementById('page-' + page);
+    if (pageEl) pageEl.classList.add('active');
+    document.querySelectorAll('.nav-link').forEach(a => a.classList.remove('active'));
+    const navEl = document.querySelector(`[data-page="${page}"]`);
+    if (navEl) navEl.classList.add('active');
+    const titleEl = document.getElementById('header-page-title');
+    if (titleEl) titleEl.textContent = Router.titles[page] || page;
+    Router.current = page;
+    Drawer.close();
+  },
+};
+
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+
+const Drawer = {
+  el()  { return document.getElementById('drawer'); },
+  ov()  { return document.getElementById('drawer-overlay'); },
+  open() {
+    const d = Drawer.el(), o = Drawer.ov();
+    if (d) d.classList.add('open');
+    if (o) o.classList.add('open');
+  },
+  close() {
+    const d = Drawer.el(), o = Drawer.ov();
+    if (d) d.classList.remove('open');
+    if (o) o.classList.remove('open');
+  },
+  toggle() {
+    const d = Drawer.el();
+    if (d && d.classList.contains('open')) Drawer.close(); else Drawer.open();
+  },
+};
+
+// ─── Probe Modal ──────────────────────────────────────────────────────────────
+
+const ProbeModal = {
+  get el()      { return document.getElementById('probe-modal'); },
+  get titleEl() { return document.getElementById('modal-title'); },
+  get bodyEl()  { return document.getElementById('modal-body'); },
+  show(title, html) {
+    if (this.titleEl) this.titleEl.textContent = title;
+    if (this.bodyEl)  this.bodyEl.innerHTML    = html;
+    if (this.el)      this.el.classList.add('open');
+  },
+  hide() {
+    if (this.el) this.el.classList.remove('open');
+  },
+};
+
+// ─── Shared state ─────────────────────────────────────────────────────────────
+
+const AppState = {
+  allCables: [],           // [{cable_id, cable_name, ...}]
+  countries: [],           // ['Brazil', 'France', ...]
+  globe: null,             // globe.gl instance
+  globeSelection: null,    // currently selected arc or point on globe
+  // Search page
+  search: {
+    mode: 'cable_id',
+    binarySteps: [],
+    binaryIndex: 0,
+    binaryTimer: null,
+  },
+  // Telemetry cache
+  lastTelemetryHistory: [],
+  lastTelemetryCiLatency: null,
+};
+
+// ─── Globe page ───────────────────────────────────────────────────────────────
+
+function arcColor(d) {
+  if (!d.is_operational) return ['rgba(255,80,100,0.9)', 'rgba(255,80,100,0.5)'];
+  if (d.has_alert)       return ['rgba(255,190,60,0.95)', 'rgba(255,190,60,0.55)'];
+  return ['rgba(60,230,140,0.95)', 'rgba(60,230,140,0.55)'];
+}
+
+function ptColor(d) {
+  if (!d.is_operational) return '#ff4f66';
+  if (d.has_alert)       return '#ffbe3c';
+  return '#41da8c';
+}
+
+function statusLabel(isOp, hasAlert) {
+  if (!isOp)    return '<span class="badge no">Fora de operação</span>';
+  if (hasAlert) return '<span class="badge warn">Alerta ativo</span>';
+  return '<span class="badge yes">Operacional</span>';
+}
+
+function stopGlobeRotation() {
+  if (AppState.globe) {
+    AppState.globe.controls().autoRotate = false;
+    if (globeAutoRotateTimer) { clearTimeout(globeAutoRotateTimer); globeAutoRotateTimer = null; }
+  }
+}
+
+function selectFromGlobe(d) {
+  if (!d) return;
+  AppState.globeSelection = d;
+  stopGlobeRotation();
+
+  const panel    = document.getElementById('selection-panel');
+  const titleEl  = document.getElementById('sel-title');
+  const bodyEl   = document.getElementById('sel-body');
+  if (!panel || !titleEl || !bodyEl) return;
+
+  // Determine if arc or point (points have endpoint_id)
+  const isPoint = !!d.endpoint_id;
+
+  titleEl.textContent = d.cable_name || 'Cabo';
+
+  let html = '';
+  if (isPoint) {
+    html = `
+      <p>${statusLabel(d.is_operational, d.has_alert)}</p>
+      <table class="sel-table">
+        <tr><th>Cidade</th><td>${esc(d.city_name)}</td></tr>
+        <tr><th>País</th><td>${esc(d.country_name)}</td></tr>
+        <tr><th>Cabo</th><td>${esc(d.cable_name)}</td></tr>
+        <tr><th>Endpoint ID</th><td class="mono">${esc(d.endpoint_id)}</td></tr>
+        ${d.ip_sample ? `<tr><th>IP sample</th><td class="mono">${esc(d.ip_sample)}</td></tr>` : ''}
+      </table>`;
+  } else {
+    html = `
+      <p>${statusLabel(d.is_operational, d.has_alert)}</p>
+      <table class="sel-table">
+        <tr><th>Cabo</th><td>${esc(d.cable_name)}</td></tr>
+        <tr><th>ID</th><td class="mono">${esc(d.cable_id)}</td></tr>
+        <tr><th>Origem</th><td>${esc(d.startCity)}, ${esc(d.startCountry)}</td></tr>
+        <tr><th>Destino</th><td>${esc(d.endCity)}, ${esc(d.endCountry)}</td></tr>
+        ${d.ip_sample ? `<tr><th>IP sample</th><td class="mono">${esc(d.ip_sample)}</td></tr>` : ''}
+      </table>`;
+  }
+  bodyEl.innerHTML = html;
+  panel.classList.add('open');
+}
+
+let globeAutoRotateTimer = null;
+
+function initGlobe() {
+  const container = document.getElementById('globe-container');
+  const globeTip  = document.getElementById('globe-tip');
+  if (!container) return;
+  if (typeof Globe === 'undefined') {
+    container.innerHTML = '<p style="color:#f0b24f;padding:20px;">Globe.gl não carregado.</p>';
+    return;
+  }
+
+  const globe = Globe()(container)
+    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+    .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+    .atmosphereColor('rgba(100,50,255,0.5)')
+    .atmosphereAltitude(0.20);
+
+  AppState.globe = globe;
+
+  globe.controls().autoRotate      = true;
+  globe.controls().autoRotateSpeed = 0.35;
+
+  // Stop on manual drag; restart after 8s if nothing was selected
+  container.addEventListener('mousedown', () => {
+    globe.controls().autoRotate = false;
+    if (globeAutoRotateTimer) clearTimeout(globeAutoRotateTimer);
+    globeAutoRotateTimer = setTimeout(() => {
+      if (!AppState.globeSelection) globe.controls().autoRotate = true;
+    }, 8000);
+  });
+
+  // Hover tip
+  globe
+    .onArcHover(d => {
+      if (globeTip) {
+        globeTip.textContent = d
+          ? `${d.cable_name} · ${d.startCity} → ${d.endCity}`
+          : 'Clique em um cabo ou ponto para selecionar';
+      }
+    })
+    .onArcClick(d => selectFromGlobe(d))
+    .onPointClick(d => selectFromGlobe(d));
+
+  // Load globe data
+  apiFetch({ action: 'globe_data' })
+    .then(payload => {
+      const arcs = payload.arcs || [];
+      const pts  = payload.points || [];
+
+      globe
+        .arcsData(arcs)
+        .arcStartLat('startLat')
+        .arcStartLng('startLng')
+        .arcEndLat('endLat')
+        .arcEndLng('endLng')
+        .arcColor(arcColor)
+        .arcStroke(2.0)
+        .arcAltitude(0.25)
+        .arcAltitudeAutoScale(0.35)
+        .arcDashLength(0.6)
+        .arcDashGap(0.08)
+        .arcDashAnimateTime(2000)
+        .pointsData(pts)
+        .pointLat('lat')
+        .pointLng('lng')
+        .pointColor(ptColor)
+        .pointAltitude(0.02)
+        .pointRadius(0.5)
+        .pointsMerge(false)
+        .pointLabel(d =>
+          `<div style="background:rgba(8,6,15,0.90);border:1px solid rgba(168,113,255,0.4);padding:7px 12px;border-radius:8px;font-size:13px;color:#f4efff;line-height:1.5;">
+            <strong>${d.city_name}</strong>, ${d.country_name}<br>
+            <span style="color:#a871ff;">${d.cable_name}</span>
+            ${d.ip_sample ? `<br><span style="color:#41da8c;font-size:11px;">${d.ip_sample}</span>` : ''}
+          </div>`
+        );
+
+      // Alert badge
+      const alertCount = arcs.filter(a => a.has_alert).length;
+      updateAlertBadge(alertCount);
+
+      // Alert ticker
+      const alertCables = arcs.filter(a => a.has_alert);
+      updateAlertTicker(alertCables);
+    })
+    .catch(err => {
+      if (globeTip) globeTip.textContent = `Erro ao carregar dados do globo: ${err.message}`;
     });
-    const response = await fetch(`${API_BASE}?${searchParams.toString()}`);
-    const raw = await response.text();
-    let payload;
-    try {
-        payload = JSON.parse(raw);
-    } catch {
-        const snippet = String(raw).slice(0, 160).replace(/\s+/g, ' ').trim();
-        throw new Error(`Resposta invalida da API (${response.status}). Trecho: ${snippet || 'vazio'}`);
-    }
-    if (payload.error) {
-        throw new Error(payload.error);
-    }
-    return payload;
 }
 
-function switchTab(tab) {
-    dom.tabs.forEach((button) => button.classList.toggle('active', button.dataset.tab === tab));
-    Object.entries(dom.panels).forEach(([key, panel]) => panel.classList.toggle('active', key === tab));
+function updateAlertBadge(count) {
+  const badge = document.getElementById('alert-badge');
+  if (!badge) return;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? '' : 'none';
 }
 
-function switchMode(mode) {
-    state.mode = mode;
-    const cfg = modes[mode];
-    dom.queryLabel.textContent = cfg.label;
-    dom.queryInput.placeholder = cfg.placeholder;
-    dom.queryInput.type = cfg.type === 'number' ? 'number' : 'text';
-    dom.queryInput.style.display = cfg.type === 'bool' ? 'none' : '';
-    dom.boolInput.style.display = cfg.type === 'bool' ? '' : 'none';
-    dom.binaryHint.style.display = mode === 'cable_id' ? '' : 'none';
-    dom.modeList.querySelectorAll('.mode-btn').forEach((button) => {
-        button.classList.toggle('active', button.dataset.mode === mode);
+function updateAlertTicker(alertCables) {
+  const ticker = document.getElementById('alert-ticker');
+  if (!ticker) return;
+  if (!alertCables.length) {
+    ticker.classList.remove('active');
+    return;
+  }
+  const content = alertCables
+    .map(a => `${a.cable_name} · ${a.startCity} → ${a.endCity}`)
+    .join('   |   ');
+  ticker.textContent = content;
+  ticker.classList.add('active');
+}
+
+// Selection panel buttons
+function initGlobePanel() {
+  const closeBtn  = document.getElementById('sel-close');
+  const probeBtn  = document.getElementById('sel-probe-btn');
+  const detailBtn = document.getElementById('sel-detail-btn');
+  const panel     = document.getElementById('selection-panel');
+
+  if (closeBtn) closeBtn.addEventListener('click', () => {
+    if (panel) panel.classList.remove('open');
+    AppState.globeSelection = null;
+    if (AppState.globe) AppState.globe.controls().autoRotate = true;
+  });
+
+  if (detailBtn) {
+    detailBtn.addEventListener('click', () => {
+      const d = AppState.globeSelection;
+      if (!d) return;
+      const cableId = d.cable_id;
+      if (cableId) {
+        if (panel) panel.classList.remove('open');
+        Router.go('detail');
+        // Pre-fill picker and trigger load
+        const picker = document.getElementById('detail-picker');
+        if (picker) picker.value = cableId;
+        loadDetail(cableId);
+      }
     });
-    resetSearchSurface();
+  }
+
+  if (probeBtn) {
+    probeBtn.addEventListener('click', async () => {
+      const d = AppState.globeSelection;
+      if (!d) return;
+      ProbeModal.show('Sondando…', '<p>Aguarde…</p>');
+      try {
+        const fd = new FormData();
+        fd.append('action', 'probe');
+        fd.append('cable_id', d.cable_id || '');
+        if (d.endpoint_id) fd.append('endpoint_id', d.endpoint_id);
+        if (d.ip_sample)   fd.append('ip', d.ip_sample);
+        const payload = await apiPost(fd);
+        ProbeModal.show('Resultado da Sonda', renderProbeResult(payload));
+      } catch (err) {
+        ProbeModal.show('Erro na Sonda', `<p class="error-text">${esc(err.message)}</p>`);
+      }
+    });
+  }
 }
 
-function resetBinary() {
-    if (state.binaryTimer) {
-        clearInterval(state.binaryTimer);
-        state.binaryTimer = null;
+// ─── Search page ──────────────────────────────────────────────────────────────
+
+const modes = {
+  cable_id:    { placeholder: 'ex: 2africa',    type: 'text',   api: 'all' },
+  name:        { placeholder: 'ex: Africa',      type: 'text',   api: 'name' },
+  owners:      { placeholder: 'ex: AT&T',        type: 'text',   api: 'owners' },
+  year:        { placeholder: 'ex: 2024',        type: 'number', api: 'year' },
+  operational: { placeholder: '',               type: 'bool',   api: 'operational' },
+  landing:     { placeholder: 'ex: 4',           type: 'number', api: 'landing' },
+  suppliers:   { placeholder: 'ex: ASN',         type: 'text',   api: 'suppliers' },
+  endpoint:    { placeholder: 'ex: Marseille',   type: 'text',   api: 'endpoint' },
+  country:     { placeholder: 'ex: Brazil',      type: 'text',   api: 'country' },
+};
+
+function initSearchPage() {
+  const searchInput   = document.getElementById('query-input');
+  const boolInput     = document.getElementById('bool-input');
+  const searchBtn     = document.getElementById('search-btn');
+  const clearBtn      = document.getElementById('clear-btn');
+  const resultCount   = document.getElementById('result-count');
+  const searchError   = document.getElementById('search-error');
+  const searchHead    = document.getElementById('search-head');
+  const searchBody    = document.getElementById('search-body');
+  const tableWrap     = document.getElementById('search-table-wrap');
+  const searchEmpty   = document.getElementById('search-empty');
+  const binaryBox     = document.getElementById('binary-box');
+  const binaryLog     = document.getElementById('binary-log');
+  const binaryProgress= document.getElementById('binary-progress');
+  const binaryStep    = document.getElementById('binary-step');
+  const binaryPlay    = document.getElementById('binary-play');
+  const binaryPrev    = document.getElementById('binary-prev');
+  const binaryNext    = document.getElementById('binary-next');
+  const binaryReset   = document.getElementById('binary-reset');
+
+  function getQuery() {
+    const mode = AppState.search.mode;
+    if (modes[mode] && modes[mode].type === 'bool') {
+      return boolInput ? boolInput.value : 'true';
     }
-    dom.binaryPlay.textContent = 'Reproduzir';
-    dom.binaryBox.classList.remove('show');
-    dom.binaryStep.innerHTML = '-';
-    dom.binaryLog.innerHTML = '';
-    dom.binaryProgress.style.width = '0%';
-    state.binarySteps = [];
-    state.binaryIndex = 0;
-}
+    return searchInput ? searchInput.value.trim() : '';
+  }
 
-function resetSearchSurface() {
-    clearError(dom.searchError);
+  function updateModeUI() {
+    const mode = AppState.search.mode;
+    const cfg  = modes[mode] || modes.cable_id;
+    if (searchInput) {
+      searchInput.placeholder = cfg.placeholder;
+      searchInput.type        = cfg.type === 'number' ? 'number' : 'text';
+      searchInput.style.display = cfg.type === 'bool' ? 'none' : '';
+    }
+    if (boolInput)   boolInput.style.display   = cfg.type === 'bool' ? '' : 'none';
+    if (binaryBox)   binaryBox.style.display   = mode === 'cable_id' ? '' : 'none';
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+  }
+
+  function resetBinary() {
+    const s = AppState.search;
+    if (s.binaryTimer) { clearInterval(s.binaryTimer); s.binaryTimer = null; }
+    if (binaryPlay)    binaryPlay.textContent = 'Reproduzir';
+    if (binaryStep)    binaryStep.textContent  = '–';
+    if (binaryLog)     binaryLog.innerHTML     = '';
+    if (binaryProgress) binaryProgress.style.width = '0%';
+    s.binarySteps = [];
+    s.binaryIndex = 0;
+  }
+
+  function resetSurface() {
+    clearEl(searchError);
     resetBinary();
-    dom.searchEmpty.style.display = '';
-    dom.tableWrap.style.display = 'none';
-    dom.resultCount.textContent = 'Selecione uma busca.';
-    dom.searchHead.innerHTML = '';
-    dom.searchBody.innerHTML = '';
-}
+    if (searchEmpty) searchEmpty.style.display = '';
+    if (tableWrap)   tableWrap.style.display   = 'none';
+    if (resultCount) resultCount.textContent    = 'Selecione uma busca.';
+    if (searchHead)  searchHead.innerHTML       = '';
+    if (searchBody)  searchBody.innerHTML       = '';
+  }
 
-function renderRows(rows) {
-    const headers = [
-        'acao', '#', 'cable_id', 'cable_name', 'owners', 'length_km', 'rfs_year', 'is_operational', 'landing_points_count', 'suppliers'
-    ];
-    dom.searchHead.innerHTML = `<tr>${headers.map((header) => `<th>${esc(header)}</th>`).join('')}</tr>`;
-    dom.searchBody.innerHTML = rows.map((row, index) => `
+  function renderRows(rows) {
+    const headers = ['ação', '#', 'cable_id', 'nome', 'owners', 'comprimento (km)', 'ano RFS', 'operacional', 'endpoints', 'fornecedores'];
+    if (searchHead) {
+      searchHead.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+    }
+    if (searchBody) {
+      searchBody.innerHTML = rows.map((row, i) => `
         <tr data-cable-id="${esc(row.cable_id)}">
-            <td><button class="detail-action" data-open-detail="${esc(row.cable_id)}">Detalhes</button></td>
-            <td class="mono">${index}</td>
-            <td class="mono">${esc(row.cable_id)}</td>
-            <td>${esc(row.cable_name)}</td>
-            <td>${esc(row.owners)}</td>
-            <td>${esc(row.length_km)}</td>
-            <td>${esc(row.rfs_year)}</td>
-            <td>${fmtBool(row.is_operational)}</td>
-            <td>${esc(row.landing_points_count)}</td>
-            <td>${esc(row.suppliers)}</td>
-        </tr>
-    `).join('');
-    dom.searchEmpty.style.display = rows.length ? 'none' : '';
-    dom.tableWrap.style.display = rows.length ? '' : 'none';
-}
+          <td><button class="btn-sm detail-action" data-open-detail="${esc(row.cable_id)}">Detalhes</button></td>
+          <td class="mono">${i}</td>
+          <td class="mono">${esc(row.cable_id)}</td>
+          <td>${esc(row.cable_name)}</td>
+          <td>${esc(row.owners)}</td>
+          <td>${esc(row.length_km)}</td>
+          <td>${esc(row.rfs_year)}</td>
+          <td>${fmtBool(row.is_operational)}</td>
+          <td>${esc(row.landing_points_count)}</td>
+          <td>${esc(row.suppliers)}</td>
+        </tr>`).join('');
+    }
+    if (searchEmpty) searchEmpty.style.display = rows.length ? 'none' : '';
+    if (tableWrap)   tableWrap.style.display   = rows.length ? '' : 'none';
+  }
 
-function buildBinarySteps(target) {
-    const rows = state.allCables;
+  // Binary search helpers
+  function buildBinarySteps(target) {
+    const rows = AppState.allCables;
     const normalizedTarget = target.toLowerCase();
-    let lo = 0;
-    let hi = rows.length - 1;
+    let lo = 0, hi = rows.length - 1;
     const steps = [];
     while (lo <= hi) {
-        const mid = Math.floor((lo + hi) / 2);
-        const current = String(rows[mid].cable_id).toLowerCase();
-        const cmp = current.localeCompare(normalizedTarget);
-        steps.push({ lo, hi, mid, current, cmp, found: cmp === 0 });
-        if (cmp === 0) {
-            break;
-        }
-        if (cmp < 0) {
-            lo = mid + 1;
-        } else {
-            hi = mid - 1;
-        }
+      const mid     = Math.floor((lo + hi) / 2);
+      const current = String(rows[mid].cable_id).toLowerCase();
+      const cmp     = current.localeCompare(normalizedTarget);
+      steps.push({ lo, hi, mid, current, cmp, found: cmp === 0 });
+      if (cmp === 0) break;
+      if (cmp < 0)  lo = mid + 1;
+      else           hi = mid - 1;
     }
     if (!steps.length || !steps[steps.length - 1].found) {
-        steps.push({ lo, hi, mid: -1, current: null, cmp: null, found: false, notFound: true });
+      steps.push({ lo, hi, mid: -1, current: null, cmp: null, found: false, notFound: true });
     }
     return steps;
-}
+  }
 
-function describeBinaryStep(step, index, total) {
-    if (step.notFound) {
-        return `Passo ${index + 1}/${total}: intervalo vazio (lo=${step.lo}, hi=${step.hi}). Cabo nao encontrado.`;
-    }
-    if (step.found) {
-        return `Passo ${index + 1}/${total}: midpoint [${step.mid}] = ${step.current}. Cabo encontrado.`;
-    }
-    if (step.cmp < 0) {
-        return `Passo ${index + 1}/${total}: midpoint [${step.mid}] = ${step.current}. Valor menor que o alvo, seguir para a direita.`;
-    }
-    return `Passo ${index + 1}/${total}: midpoint [${step.mid}] = ${step.current}. Valor maior que o alvo, seguir para a esquerda.`;
-}
+  function describeStep(step, index, total) {
+    const n = `Passo ${index + 1}/${total}`;
+    if (step.notFound)  return `${n}: intervalo vazio (lo=${step.lo}, hi=${step.hi}). Não encontrado.`;
+    if (step.found)     return `${n}: midpoint [${step.mid}] = ${step.current}. Encontrado!`;
+    if (step.cmp < 0)   return `${n}: midpoint [${step.mid}] = ${step.current}. Valor menor → direita.`;
+    return `${n}: midpoint [${step.mid}] = ${step.current}. Valor maior → esquerda.`;
+  }
 
-function applyBinaryStep(index) {
-    state.binaryIndex = index;
-    const step = state.binarySteps[index];
-    const total = state.binarySteps.length;
-    const rows = Array.from(dom.searchBody.querySelectorAll('tr'));
-    rows.forEach((row, rowIndex) => {
-        row.classList.remove('bs-eliminated', 'bs-range', 'bs-mid', 'bs-found');
-        if (step.notFound) {
-            row.classList.add('bs-eliminated');
-            return;
-        }
-        if (rowIndex < step.lo || rowIndex > step.hi) {
-            row.classList.add('bs-eliminated');
-        } else if (rowIndex === step.mid) {
-            row.classList.add(step.found ? 'bs-found' : 'bs-mid');
-        } else {
-            row.classList.add('bs-range');
-        }
+  function applyBinaryStep(index) {
+    AppState.search.binaryIndex = index;
+    const step  = AppState.search.binarySteps[index];
+    const total = AppState.search.binarySteps.length;
+    const rows  = searchBody ? Array.from(searchBody.querySelectorAll('tr')) : [];
+
+    rows.forEach((row, ri) => {
+      row.classList.remove('bs-eliminated', 'bs-range', 'bs-mid', 'bs-found');
+      if (step.notFound) { row.classList.add('bs-eliminated'); return; }
+      if (ri < step.lo || ri > step.hi) row.classList.add('bs-eliminated');
+      else if (ri === step.mid)         row.classList.add(step.found ? 'bs-found' : 'bs-mid');
+      else                               row.classList.add('bs-range');
     });
-    dom.binaryStep.textContent = describeBinaryStep(step, index, total);
-    dom.binaryProgress.style.width = `${((index + 1) / total) * 100}%`;
-    dom.binaryLog.innerHTML = state.binarySteps
+
+    if (binaryStep)    binaryStep.textContent     = describeStep(step, index, total);
+    if (binaryProgress) binaryProgress.style.width = `${((index + 1) / total) * 100}%`;
+    if (binaryLog) {
+      binaryLog.innerHTML = AppState.search.binarySteps
         .slice(0, index + 1)
-        .map((entry, entryIndex) => `<div>${esc(describeBinaryStep(entry, entryIndex, total))}</div>`)
+        .map((s, i) => `<div>${esc(describeStep(s, i, total))}</div>`)
         .join('');
-}
-
-function toggleBinaryPlayback() {
-    if (state.binaryTimer) {
-        clearInterval(state.binaryTimer);
-        state.binaryTimer = null;
-        dom.binaryPlay.textContent = 'Reproduzir';
-        return;
     }
-    dom.binaryPlay.textContent = 'Pausar';
-    state.binaryTimer = setInterval(() => {
-        if (state.binaryIndex < state.binarySteps.length - 1) {
-            applyBinaryStep(state.binaryIndex + 1);
-        } else {
-            clearInterval(state.binaryTimer);
-            state.binaryTimer = null;
-            dom.binaryPlay.textContent = 'Reproduzir';
-        }
+  }
+
+  function togglePlayback() {
+    const s = AppState.search;
+    if (s.binaryTimer) {
+      clearInterval(s.binaryTimer);
+      s.binaryTimer = null;
+      if (binaryPlay) binaryPlay.textContent = 'Reproduzir';
+      return;
+    }
+    if (binaryPlay) binaryPlay.textContent = 'Pausar';
+    s.binaryTimer = setInterval(() => {
+      if (s.binaryIndex < s.binarySteps.length - 1) {
+        applyBinaryStep(s.binaryIndex + 1);
+      } else {
+        clearInterval(s.binaryTimer);
+        s.binaryTimer = null;
+        if (binaryPlay) binaryPlay.textContent = 'Reproduzir';
+      }
     }, 850);
-}
+  }
 
-async function performSearch() {
-    clearError(dom.searchError);
+  async function performSearch() {
+    clearEl(searchError);
     resetBinary();
-    const cfg = modes[state.mode];
-    const query = cfg.type === 'bool' ? dom.boolInput.value : dom.queryInput.value.trim();
+    const mode  = AppState.search.mode;
+    const cfg   = modes[mode];
+    const query = getQuery();
 
     try {
-        if (state.mode === 'cable_id') {
-            if (!state.allCables.length) {
-                const payload = await api('all');
-                state.allCables = payload.data;
-                populateDatalist();
-            }
-            renderRows(state.allCables);
-            state.filteredRows = state.allCables;
-            if (!query) {
-                dom.resultCount.textContent = `${state.allCables.length} cabos carregados.`;
-                return;
-            }
-            state.binarySteps = buildBinarySteps(query);
-            dom.binaryBox.classList.add('show');
-            applyBinaryStep(0);
-            const found = state.binarySteps[state.binarySteps.length - 1].found;
-            dom.resultCount.textContent = found
-                ? `1 resultado. Busca binaria em ${state.binarySteps.length} passos.`
-                : `0 resultados. Busca binaria encerrada em ${state.binarySteps.length} passos.`;
-            return;
+      if (mode === 'cable_id') {
+        if (!AppState.allCables.length) {
+          const payload = await apiFetch({ action: 'search', mode: 'all', q: '' });
+          AppState.allCables = extractData(payload);
+          populateCableDatalist();
         }
-
+        renderRows(AppState.allCables);
         if (!query) {
-            throw new Error('Digite um valor para buscar.');
+          if (resultCount) resultCount.textContent = `${AppState.allCables.length} cabos carregados.`;
+          return;
         }
-
-        const payload = await api(cfg.api, query);
-        state.filteredRows = payload.data;
-        renderRows(payload.data);
-        dom.resultCount.textContent = `${payload.total} resultado(s).`;
-    } catch (error) {
-        showError(dom.searchError, error.message);
-    }
-}
-
-function resetDetails() {
-    clearError(dom.detailError);
-    dom.detailEmpty.style.display = '';
-    dom.detailContent.style.display = 'none';
-    dom.detailSummary.innerHTML = '';
-    dom.endpointList.innerHTML = '';
-}
-
-function renderSummary(cable) {
-    const summaryItems = [
-        ['cable_id', cable.cable_id],
-        ['nome', cable.cable_name],
-        ['owners', cable.owners],
-        ['fornecedores', cable.suppliers],
-        ['comprimento bruto', cable.raw_length || cable.length_km],
-        ['ano RFS', cable.raw_rfs || cable.rfs_year],
-        ['operacional', cable.is_operational === null ? null : (cable.is_operational ? 'Sim' : 'Nao')],
-        ['planejado', cable.is_planned === null ? null : (cable.is_planned ? 'Sim' : 'Nao')],
-        ['endpoints', cable.landing_points_count],
-        ['url publica', cable.public_url],
-        ['fonte', cable.source_url],
-        ['notas', cable.notes],
-    ];
-    dom.detailSummary.innerHTML = summaryItems.map(([label, value]) => `
-        <div class="summary-card">
-            <div class="k">${esc(label)}</div>
-            <div class="v">${esc(value)}</div>
-        </div>
-    `).join('');
-}
-
-function renderEndpoints(endpoints) {
-    dom.endpointList.innerHTML = endpoints.map((endpoint) => {
-        const samples = endpoint.ip_samples || [];
-        const sampleRows = samples.length ? samples.map((sample) => `
-            <tr>
-                <td>${esc(sample.sample_order)}</td>
-                <td class="mono">${esc(sample.network || `${sample.ip_start} - ${sample.ip_end}`)}</td>
-                <td>${esc(sample.city)}</td>
-                <td>${esc(sample.region)}</td>
-                <td>${esc(sample.country_name)} ${sample.country_code ? `(${esc(sample.country_code)})` : ''}</td>
-                <td>${esc(sample.latitude)}, ${esc(sample.longitude)}</td>
-            </tr>
-        `).join('') : '<tr><td colspan="6" class="muted">Sem amostras de IP publicas para este endpoint.</td></tr>';
-
-        return `
-            <div class="endpoint-card">
-                <div class="endpoint-head">
-                    <div>
-                        <h4 class="endpoint-title">${esc(endpoint.endpoint_order)}. ${esc(endpoint.endpoint_name)}</h4>
-                        <div class="muted mono">${esc(endpoint.endpoint_id)}</div>
-                    </div>
-                    <div>${endpoint.is_tbd ? '<span class="badge no">TBD</span>' : '<span class="badge yes">ativo no catalogo</span>'}</div>
-                </div>
-
-                <div class="endpoint-meta">
-                    <div><div class="k">cidade</div><div>${esc(endpoint.city_name)}</div></div>
-                    <div><div class="k">pais</div><div>${esc(endpoint.country_name)} ${endpoint.country_code ? `(${esc(endpoint.country_code)})` : ''}</div></div>
-                    <div><div class="k">latitude</div><div>${esc(endpoint.latitude)}</div></div>
-                    <div><div class="k">longitude</div><div>${esc(endpoint.longitude)}</div></div>
-                    <div><div class="k">fonte geo</div><div>${esc(endpoint.geo_source)}</div></div>
-                    <div><div class="k">amostras de IP</div><div>${esc(samples.length)}</div></div>
-                </div>
-
-                <div class="subhead">IPs publicos associados por cidade/pais</div>
-                <div class="table-wrap">
-                    <table class="ip-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>network / faixa</th>
-                                <th>cidade</th>
-                                <th>regiao</th>
-                                <th>pais</th>
-                                <th>coordenadas</th>
-                            </tr>
-                        </thead>
-                        <tbody>${sampleRows}</tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-async function loadDetails(cableId) {
-    if (!cableId) {
-        showError(dom.detailError, 'Selecione um cabo valido.');
+        AppState.search.binarySteps = buildBinarySteps(query);
+        applyBinaryStep(0);
+        const found = AppState.search.binarySteps[AppState.search.binarySteps.length - 1].found;
+        if (resultCount) {
+          const n = AppState.search.binarySteps.length;
+          resultCount.textContent = found
+            ? `1 resultado · busca binária em ${n} passos.`
+            : `0 resultados · busca binária encerrada em ${n} passos.`;
+        }
         return;
+      }
+
+      if (!query && cfg.type !== 'bool') throw new Error('Digite um valor para buscar.');
+      const payload = await apiFetch({ action: 'search', mode: cfg.api, q: query });
+      const rows    = extractData(payload);
+      renderRows(Array.isArray(rows) ? rows : []);
+      if (resultCount) {
+        const total = payload.total !== undefined ? payload.total : (Array.isArray(rows) ? rows.length : 0);
+        resultCount.textContent = `${total} resultado(s).`;
+      }
+    } catch (err) {
+      showError(searchError, err.message);
     }
-    clearError(dom.detailError);
-    try {
-        const payload = await api('details', cableId);
-        state.selectedCable = cableId;
-        dom.detailPicker.value = cableId;
-        renderSummary(payload.cable);
-        renderEndpoints(payload.endpoints);
-        dom.detailEmpty.style.display = 'none';
-        dom.detailContent.style.display = '';
-        switchTab('detail');
-    } catch (error) {
-        showError(dom.detailError, error.message);
-    }
-}
+  }
 
-function populateDatalist() {
-    dom.detailDatalist.innerHTML = state.allCables.map((row) => (
-        `<option value="${esc(row.cable_id)}">${esc(row.cable_name)}</option>`
-    )).join('');
-}
-
-function setPanelResult(node, html) {
-    node.innerHTML = html;
-}
-
-function populateCountrySelects(countries) {
-    const options = countries.map((country) => `<option value="${esc(country)}">${esc(country)}</option>`).join('');
-    [dom.routeCountryA, dom.routeCountryB, dom.cutCountryA, dom.cutCountryB, dom.riskCountry].forEach((select) => {
-        select.innerHTML = options;
+  // Wire mode buttons
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      AppState.search.mode = btn.dataset.mode;
+      updateModeUI();
+      resetSurface();
     });
-    if (countries.length > 1) {
-        dom.routeCountryA.value = countries[0];
-        dom.cutCountryA.value = countries[0];
-        dom.routeCountryB.value = countries[1];
-        dom.cutCountryB.value = countries[1];
-        dom.riskCountry.value = countries[0];
-    }
+  });
+
+  if (searchBtn)  searchBtn.addEventListener('click', performSearch);
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      if (boolInput)   boolInput.value   = 'true';
+      resetSurface();
+    });
+  }
+  if (searchInput) {
+    searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') performSearch(); });
+  }
+
+  // Detail action from table
+  if (searchBody) {
+    searchBody.addEventListener('click', e => {
+      const btn = e.target.closest('[data-open-detail]');
+      if (!btn) return;
+      Router.go('detail');
+      const cableId = btn.dataset.openDetail;
+      const picker = document.getElementById('detail-picker');
+      if (picker) picker.value = cableId;
+      loadDetail(cableId);
+    });
+  }
+
+  // Binary controls
+  if (binaryPlay)  binaryPlay.addEventListener('click', togglePlayback);
+  if (binaryPrev) {
+    binaryPrev.addEventListener('click', () => {
+      if (AppState.search.binaryIndex > 0) {
+        if (AppState.search.binaryTimer) togglePlayback();
+        applyBinaryStep(AppState.search.binaryIndex - 1);
+      }
+    });
+  }
+  if (binaryNext) {
+    binaryNext.addEventListener('click', () => {
+      const s = AppState.search;
+      if (s.binaryIndex < s.binarySteps.length - 1) {
+        if (s.binaryTimer) togglePlayback();
+        applyBinaryStep(s.binaryIndex + 1);
+      }
+    });
+  }
+  if (binaryReset) {
+    binaryReset.addEventListener('click', () => {
+      if (AppState.search.binarySteps.length) {
+        if (AppState.search.binaryTimer) togglePlayback();
+        applyBinaryStep(0);
+      }
+    });
+  }
+
+  updateModeUI();
 }
 
-function renderTopRoutes(payload) {
-    if (!payload.routes.length) {
-        setPanelResult(dom.routeResult, '<div class="muted">Nenhuma rota encontrada para o par de paises selecionado.</div>');
-        return;
+// ─── Detail page ──────────────────────────────────────────────────────────────
+
+async function loadDetail(cableId) {
+  const picker     = document.getElementById('detail-picker');
+  const detailError= document.getElementById('detail-error');
+  const detailEmpty= document.getElementById('detail-empty');
+  const summary    = document.getElementById('detail-summary');
+  const endpointList = document.getElementById('endpoint-list');
+
+  if (!cableId) {
+    showError(detailError, 'Selecione um cabo válido.');
+    return;
+  }
+  clearEl(detailError);
+  try {
+    const payload = await apiFetch({ action: 'detail', cable_id: cableId });
+    const cable     = payload.cable     || payload;
+    const endpoints = payload.endpoints || [];
+
+    if (picker) picker.value = cableId;
+
+    if (summary) {
+      const items = [
+        ['cable_id',    cable.cable_id],
+        ['nome',        cable.cable_name],
+        ['owners',      cable.owners],
+        ['fornecedores',cable.suppliers],
+        ['comprimento', cable.length_km],
+        ['ano RFS',     cable.rfs_year],
+        ['operacional', cable.is_operational === null ? null : (cable.is_operational ? 'Sim' : 'Não')],
+        ['planejado',   cable.is_planned    === null ? null : (cable.is_planned    ? 'Sim' : 'Não')],
+        ['endpoints',   cable.landing_points_count],
+        ['notas',       cable.notes],
+      ];
+      summary.innerHTML = items.map(([k, v]) => `
+        <div class="summary-card">
+          <div class="k">${esc(k)}</div>
+          <div class="v">${esc(v)}</div>
+        </div>`).join('');
     }
 
-    const html = payload.routes.map((route, idx) => {
-        const cables = route.cables.map((cable) => `${esc(cable.cable_name)} <span class="muted">(${esc(cable.from)} → ${esc(cable.to)})</span>`).join('<br>');
-        return `
-            <div class="route-card">
-                <strong>#${idx + 1}</strong> score ${esc(route.score)} · hops ${esc(route.hops)} · ${esc(route.distance_km)} km<br>
-                <div class="muted">${esc(route.countries.join(' → '))}</div>
-                <div style="margin-top:8px">${cables}</div>
-            </div>
-        `;
-    }).join('');
+    if (endpointList) {
+      endpointList.innerHTML = endpoints.map(ep => {
+        const samples    = ep.ip_samples || [];
+        const statusDot  = ep.is_operational ? '🟢' : '🔴';
+        const ipRows     = samples.length
+          ? samples.map(s => `<tr>
+              <td class="mono">${esc(s.network || s.ip_start)}</td>
+              <td>${esc(s.city)}</td>
+              <td>${esc(s.country_name)}</td>
+            </tr>`).join('')
+          : '<tr><td colspan="3" class="muted">Sem amostras IP.</td></tr>';
 
-    setPanelResult(dom.routeResult, `<h3>Top 3 rotas (${esc(payload.from)} → ${esc(payload.to)})</h3>${html}`);
-}
-
-function renderCriticalCuts(payload) {
-    if (!payload.critical_cables.length) {
-        setPanelResult(dom.cutsResult, '<div class="muted">Nao foram encontrados cabos que isolem completamente o par de paises dentro das rotas analisadas.</div>');
-        return;
+        return `<div class="endpoint-card">
+          <div class="endpoint-head">
+            <h4>${statusDot} ${esc(ep.endpoint_name)}</h4>
+            <span class="muted">${esc(ep.city_name)}, ${esc(ep.country_name)}</span>
+          </div>
+          ${samples.length ? `<div class="table-wrap"><table>
+            <thead><tr><th>rede/IP</th><th>cidade</th><th>país</th></tr></thead>
+            <tbody>${ipRows}</tbody>
+          </table></div>` : ''}
+        </div>`;
+      }).join('');
     }
 
-    const rows = payload.critical_cables.map((cable) => `
-        <tr>
-            <td class="mono">${esc(cable.cable_id)}</td>
-            <td>${esc(cable.cable_name)}</td>
-            <td>${esc(cable.routes_hit)}</td>
-            <td>${esc(cable.impact)}</td>
-        </tr>
-    `).join('');
-
-    setPanelResult(dom.cutsResult, `
-        <h3>Cabos cujo corte pode isolar ${esc(payload.from)} ↔ ${esc(payload.to)}</h3>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>cable_id</th><th>cabo</th><th>rotas impactadas</th><th>impacto</th></tr></thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-    `);
+    if (detailEmpty) detailEmpty.style.display = 'none';
+  } catch (err) {
+    showError(detailError, err.message);
+  }
 }
 
-function renderEndpointRisk(payload) {
-    if (!payload.endpoints.length) {
-        setPanelResult(dom.riskResult, '<div class="muted">Nao ha endpoints suficientes para calcular risco no pais selecionado.</div>');
-        return;
+function initDetailPage() {
+  const picker   = document.getElementById('detail-picker');
+  const loadBtn  = document.getElementById('detail-load');
+  const detailError = document.getElementById('detail-error');
+
+  if (loadBtn) {
+    loadBtn.addEventListener('click', () => {
+      const cableId = picker ? picker.value.trim() : '';
+      loadDetail(cableId);
+    });
+  }
+  if (picker) {
+    picker.addEventListener('keydown', e => {
+      if (e.key === 'Enter') loadDetail(picker.value.trim());
+    });
+  }
+}
+
+// ─── Shared: cable datalist & country selects ─────────────────────────────────
+
+function populateCableDatalist() {
+  const cablesForDatalist = AppState.allCables;
+  document.querySelectorAll('.cable-datalist').forEach(dl => {
+    dl.innerHTML = cablesForDatalist.map(c =>
+      `<option value="${esc(c.cable_id)}">${esc(c.cable_name)}</option>`
+    ).join('');
+  });
+}
+
+async function loadCableList() {
+  try {
+    const payload = await apiFetch({ action: 'search', mode: 'all', q: '' });
+    AppState.allCables = extractData(payload);
+    populateCableDatalist();
+
+    // Populate probe cable select
+    const probeCable = document.getElementById('probe-cable');
+    if (probeCable) {
+      probeCable.innerHTML = AppState.allCables.map(c =>
+        `<option value="${esc(c.cable_id)}">${esc(c.cable_name)}</option>`
+      ).join('');
     }
-
-    const rows = payload.endpoints.map((endpoint) => `
-        <tr>
-            <td class="mono">${esc(endpoint.endpoint_id)}</td>
-            <td>${esc(endpoint.endpoint_name)}</td>
-            <td>${esc(endpoint.city_name)}</td>
-            <td>${esc(endpoint.cable_degree)}</td>
-            <td>${esc(endpoint.country_reach)}</td>
-            <td>${esc(endpoint.risk_score)}</td>
-            <td>${esc(endpoint.packet_loss_risk_pct)}%</td>
-            <td>${esc(endpoint.congestion_level)}</td>
-        </tr>
-    `).join('');
-
-    setPanelResult(dom.riskResult, `
-        <h3>Endpoints com risco em ${esc(payload.country)}</h3>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>endpoint_id</th><th>endpoint</th><th>cidade</th><th>conexoes</th><th>alcance</th><th>risco</th><th>perda pacotes</th><th>nivel</th></tr></thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-    `);
+  } catch (err) {
+    console.warn('loadCableList error:', err.message);
+  }
 }
 
-function animateGauge(gaugeId, valueNodeId, target, maxValue, unit) {
-    const circle = document.getElementById(gaugeId);
-    const valueNode = document.getElementById(valueNodeId);
-    const radius = 48;
-    const circumference = 2 * Math.PI * radius;
-    const clampedTarget = Math.min(target, maxValue);
-    const decimalPlaces = unit === 'pps' || unit === 'maq' ? 0 : 1;
-    const start = performance.now();
+async function loadCountries() {
+  try {
+    const payload = await apiFetch({ action: 'countries' });
+    AppState.countries = extractData(payload);
 
-    function tick(now) {
-        const progress = Math.min(1, (now - start) / 1300);
-        const current = clampedTarget * progress;
-        const ratio = current / maxValue;
-        const offset = circumference * (1 - ratio);
-        circle.style.strokeDasharray = `${circumference}`;
-        circle.style.strokeDashoffset = `${offset}`;
-        valueNode.textContent = `${current.toFixed(decimalPlaces)} ${unit}`;
-        if (progress < 1) {
-            requestAnimationFrame(tick);
-        }
-    }
+    const options = AppState.countries.map(c =>
+      `<option value="${esc(c)}">${esc(c)}</option>`
+    ).join('');
 
-    requestAnimationFrame(tick);
+    ['route-country-a', 'route-country-b', 'cut-country-a', 'cut-country-b', 'risk-country'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = options;
+      // Default second country select to index 1
+      if (i % 2 === 1 && AppState.countries.length > 1) {
+        el.value = AppState.countries[1];
+      }
+    });
+  } catch (err) {
+    console.warn('loadCountries error:', err.message);
+  }
 }
+
+// ─── Routes page ──────────────────────────────────────────────────────────────
+
+function renderTopRoutes(payload, resultEl) {
+  const routes = payload.routes || payload.data || [];
+  if (!routes.length) {
+    resultEl.innerHTML = '<p class="muted">Nenhuma rota encontrada.</p>';
+    return;
+  }
+  resultEl.innerHTML = `<h3>Top ${routes.length} rotas</h3>` + routes.map((route, i) => {
+    const cables = (route.cables || []).map(c =>
+      `${esc(c.cable_name)} <span class="muted">(${esc(c.from)} → ${esc(c.to)})</span>`
+    ).join('<br>');
+    return `<div class="route-card">
+      <strong>#${i + 1}</strong>
+      ${route.score    !== undefined ? ` · score ${esc(route.score)}` : ''}
+      ${route.hops     !== undefined ? ` · hops ${esc(route.hops)}` : ''}
+      ${route.distance_km !== undefined ? ` · ${esc(route.distance_km)} km` : ''}
+      <div class="muted">${esc((route.countries || []).join(' → '))}</div>
+      ${cables ? `<div style="margin-top:6px;">${cables}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderCriticalCuts(payload, resultEl) {
+  const cables = payload.critical_cables || payload.data || [];
+  if (!cables.length) {
+    resultEl.innerHTML = '<p class="muted">Nenhum cabo crítico encontrado.</p>';
+    return;
+  }
+  const rows = cables.map(c => `<tr>
+    <td class="mono">${esc(c.cable_id)}</td>
+    <td>${esc(c.cable_name)}</td>
+    <td>${esc(c.routes_hit)}</td>
+    <td>${esc(c.impact)}</td>
+  </tr>`).join('');
+  resultEl.innerHTML = `
+    <h3>Cabos críticos</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>cabo</th><th>rotas impactadas</th><th>impacto</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+function renderEndpointRisk(payload, resultEl) {
+  const endpoints = payload.endpoints || payload.data || [];
+  if (!endpoints.length) {
+    resultEl.innerHTML = '<p class="muted">Nenhum dado de risco disponível.</p>';
+    return;
+  }
+  const rows = endpoints.map(ep => `<tr>
+    <td class="mono">${esc(ep.endpoint_id)}</td>
+    <td>${esc(ep.endpoint_name)}</td>
+    <td>${esc(ep.city_name)}</td>
+    <td>${esc(ep.cable_degree)}</td>
+    <td>${esc(ep.country_reach)}</td>
+    <td>${esc(ep.risk_score)}</td>
+    <td>${esc(ep.packet_loss_risk_pct)}%</td>
+    <td>${esc(ep.congestion_level)}</td>
+  </tr>`).join('');
+  resultEl.innerHTML = `
+    <h3>Risco de endpoints · ${esc(payload.country || '')}</h3>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>endpoint_id</th><th>endpoint</th><th>cidade</th>
+        <th>conexões</th><th>alcance</th><th>risco</th>
+        <th>perda pct</th><th>congestionamento</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+function initRoutesPage() {
+  const btnTopRoutes    = document.getElementById('btn-top-routes');
+  const btnCriticalCuts = document.getElementById('btn-critical-cuts');
+  const btnEndpointRisk = document.getElementById('btn-endpoint-risk');
+
+  if (btnTopRoutes) {
+    btnTopRoutes.addEventListener('click', async () => {
+      const errEl   = document.getElementById('route-error');
+      const resultEl= document.getElementById('route-result');
+      clearEl(errEl);
+      try {
+        const countryA = (document.getElementById('route-country-a') || {}).value || '';
+        const countryB = (document.getElementById('route-country-b') || {}).value || '';
+        const fd = new FormData();
+        fd.append('action', 'top_routes');
+        fd.append('country_a', countryA);
+        fd.append('country_b', countryB);
+        const payload = await apiPost(fd);
+        if (resultEl) renderTopRoutes(payload, resultEl);
+      } catch (err) {
+        showError(errEl, err.message);
+      }
+    });
+  }
+
+  if (btnCriticalCuts) {
+    btnCriticalCuts.addEventListener('click', async () => {
+      const errEl   = document.getElementById('cuts-error');
+      const resultEl= document.getElementById('cuts-result');
+      clearEl(errEl);
+      try {
+        const countryA = (document.getElementById('cut-country-a') || {}).value || '';
+        const countryB = (document.getElementById('cut-country-b') || {}).value || '';
+        const fd = new FormData();
+        fd.append('action', 'critical_cuts');
+        fd.append('country_a', countryA);
+        fd.append('country_b', countryB);
+        const payload = await apiPost(fd);
+        if (resultEl) renderCriticalCuts(payload, resultEl);
+      } catch (err) {
+        showError(errEl, err.message);
+      }
+    });
+  }
+
+  if (btnEndpointRisk) {
+    btnEndpointRisk.addEventListener('click', async () => {
+      const errEl   = document.getElementById('risk-error');
+      const resultEl= document.getElementById('risk-result');
+      clearEl(errEl);
+      try {
+        const country = (document.getElementById('risk-country') || {}).value || '';
+        const fd = new FormData();
+        fd.append('action', 'endpoint_risk');
+        fd.append('country', country);
+        const payload = await apiPost(fd);
+        if (resultEl) renderEndpointRisk(payload, resultEl);
+      } catch (err) {
+        showError(errEl, err.message);
+      }
+    });
+  }
+}
+
+// ─── Telemetry page ───────────────────────────────────────────────────────────
 
 function buildLinePoints(values, width, height, padding) {
-    if (!values.length) {
-        return '';
-    }
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
-    const span = Math.max(0.001, maxVal - minVal);
-    return values.map((value, idx) => {
-        const x = padding + (idx * (width - (padding * 2)) / Math.max(1, values.length - 1));
-        const y = height - padding - (((value - minVal) / span) * (height - (padding * 2)));
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(' ');
-}
-
-function buildBandPolygon(values, halfWidth, width, height, padding) {
-    if (!values.length || halfWidth <= 0) {
-        return '';
-    }
-    const upper = values.map((v) => v + halfWidth);
-    const lower = values.map((v) => Math.max(0, v - halfWidth));
-    const combined = upper.concat(lower.slice().reverse());
-    const minVal = Math.min(...combined);
-    const maxVal = Math.max(...combined);
-    const span = Math.max(0.001, maxVal - minVal);
-
-    const upperPoints = upper.map((value, idx) => {
-        const x = padding + (idx * (width - (padding * 2)) / Math.max(1, upper.length - 1));
-        const y = height - padding - (((value - minVal) / span) * (height - (padding * 2)));
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-    });
-
-    const lowerPoints = lower.map((value, idx) => {
-        const x = padding + (idx * (width - (padding * 2)) / Math.max(1, lower.length - 1));
-        const y = height - padding - (((value - minVal) / span) * (height - (padding * 2)));
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-    }).reverse();
-
-    return upperPoints.concat(lowerPoints).join(' ');
+  if (values.length < 2) return '';
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const span = Math.max(0.001, maxV - minV);
+  return values.map((v, i) => {
+    const x = padding + i * (width  - padding * 2) / Math.max(1, values.length - 1);
+    const y = height - padding - ((v - minV) / span) * (height - padding * 2);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
 }
 
 function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label = 'Latência (ms)') {
-    const valid = history
-        .map((row) => Number(row[metric]))
-        .filter((value) => Number.isFinite(value));
+  const valid = history.map(r => Number(r[metric])).filter(v => isFinite(v));
+  if (valid.length < 2) return '<p class="muted">Amostras insuficientes para o gráfico.</p>';
 
-    if (valid.length < 2) {
-        return '<div class="muted">Sem amostras suficientes para gráfico temporal.</div>';
-    }
+  const W = 920, H = 220, P = 26;
+  const pts = buildLinePoints(valid, W, H, P);
 
-    const width = 920;
-    const height = 220;
-    const padding = 26;
-    const linePoints = buildLinePoints(valid, width, height, padding);
+  const metricBtns = [
+    ['latency_ms',      'Latência'],
+    ['jitter_ms',       'Jitter'],
+    ['packet_loss_pct', 'Perda %'],
+  ].map(([m, lbl]) =>
+    `<button class="btn-sm ${m === metric ? 'primary' : ''}"
+       onclick="window.__telemetryMetric('${m}','${lbl} (${m})')">
+       ${lbl}
+     </button>`
+  ).join('');
 
-    let halfWidth = 0;
-    // Banda de confiança apenas para latência por enquanto
-    if (metric === 'latency_ms' && Array.isArray(ciLatency) && ciLatency.length === 2) {
-        halfWidth = Math.abs((Number(ciLatency[1]) - Number(ciLatency[0])) / 2);
-    }
-    const bandPoints = buildBandPolygon(valid, halfWidth, width, height, padding);
+  const ciText = Array.isArray(ciLatency)
+    ? `IC 95%: ${ciLatency.join(' – ')} ms`
+    : '';
 
-    return `
-        <div class="telemetry-chart-wrap">
-            <div class="chart-controls" style="margin-bottom:8px; display:flex; gap:8px;">
-                <button class="btn btn-sm ${metric === 'latency_ms' ? 'primary' : ''}" onclick="window.updateTelemetryMetric('latency_ms', 'Latência (ms)')">Latência</button>
-                <button class="btn btn-sm ${metric === 'jitter_ms' ? 'primary' : ''}" onclick="window.updateTelemetryMetric('jitter_ms', 'Jitter (ms)')">Jitter</button>
-                <button class="btn btn-sm ${metric === 'packet_loss_pct' ? 'primary' : ''}" onclick="window.updateTelemetryMetric('packet_loss_pct', 'Perda (%)')">Perda</button>
-            </div>
-            <svg class="telemetry-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-                <line class="telemetry-axis" x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}"></line>
-                <line class="telemetry-axis" x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}"></line>
-                ${bandPoints ? `<polygon class="telemetry-band" points="${bandPoints}"></polygon>` : ''}
-                <polyline class="telemetry-line" points="${linePoints}"></polyline>
-            </svg>
-            <div class="telemetry-legend">${label} ao longo da janela de análise.</div>
-        </div>
-    `;
+  return `
+    <div class="telemetry-chart-wrap">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">${metricBtns}</div>
+      <svg class="telemetry-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <line class="telemetry-axis" x1="${P}" y1="${H-P}" x2="${W-P}" y2="${H-P}"></line>
+        <line class="telemetry-axis" x1="${P}" y1="${P}"   x2="${P}"   y2="${H-P}"></line>
+        <polyline class="telemetry-line" points="${pts}"></polyline>
+      </svg>
+      <div class="telemetry-legend">${esc(label)} ao longo da janela. ${esc(ciText)}</div>
+    </div>`;
 }
 
-function renderTelemetry(payload) {
-    const cable = payload.details.cable;
-    const telemetry = payload.telemetry;
-    const latencyP    = telemetry.percentiles?.latency_ms     || {};
-    const throughputP = telemetry.percentiles?.throughput_mbps || {};
-    const packetLossP = telemetry.percentiles?.packet_loss_pct || {};
-    const history = Array.isArray(telemetry.history) ? telemetry.history : [];
-    
-    // Cache do payload para trocas de métrica sem nova requisição
-    window.lastTelemetryPayload = payload;
+function animateGauge(gaugeId, valueId, target, maxValue, unit) {
+  const circle    = document.getElementById(gaugeId);
+  const valueNode = document.getElementById(valueId);
+  if (!circle || !valueNode) return;
+  const radius       = 48;
+  const circumference= 2 * Math.PI * radius;
+  const clamped      = Math.min(Number(target) || 0, maxValue);
+  const dp           = (unit === 'pps' || unit === 'maq') ? 0 : 1;
+  const start        = performance.now();
 
-    window._lastTelemetryHistory = history;
-    window._lastTelemetryCiLatency = telemetry.confidence_interval_latency_ms;
-    window.updateTelemetryMetric = (metric, label) => {
-        const chartContainer = document.getElementById('telemetry-chart-container');
-        if (chartContainer) {
-            chartContainer.innerHTML = renderTelemetryChart(window._lastTelemetryHistory, window._lastTelemetryCiLatency, metric, label);
-        }
-    };
-
-    const buildSourceLegend = () => {
-        const source = String(telemetry.source || 'unknown');
-        const method = String(telemetry.method || 'n/a');
-        const sampleSize = Number(telemetry.sample_size || history.length || 0);
-
-        if (telemetry.fallback_used || source === 'synthetic') {
-            return `Origem dos dados: série sintética de fallback (${sampleSize} amostras), usada quando não há coleta ativa disponível na janela.`;
-        }
-
-        if (source === 'active_mtr') {
-            return `Origem dos dados: coleta ativa via MTR (${sampleSize} amostras). Método: ${method}.`;
-        }
-
-        if (source === 'active_tcp_connect') {
-            return `Origem dos dados: coleta ativa via TCP connect (${sampleSize} amostras). Método: ${method}.`;
-        }
-
-        if (source === 'active_http_probe') {
-            return `Origem dos dados: coleta ativa via HTTP probe (${sampleSize} amostras). Método: ${method}.`;
-        }
-
-        return `Origem dos dados: ${source} (${sampleSize} amostras). Método: ${method}.`;
-    };
-
-    const htmlOverview = `
-        <div class="detail-summary" style="margin-bottom:12px;">
-            <div class="summary-card"><div class="k">janela</div><div class="v">${esc(telemetry.window_start)}</div></div>
-            <div class="summary-card"><div class="k">qualidade</div><div class="v">${esc(telemetry.data_quality_score)} / 100</div></div>
-            <div class="summary-card"><div class="k">origem</div><div class="v">${esc(telemetry.source)}</div></div>
-        </div>
-        <div class="telemetry-source-legend">${esc(buildSourceLegend())}</div>
-        <div class="telemetry-grid">
-            <div class="gauge">
-                <svg viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
-                    <circle id="gauge-latency" cx="60" cy="60" r="48" fill="none" stroke="#58a6ff" stroke-width="10" transform="rotate(-90 60 60)"></circle>
-                </svg>
-                <div class="value" id="value-latency">0 ms</div>
-                <div class="label">latencia estimada</div>
-            </div>
-            <div class="gauge">
-                <svg viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
-                    <circle id="gauge-pps" cx="60" cy="60" r="48" fill="none" stroke="#3fb950" stroke-width="10" transform="rotate(-90 60 60)"></circle>
-                </svg>
-                <div class="value" id="value-pps">0 pps</div>
-                <div class="label">pacotes por segundo</div>
-            </div>
-            <div class="gauge">
-                <svg viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
-                    <circle id="gauge-machines" cx="60" cy="60" r="48" fill="none" stroke="#f2cc60" stroke-width="10" transform="rotate(-90 60 60)"></circle>
-                </svg>
-                <div class="value" id="value-machines">0 maq</div>
-                <div class="label">maquinas conectadas</div>
-            </div>
-        </div>
-    `;
-
-    const ciLatency = telemetry.confidence_interval_latency_ms;
-    const chartHtml = renderTelemetryChart(history, ciLatency);
-
-    setPanelResult(dom.telemetryResult, `
-        <h3>Análise Modular · ${esc(cable.cable_name)}</h3>
-        ${htmlOverview}
-        <div class="subhead">Série Temporal</div>
-        <div id="telemetry-chart-container">${chartHtml}</div>
-        <div class="subhead">Análise Estatística (Baseline)</div>
-        <div class="hint">Confiança 95% latência: ${Array.isArray(ciLatency) ? ciLatency.join(' – ') + ' ms' : 'N/A'}</div>
-        <div class="table-wrap" style="margin-top:8px;">
-            <table>
-                <thead><tr><th>Métrica</th><th>p50</th><th>p95</th><th>p99</th></tr></thead>
-                <tbody>
-                    <tr><td>Latência (ms)</td><td>${latencyP.p50 ?? 'N/A'}</td><td>${latencyP.p95 ?? 'N/A'}</td><td>${latencyP.p99 ?? 'N/A'}</td></tr>
-                    <tr><td>Throughput (Mbps)</td><td>${throughputP.p50 ?? 'N/A'}</td><td>${throughputP.p95 ?? 'N/A'}</td><td>${throughputP.p99 ?? 'N/A'}</td></tr>
-                    <tr><td>Perda pacotes (%)</td><td>${packetLossP.p50 ?? 'N/A'}</td><td>${packetLossP.p95 ?? 'N/A'}</td><td>${packetLossP.p99 ?? 'N/A'}</td></tr>
-                </tbody>
-            </table>
-        </div>
-    `);
-
-    animateGauge('gauge-latency', 'value-latency', Number(telemetry.latency_ms), 250, 'ms');
-    animateGauge('gauge-pps', 'value-pps', Number(telemetry.packets_per_second), 3000000, 'pps');
-    animateGauge('gauge-machines', 'value-machines', Number(telemetry.connected_machines_estimate), 1200000, 'maq');
+  (function tick(now) {
+    const progress = Math.min(1, (now - start) / 1300);
+    const curr     = clamped * progress;
+    const ratio    = curr / maxValue;
+    circle.style.strokeDasharray  = circumference;
+    circle.style.strokeDashoffset = circumference * (1 - ratio);
+    valueNode.textContent = `${curr.toFixed(dp)} ${unit}`;
+    if (progress < 1) requestAnimationFrame(tick);
+  })(performance.now());
 }
 
-async function checkAlerts() {
-    const container = document.getElementById('alert-ticker');
-    if (!container) return;
+function renderTelemetryResult(payload) {
+  const cable     = (payload.details && payload.details.cable) || payload.cable || {};
+  const telemetry = payload.telemetry || payload;
+  const history   = Array.isArray(telemetry.history) ? telemetry.history : [];
+  const latP      = (telemetry.percentiles && telemetry.percentiles.latency_ms)      || {};
+  const thrP      = (telemetry.percentiles && telemetry.percentiles.throughput_mbps) || {};
+  const plP       = (telemetry.percentiles && telemetry.percentiles.packet_loss_pct) || {};
+  const ci        = telemetry.confidence_interval_latency_ms;
+
+  // Cache for metric switching
+  AppState.lastTelemetryHistory    = history;
+  AppState.lastTelemetryCiLatency  = ci;
+
+  window.__telemetryMetric = (metric, label) => {
+    const chartDiv = document.getElementById('telemetry-chart-container');
+    if (chartDiv) chartDiv.innerHTML = renderTelemetryChart(AppState.lastTelemetryHistory, AppState.lastTelemetryCiLatency, metric, label);
+  };
+
+  const chartHtml = renderTelemetryChart(history, ci);
+
+  const resultEl = document.getElementById('telemetry-result');
+  if (!resultEl) return;
+
+  resultEl.innerHTML = `
+    <h3>Telemetria · ${esc(cable.cable_name || 'Cabo')}</h3>
+    <div class="detail-summary" style="margin-bottom:12px;">
+      <div class="summary-card"><div class="k">janela</div><div class="v">${esc(telemetry.window_start)}</div></div>
+      <div class="summary-card"><div class="k">qualidade</div><div class="v">${esc(telemetry.data_quality_score)} / 100</div></div>
+      <div class="summary-card"><div class="k">origem</div><div class="v">${esc(telemetry.source)}</div></div>
+      <div class="summary-card"><div class="k">amostras</div><div class="v">${esc(telemetry.sample_size || history.length)}</div></div>
+    </div>
+    <div class="telemetry-grid">
+      <div class="gauge">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
+          <circle id="gauge-latency" cx="60" cy="60" r="48" fill="none" stroke="#58a6ff" stroke-width="10" transform="rotate(-90 60 60)"></circle>
+        </svg>
+        <div class="value" id="value-latency">0 ms</div>
+        <div class="label">latência</div>
+      </div>
+      <div class="gauge">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
+          <circle id="gauge-pps" cx="60" cy="60" r="48" fill="none" stroke="#3fb950" stroke-width="10" transform="rotate(-90 60 60)"></circle>
+        </svg>
+        <div class="value" id="value-pps">0 pps</div>
+        <div class="label">pacotes/s</div>
+      </div>
+      <div class="gauge">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
+          <circle id="gauge-machines" cx="60" cy="60" r="48" fill="none" stroke="#f2cc60" stroke-width="10" transform="rotate(-90 60 60)"></circle>
+        </svg>
+        <div class="value" id="value-machines">0 maq</div>
+        <div class="label">máquinas est.</div>
+      </div>
+    </div>
+    <div class="subhead" style="margin-top:16px;">Série Temporal</div>
+    <div id="telemetry-chart-container">${chartHtml}</div>
+    <div class="subhead" style="margin-top:16px;">Percentis (Baseline)</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Métrica</th><th>p50</th><th>p95</th><th>p99</th></tr></thead>
+        <tbody>
+          <tr><td>Latência (ms)</td><td>${latP.p50 ?? '–'}</td><td>${latP.p95 ?? '–'}</td><td>${latP.p99 ?? '–'}</td></tr>
+          <tr><td>Throughput (Mbps)</td><td>${thrP.p50 ?? '–'}</td><td>${thrP.p95 ?? '–'}</td><td>${thrP.p99 ?? '–'}</td></tr>
+          <tr><td>Perda pct</td><td>${plP.p50 ?? '–'}</td><td>${plP.p95 ?? '–'}</td><td>${plP.p99 ?? '–'}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+
+  animateGauge('gauge-latency',  'value-latency',  telemetry.latency_ms,                   250,     'ms');
+  animateGauge('gauge-pps',      'value-pps',       telemetry.packets_per_second,            3000000, 'pps');
+  animateGauge('gauge-machines', 'value-machines',  telemetry.connected_machines_estimate,   1200000, 'maq');
+}
+
+function initTelemetryPage() {
+  const btn       = document.getElementById('btn-telemetry');
+  const errEl     = document.getElementById('telemetry-error');
+  const resultEl  = document.getElementById('telemetry-result');
+
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    clearEl(errEl);
+    const cableId = (document.getElementById('telemetry-cable') || {}).value
+      ? document.getElementById('telemetry-cable').value.trim()
+      : '';
+    const hours   = parseInt(
+      (document.getElementById('telemetry-hours') || {}).value || '24', 10
+    ) || 24;
+
+    if (!cableId) { showError(errEl, 'Selecione um cabo.'); return; }
     try {
-        const payload = await api('alerts');
-        if (payload.alerts && payload.alerts.length > 0) {
-            container.innerHTML = payload.alerts.map((a) => `
-                <div class="alert-item ${esc(a.severity)}">
-                    <strong>${esc(a.cable_name)}</strong>: ${esc(a.description)}
-                </div>
-            `).join('');
-            container.style.display = 'block';
-        } else {
-            container.style.display = 'none';
-        }
-    } catch (e) {
-        container.style.display = 'none';
+      const payload = await apiFetch({ action: 'telemetry', cable_id: cableId, hours });
+      renderTelemetryResult(payload);
+    } catch (err) {
+      showError(errEl, err.message);
     }
+  });
 }
 
-async function runPanelFunction(errorNode, targetTab, handler) {
-    clearError(errorNode);
-    try {
-        await handler();
-        switchTab(targetTab);
-    } catch (error) {
-        showError(errorNode, error.message);
-    }
-}
-
-dom.modeList.addEventListener('click', (event) => {
-    const button = event.target.closest('.mode-btn');
-    if (!button) {
-        return;
-    }
-    switchMode(button.dataset.mode);
-});
-
-dom.tabs.forEach((button) => {
-    button.addEventListener('click', () => switchTab(button.dataset.tab));
-});
-
-dom.searchBtn.addEventListener('click', performSearch);
-dom.clearBtn.addEventListener('click', () => {
-    dom.queryInput.value = '';
-    dom.boolInput.value = 'true';
-    resetSearchSurface();
-});
-dom.queryInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-        performSearch();
-    }
-});
-dom.detailLoad.addEventListener('click', () => loadDetails(dom.detailPicker.value.trim()));
-dom.detailPicker.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-        loadDetails(dom.detailPicker.value.trim());
-    }
-});
-dom.searchBody.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-open-detail]');
-    if (!button) {
-        return;
-    }
-    loadDetails(button.dataset.openDetail);
-});
-
-dom.binaryPlay.addEventListener('click', toggleBinaryPlayback);
-dom.binaryPrev.addEventListener('click', () => {
-    if (state.binaryIndex > 0) {
-        if (state.binaryTimer) {
-            toggleBinaryPlayback();
-        }
-        applyBinaryStep(state.binaryIndex - 1);
-    }
-});
-dom.binaryNext.addEventListener('click', () => {
-    if (state.binaryIndex < state.binarySteps.length - 1) {
-        if (state.binaryTimer) {
-            toggleBinaryPlayback();
-        }
-        applyBinaryStep(state.binaryIndex + 1);
-    }
-});
-dom.binaryReset.addEventListener('click', () => {
-    if (state.binarySteps.length) {
-        if (state.binaryTimer) {
-            toggleBinaryPlayback();
-        }
-        applyBinaryStep(0);
-    }
-});
-
-dom.btnTopRoutes.addEventListener('click', () => runPanelFunction(dom.routeError, 'top-routes', async () => {
-    const payload = await apiWithParams('top_routes', {
-        countryA: dom.routeCountryA.value,
-        countryB: dom.routeCountryB.value,
-    });
-    renderTopRoutes(payload);
-}));
-
-dom.btnCriticalCuts.addEventListener('click', () => runPanelFunction(dom.cutsError, 'critical-cuts', async () => {
-    const payload = await apiWithParams('critical_cables', {
-        countryA: dom.cutCountryA.value,
-        countryB: dom.cutCountryB.value,
-    });
-    renderCriticalCuts(payload);
-}));
-
-dom.btnEndpointRisk.addEventListener('click', () => runPanelFunction(dom.riskError, 'endpoint-risk', async () => {
-    const payload = await api('endpoint_risk', dom.riskCountry.value);
-    renderEndpointRisk(payload);
-}));
-
-dom.btnTelemetry.addEventListener('click', () => runPanelFunction(dom.telemetryError, 'telemetry', async () => {
-    const cableId = dom.telemetryCable.value.trim();
-    if (!cableId) {
-        throw new Error('Selecione um cabo para a telemetria.');
-    }
-    const hours = dom.telemetryHours ? parseInt(dom.telemetryHours.value, 10) || 24 : 24;
-    const payload = await apiWithParams('telemetry', { q: cableId, hours });
-    renderTelemetry(payload);
-}));
-
-const probeElements = {
-    cable: document.getElementById('probe-cable'),
-    endpoint: document.getElementById('probe-endpoint-select'),
-    ip: document.getElementById('probe-ip'),
-    fullScan: document.getElementById('probe-full-scan'),
-    btn: document.getElementById('btn-probe'),
-    error: document.getElementById('probe-error'),
-    result: document.getElementById('probe-result'),
-};
-
-async function loadProbeEndpoints() {
-    const cableId = probeElements.cable ? probeElements.cable.value.trim() : '';
-    if (!cableId || !probeElements.endpoint) return;
-    try {
-        const payload = await api('details', cableId);
-        const endpoints = payload.endpoints || [];
-        probeElements.endpoint.innerHTML = endpoints.map((ep) => {
-            const ipSamples = ep.ip_samples || [];
-            const firstIp = ipSamples.length ? ipSamples[0].ip_start || '' : '';
-            return `<option value="${esc(ep.endpoint_id)}" data-ip="${esc(firstIp)}">${esc(ep.endpoint_name)} — ${esc(ep.city_name)}, ${esc(ep.country_name)}</option>`;
-        }).join('');
-        if (probeElements.endpoint.options.length && probeElements.ip) {
-            const selected = probeElements.endpoint.options[0];
-            probeElements.ip.value = selected.dataset.ip || '';
-        }
-    } catch (e) {
-        if (probeElements.error) showError(probeElements.error, e.message);
-    }
-}
+// ─── Probe page ───────────────────────────────────────────────────────────────
 
 function renderProbeResult(payload) {
-    const r = payload.result;
-    const statusClass = r.reachable ? 'yes' : 'no';
-    const statusText  = r.reachable ? 'Acessível' : 'Inacessível';
+  const r = payload.result || payload;
+  const reachable   = r.reachable !== undefined ? r.reachable : true;
+  const statusCls   = reachable ? 'yes' : 'no';
+  const statusTxt   = reachable ? 'Acessível' : 'Inacessível';
+  const lossClass   = (r.packet_loss_pct ?? 0) > 5  ? 'danger-text' : 'ok-text';
+  const jitterClass = (r.jitter_ms ?? 0)       > 20 ? 'danger-text' : 'ok-text';
 
-    const hopsRows = (r.hops || []).map((hop, i) => `
-        <tr>
-            <td>${i + 1}</td>
-            <td class="mono">${esc(hop.ip || '*')}</td>
-            <td>${esc(hop.host || '*')}</td>
-            <td>${hop.rtt_ms != null ? `${hop.rtt_ms} ms` : '*'}</td>
-        </tr>
-    `).join('');
+  const hopsRows = (r.hops || []).map((hop, i) => `<tr>
+    <td>${i + 1}</td>
+    <td class="mono">${esc(hop.ip || '*')}</td>
+    <td>${esc(hop.host || '*')}</td>
+    <td>${hop.rtt_ms != null ? hop.rtt_ms + ' ms' : '*'}</td>
+  </tr>`).join('');
 
-    const portsBadge = (r.ports_tested || []).length
-        ? `<span class="muted" style="font-size:12px;">portas: ${r.ports_tested.join(' · ')}</span>`
-        : '';
+  const openPorts = (r.open_ports || r.ports_tested || []);
+  const portsBadge = openPorts.length
+    ? `<div class="muted" style="font-size:12px;margin-top:4px;">portas: ${openPorts.join(' · ')}</div>`
+    : '';
 
-    const fullBadge = r.full_scan
-        ? `<span class="mode-meta" style="margin-left:6px;">sonda completa</span>`
-        : '';
+  const historyBadge = payload.history_file
+    ? `<div style="margin-top:6px;font-size:12px;color:#3fb950;">&#10003; Histórico: <span class="mono">${esc(payload.history_file)}</span></div>`
+    : '';
 
-    const historyBadge = payload.history_file
-        ? `<div class="probe-history-badge">&#10003; Histórico salvo: <span class="mono">${esc(payload.history_file)}</span></div>`
-        : '';
-
-    // Cadeia de protocolos tentados: TCP → ICMP → HTTP
-    const PROTO_LABEL = { tcp: 'TCP', icmp: 'ICMP', http: 'HTTP' };
-    const PROTO_DESC  = {
-        tcp:  'TCP SYN/ACK connect — verifica porta aberta (camada 4)',
-        icmp: 'ICMP Echo Request — ping camada 3, passa em firewalls sem estado',
-        http: 'HTTP HEAD — handshake Web via porta 80/443',
-    };
-    const steps = r.probe_steps || [];
-    const methodStep = r.method?.startsWith('tcp') ? 'tcp'
-        : r.method === 'icmp-echo' ? 'icmp'
-        : r.method?.startsWith('http') ? 'http'
-        : null;
-
-    const probeChain = steps.length ? `
-        <div class="probe-chain" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            ${steps.map((s, i) => {
-                const succeeded = s === methodStep;
-                const cls = succeeded ? 'badge yes' : 'badge no';
-                const arrow = i < steps.length - 1 ? '<span class="muted">→</span>' : '';
-                return `<span title="${esc(PROTO_DESC[s] || s)}" class="${cls}" style="font-size:11px;">${PROTO_LABEL[s] || s.toUpperCase()}</span>${arrow}`;
-            }).join('')}
-            ${methodStep ? `<span class="muted" style="font-size:11px;">passou via ${PROTO_LABEL[methodStep] || methodStep}</span>` : ''}
-            ${!methodStep && r.method === 'synthetic_fallback' ? `<span class="mode-meta" style="font-size:11px;">estimativa sintética</span>` : ''}
-        </div>` : '';
-
-    const lossClass   = (r.packet_loss_pct ?? 0) > 5 ? 'danger-text' : 'ok-text';
-    const jitterClass = (r.jitter_ms ?? 0) > 20 ? 'danger-text' : 'ok-text';
-
-    const html = `
-        <div class="probe-status">
-            <span class="badge ${statusClass}">${statusText}</span>
-            <span class="muted" style="margin-left:10px;">${esc(r.target_ip || payload.target || '')}</span>
-            ${fullBadge}
-        </div>
-        ${probeChain}
-        ${portsBadge ? `<div style="margin-top:4px;">${portsBadge}</div>` : ''}
-        ${historyBadge}
-        <div class="telemetry-grid" style="margin-top:12px;">
-            <div class="gauge-mini"><div class="k">RTT Médio</div><div class="v accent">${r.avg_rtt_ms != null ? r.avg_rtt_ms + ' ms' : 'N/A'}</div></div>
-            <div class="gauge-mini"><div class="k">Jitter</div><div class="v ${jitterClass}">${r.jitter_ms != null ? r.jitter_ms + ' ms' : 'N/A'}</div></div>
-            <div class="gauge-mini"><div class="k">Perda de Pacotes</div><div class="v ${lossClass}">${r.packet_loss_pct != null ? r.packet_loss_pct + '%' : 'N/A'}</div></div>
-            <div class="gauge-mini"><div class="k">Throughput Est.</div><div class="v">${r.throughput_mbps != null ? r.throughput_mbps + ' Mbps' : 'N/A'}</div></div>
-            <div class="gauge-mini"><div class="k">Protocolo</div><div class="v">${esc(r.method || 'synthetic')}</div></div>
-            <div class="gauge-mini"><div class="k">Amostras</div><div class="v">${r.samples ?? '-'}</div></div>
-        </div>
-        ${hopsRows ? `
-        <div class="subhead" style="margin-top:14px;">Rota simulada (hops)</div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>#</th><th>IP</th><th>Host</th><th>RTT</th></tr></thead>
-                <tbody>${hopsRows}</tbody>
-            </table>
-        </div>` : ''}
-        <div class="telemetry-source-legend" style="margin-top:12px;">${esc(r.note || '')}</div>
-    `;
-    if (probeElements.result) probeElements.result.innerHTML = html;
+  return `
+    <div class="probe-status">
+      <span class="badge ${statusCls}">${statusTxt}</span>
+      <span class="muted" style="margin-left:10px;">${esc(r.target_ip || r.ip || payload.target || '')}</span>
+    </div>
+    ${portsBadge}
+    ${historyBadge}
+    <div class="telemetry-grid" style="margin-top:12px;">
+      <div class="gauge-mini"><div class="k">RTT Médio</div>
+        <div class="v accent">${r.avg_rtt_ms != null ? r.avg_rtt_ms + ' ms' : r.latency_ms != null ? r.latency_ms + ' ms' : 'N/A'}</div></div>
+      <div class="gauge-mini"><div class="k">Jitter</div>
+        <div class="v ${jitterClass}">${r.jitter_ms != null ? r.jitter_ms + ' ms' : 'N/A'}</div></div>
+      <div class="gauge-mini"><div class="k">Perda de Pacotes</div>
+        <div class="v ${lossClass}">${r.packet_loss_pct != null ? r.packet_loss_pct + '%' : 'N/A'}</div></div>
+      <div class="gauge-mini"><div class="k">Throughput Est.</div>
+        <div class="v">${r.throughput_mbps != null ? r.throughput_mbps + ' Mbps' : 'N/A'}</div></div>
+      <div class="gauge-mini"><div class="k">Protocolo</div>
+        <div class="v">${esc(r.method || 'synthetic')}</div></div>
+      <div class="gauge-mini"><div class="k">Amostras</div>
+        <div class="v">${r.samples ?? '–'}</div></div>
+    </div>
+    ${hopsRows ? `
+    <div class="subhead" style="margin-top:14px;">Rota (hops)</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>IP</th><th>Host</th><th>RTT</th></tr></thead>
+        <tbody>${hopsRows}</tbody>
+      </table>
+    </div>` : ''}
+    ${r.note ? `<div class="muted" style="margin-top:10px;font-size:12px;">${esc(r.note)}</div>` : ''}`;
 }
 
-if (probeElements.cable) {
-    probeElements.cable.addEventListener('change', loadProbeEndpoints);
-    probeElements.cable.addEventListener('blur', loadProbeEndpoints);
-}
-
-if (probeElements.endpoint) {
-    probeElements.endpoint.addEventListener('change', () => {
-        const selected = probeElements.endpoint.options[probeElements.endpoint.selectedIndex];
-        if (selected && probeElements.ip) {
-            probeElements.ip.value = selected.dataset.ip || '';
-        }
-    });
-}
-
-if (probeElements.btn) {
-    probeElements.btn.addEventListener('click', () => runPanelFunction(probeElements.error, 'network-probe', async () => {
-        const cableId = probeElements.cable ? probeElements.cable.value.trim() : '';
-        const endpointId = probeElements.endpoint ? probeElements.endpoint.value.trim() : '';
-        const ip = probeElements.ip ? probeElements.ip.value.trim() : '';
-        if (!cableId) throw new Error('Selecione um cabo para a sonda.');
-        probeElements.btn.disabled = true;
-        probeElements.btn.textContent = 'Sondando...';
-        try {
-            const full = probeElements.fullScan?.checked ? '1' : '0';
-            const payload = await apiWithParams('probe', { q: cableId, endpoint_id: endpointId, ip, full });
-            renderProbeResult(payload);
-        } finally {
-            probeElements.btn.disabled = false;
-            probeElements.btn.textContent = 'Iniciar Sonda';
-        }
-    }));
-}
-
-(async function init() {
-    try {
-        const [payload, countriesPayload] = await Promise.all([
-            api('all'),
-            api('countries'),
-        ]);
-        state.allCables = payload.data;
-        state.countries = countriesPayload.data;
-        populateDatalist();
-        populateCountrySelects(state.countries);
-        if (probeElements.cable) {
-            probeElements.cable.innerHTML = state.allCables.map((row) => (
-                `<option value="${esc(row.cable_id)}">${esc(row.cable_name)}</option>`
-            )).join('');
-        }
-        dom.resultCount.textContent = `${payload.total} cabos carregados e prontos para busca.`;
-        checkAlerts();
-        setInterval(checkAlerts, 60000);
-    } catch (error) {
-        showError(dom.searchError, `Falha ao carregar o catalogo: ${error.message}`);
+async function loadProbeEndpoints(cableId) {
+  const endpointSel = document.getElementById('probe-endpoint-select');
+  const ipInput     = document.getElementById('probe-ip');
+  const errEl       = document.getElementById('probe-error');
+  if (!cableId || !endpointSel) return;
+  try {
+    const payload   = await apiFetch({ action: 'endpoints', cable_id: cableId });
+    const endpoints = extractData(payload);
+    endpointSel.innerHTML = (Array.isArray(endpoints) ? endpoints : []).map(ep => {
+      const ip = (ep.ip_samples && ep.ip_samples[0]) ? (ep.ip_samples[0].ip_start || '') : (ep.ip_sample || '');
+      return `<option value="${esc(ep.endpoint_id)}" data-ip="${esc(ip)}">${esc(ep.endpoint_name)} — ${esc(ep.city_name)}</option>`;
+    }).join('');
+    // Auto-fill IP from first endpoint
+    if (endpointSel.options.length && ipInput) {
+      ipInput.value = endpointSel.options[0].dataset.ip || '';
     }
-})();
+  } catch (err) {
+    showError(errEl, err.message);
+  }
+}
+
+function initProbePage() {
+  const cableSel    = document.getElementById('probe-cable');
+  const endpointSel = document.getElementById('probe-endpoint-select');
+  const ipInput     = document.getElementById('probe-ip');
+  const fullScan    = document.getElementById('probe-full-scan');
+  const btn         = document.getElementById('btn-probe');
+  const errEl       = document.getElementById('probe-error');
+  const resultEl    = document.getElementById('probe-result');
+
+  if (cableSel) {
+    cableSel.addEventListener('change', () => loadProbeEndpoints(cableSel.value));
+  }
+
+  if (endpointSel) {
+    endpointSel.addEventListener('change', () => {
+      const opt = endpointSel.options[endpointSel.selectedIndex];
+      if (opt && ipInput) ipInput.value = opt.dataset.ip || '';
+    });
+  }
+
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      clearEl(errEl);
+      const cableId    = cableSel    ? cableSel.value.trim()    : '';
+      const endpointId = endpointSel ? endpointSel.value.trim() : '';
+      const ip         = ipInput     ? ipInput.value.trim()     : '';
+      const full       = fullScan    ? (fullScan.checked ? '1' : '0') : '0';
+
+      if (!cableId) { showError(errEl, 'Selecione um cabo.'); return; }
+
+      btn.disabled    = true;
+      btn.textContent = 'Sondando…';
+
+      try {
+        const fd = new FormData();
+        fd.append('action',      'probe');
+        fd.append('cable_id',    cableId);
+        fd.append('endpoint_id', endpointId);
+        fd.append('ip',          ip);
+        fd.append('full',        full);
+        const payload = await apiPost(fd);
+        const html    = renderProbeResult(payload);
+
+        // Show in inline result area
+        if (resultEl) resultEl.innerHTML = html;
+
+        // Also show in floating modal
+        ProbeModal.show('Resultado da Sonda — ' + cableId, html);
+      } catch (err) {
+        showError(errEl, err.message);
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Iniciar Sonda';
+      }
+    });
+  }
+}
+
+// ─── Drawer & modal wire-up ───────────────────────────────────────────────────
+
+function initNavigation() {
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const drawerClose  = document.getElementById('drawer-close');
+  const drawerOverlay= document.getElementById('drawer-overlay');
+
+  if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => Drawer.toggle());
+  if (drawerClose)  drawerClose.addEventListener('click',  () => Drawer.close());
+  if (drawerOverlay)drawerOverlay.addEventListener('click', () => Drawer.close());
+
+  // Logo click → back to map
+  const logo = document.querySelector('.header-logo');
+  if (logo) {
+    logo.style.cursor = 'pointer';
+    logo.addEventListener('click', () => Router.go('map'));
+  }
+
+  document.querySelectorAll('.nav-link').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      Router.go(a.dataset.page);
+    });
+  });
+
+  // Probe modal close
+  const modalClose = document.getElementById('modal-close');
+  if (modalClose) modalClose.addEventListener('click', () => ProbeModal.hide());
+  const probeModalEl = document.getElementById('probe-modal');
+  if (probeModalEl) {
+    probeModalEl.addEventListener('click', e => {
+      if (e.target === probeModalEl) ProbeModal.hide();
+    });
+  }
+}
+
+// ─── Initialization ───────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initNavigation();
+  Router.go('map');
+  initGlobe();
+  initGlobePanel();
+
+  // Load shared data
+  await Promise.allSettled([loadCableList(), loadCountries()]);
+
+  initSearchPage();
+  initDetailPage();
+  initRoutesPage();
+  initTelemetryPage();
+  initProbePage();
+
+  // Periodically refresh alert badge
+  setInterval(async () => {
+    try {
+      const payload = await apiFetch({ action: 'alerts' });
+      const alerts  = extractData(payload);
+      const count   = Array.isArray(alerts) ? alerts.length : 0;
+      updateAlertBadge(count);
+      updateAlertTicker(alerts);
+    } catch {
+      // silent
+    }
+  }, 60000);
+});

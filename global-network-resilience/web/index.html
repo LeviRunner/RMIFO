@@ -3,218 +3,242 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Busca Binária - Cabos Submarinos</title>
+<title>RMIFO — Global Network Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/app.css">
 </head>
 <body>
-<header>
-    <div>RMIFO</div>
-    <h1>Busca Binária e Catálogo Detalhado de Cabos</h1>
-    <div class="pill">PostgreSQL local · porta 55432</div>
+
+<!-- ── HEADER FIXO ──────────────────────────────────────────────────────── -->
+<header id="app-header">
+  <div class="header-logo">
+    <span class="logo-dot"></span>RMIFO
+  </div>
+  <div class="header-center" id="header-page-title">Mapa Global</div>
+  <div class="header-actions">
+    <div class="alert-badge" id="alert-badge" title="Alertas ativos"></div>
+    <button class="hamburger" id="hamburger-btn" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
 </header>
-<div class="alert-ticker" id="alert-ticker"></div>
 
-<div class="layout">
-    <aside class="panel">
-        <div class="panel-head"><h2>Métodos de busca</h2></div>
-        <div class="panel-body">
-            <div class="mode-list" id="mode-list">
-                <button class="mode-btn active" data-mode="cable_id">cable_id <span class="mode-meta">binária</span></button>
-                <button class="mode-btn" data-mode="name">cable_name <span class="mode-meta">texto</span></button>
-                <button class="mode-btn" data-mode="owners">owners <span class="mode-meta">texto</span></button>
-                <button class="mode-btn" data-mode="year">rfs_year <span class="mode-meta">ano</span></button>
-                <button class="mode-btn" data-mode="operational">is_operational <span class="mode-meta">bool</span></button>
-                <button class="mode-btn" data-mode="landing">landing_points <span class="mode-meta">número</span></button>
-                <button class="mode-btn" data-mode="suppliers">suppliers <span class="mode-meta">texto</span></button>
-                <button class="mode-btn" data-mode="endpoint">endpoint <span class="mode-meta">novo</span></button>
-                <button class="mode-btn" data-mode="country">país do endpoint <span class="mode-meta">novo</span></button>
-            </div>
+<!-- ── MENU SANDUÍCHE (DRAWER) ─────────────────────────────────────────── -->
+<div class="drawer-overlay" id="drawer-overlay"></div>
+<nav class="drawer" id="drawer">
+  <div class="drawer-header">
+    <span>Navegação</span>
+    <button class="drawer-close" id="drawer-close">✕</button>
+  </div>
+  <ul class="drawer-nav">
+    <li><a href="#" class="nav-link active" data-page="map">
+      <span class="nav-icon">🌍</span>Mapa Global
+    </a></li>
+    <li><a href="#" class="nav-link" data-page="search">
+      <span class="nav-icon">🔍</span>Busca de Cabos
+    </a></li>
+    <li><a href="#" class="nav-link" data-page="detail">
+      <span class="nav-icon">📋</span>Detalhes do Cabo
+    </a></li>
+    <li><a href="#" class="nav-link" data-page="routes">
+      <span class="nav-icon">🗺</span>Análise de Rotas
+    </a></li>
+    <li><a href="#" class="nav-link" data-page="telemetry">
+      <span class="nav-icon">📈</span>Telemetria
+    </a></li>
+    <li><a href="#" class="nav-link" data-page="probe">
+      <span class="nav-icon">📡</span>Sonda de Rede
+    </a></li>
+  </ul>
+  <div class="drawer-footer">
+    PostgreSQL · porta 55432
+  </div>
+</nav>
 
-            <div class="field">
-                <label for="query-input" id="query-label">ID exato do cabo</label>
-                <input id="query-input" type="text" placeholder="ex: 2africa" autocomplete="off">
-                <select id="bool-input" style="display:none">
-                    <option value="true">true</option>
-                    <option value="false">false</option>
-                </select>
-            </div>
+<!-- ── PÁGINAS ──────────────────────────────────────────────────────────── -->
+<main class="app-main">
 
-            <div class="hint" id="binary-hint">
-                A busca binária trabalha sobre a lista ordenada por <span class="mono">cable_id</span> e mostra cada midpoint ate encontrar o cabo.
-            </div>
+  <!-- PÁGINA: MAPA GLOBAL -->
+  <section class="page active" id="page-map">
+    <div id="globe-container"></div>
+    <div class="globe-ui">
+      <div class="globe-legend">
+        <span class="leg-item"><span class="leg-dot ok"></span>Operacional</span>
+        <span class="leg-item"><span class="leg-dot warn"></span>Com alerta</span>
+        <span class="leg-item"><span class="leg-dot off"></span>Inativo</span>
+      </div>
+      <div class="globe-tip" id="globe-tip">
+        Clique em um cabo ou ponto para selecionar
+      </div>
+    </div>
+    <!-- Painel lateral de seleção (aparece ao clicar endpoint) -->
+    <div class="selection-panel" id="selection-panel">
+      <div class="sel-header">
+        <span class="sel-title" id="sel-title">Endpoint</span>
+        <button class="sel-close" id="sel-close">✕</button>
+      </div>
+      <div class="sel-body" id="sel-body"></div>
+      <div class="sel-actions">
+        <button class="btn primary" id="sel-probe-btn">📡 Sondar Endpoint</button>
+        <button class="btn" id="sel-detail-btn">📋 Ver Detalhes</button>
+      </div>
+    </div>
+  </section>
 
-            <div class="btn-row">
-                <button class="btn primary" id="search-btn">Buscar</button>
-                <button class="btn" id="clear-btn">Limpar</button>
-            </div>
+  <!-- PÁGINA: BUSCA -->
+  <section class="page" id="page-search">
+    <div class="page-inner">
+      <div class="page-toolbar">
+        <div class="mode-tabs" id="mode-list">
+          <button class="mode-btn active" data-mode="cable_id">cable_id <span class="mode-meta">binária</span></button>
+          <button class="mode-btn" data-mode="name">nome</button>
+          <button class="mode-btn" data-mode="owners">proprietário</button>
+          <button class="mode-btn" data-mode="year">ano</button>
+          <button class="mode-btn" data-mode="operational">status</button>
+          <button class="mode-btn" data-mode="landing">landing pts</button>
+          <button class="mode-btn" data-mode="suppliers">supplier</button>
+          <button class="mode-btn" data-mode="endpoint">endpoint</button>
+          <button class="mode-btn" data-mode="country">país</button>
         </div>
-    </aside>
-
-    <main class="panel">
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="search">Busca</button>
-            <button class="tab-btn" data-tab="detail">Detalhes do cabo</button>
-            <button class="tab-btn" data-tab="top-routes">Rotas Top 3</button>
-            <button class="tab-btn" data-tab="critical-cuts">Cortes Críticos</button>
-            <button class="tab-btn" data-tab="endpoint-risk">Risco de Endpoints</button>
-            <button class="tab-btn" data-tab="telemetry">Telemetria Avançada</button>
-            <button class="tab-btn" data-tab="network-probe">Sonda de Rede</button>
+        <div class="search-bar">
+          <input id="query-input" type="text" placeholder="Buscar..." autocomplete="off">
+          <select id="bool-input" style="display:none">
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+          <button class="btn primary" id="search-btn">Buscar</button>
+          <button class="btn" id="clear-btn">Limpar</button>
         </div>
-
-        <div class="panel-body tab-panel active" id="tab-search">
-            <div class="result-bar">
-                <div class="result-count" id="result-count">Carregando catálogo...</div>
-            </div>
-
-            <div class="error" id="search-error"></div>
-
-            <div class="binary-box" id="binary-box">
-                <div class="binary-step" id="binary-step">-</div>
-                <div class="progress"><div id="binary-progress"></div></div>
-                <div class="binary-controls">
-                    <button class="btn primary" id="binary-play">Reproduzir</button>
-                    <button class="btn" id="binary-prev">Anterior</button>
-                    <button class="btn" id="binary-next">Proximo</button>
-                    <button class="btn" id="binary-reset">Reiniciar</button>
-                </div>
-                <div class="binary-log" id="binary-log"></div>
-            </div>
-
-            <div class="empty" id="search-empty">Selecione um método de busca e execute a consulta.</div>
-            <div class="table-wrap" id="search-table-wrap" style="display:none">
-                <table>
-                    <thead id="search-head"></thead>
-                    <tbody id="search-body"></tbody>
-                </table>
-            </div>
+      </div>
+      <div class="binary-box" id="binary-box" style="display:none">
+        <div class="binary-step" id="binary-step">—</div>
+        <div class="progress"><div id="binary-progress"></div></div>
+        <div class="binary-controls">
+          <button class="btn primary" id="binary-play">▶ Reproduzir</button>
+          <button class="btn" id="binary-prev">‹ Anterior</button>
+          <button class="btn" id="binary-next">Próximo ›</button>
+          <button class="btn" id="binary-reset">⟳ Reiniciar</button>
         </div>
+        <div class="binary-log" id="binary-log"></div>
+      </div>
+      <div class="result-bar"><span id="result-count">—</span></div>
+      <div class="error" id="search-error"></div>
+      <div class="empty" id="search-empty">Selecione um modo e execute a busca.</div>
+      <div class="table-wrap" id="search-table-wrap" style="display:none">
+        <table><thead id="search-head"></thead><tbody id="search-body"></tbody></table>
+      </div>
+    </div>
+  </section>
 
-        <div class="panel-body tab-panel" id="tab-detail">
-            <div class="detail-pick">
-                <input id="detail-picker" list="cable-list" placeholder="Digite ou selecione um cable_id para abrir os detalhes">
-                <datalist id="cable-list"></datalist>
-                <button class="detail-action primary" id="detail-load">Abrir detalhes</button>
-            </div>
+  <!-- PÁGINA: DETALHES -->
+  <section class="page" id="page-detail">
+    <div class="page-inner">
+      <div class="page-toolbar">
+        <input id="detail-picker" list="cable-list" placeholder="Digite ou selecione um cable_id">
+        <datalist id="cable-list"></datalist>
+        <button class="btn primary" id="detail-load">Abrir</button>
+      </div>
+      <div class="error" id="detail-error"></div>
+      <div class="empty" id="detail-empty">Selecione um cabo para ver endpoints, geografia e amostras de IP.</div>
+      <div id="detail-content" style="display:none">
+        <div class="detail-summary" id="detail-summary"></div>
+        <div class="subhead">Endpoints e Geografia</div>
+        <div class="endpoint-list" id="endpoint-list"></div>
+      </div>
+    </div>
+  </section>
 
-            <div class="error" id="detail-error"></div>
-            <div class="empty" id="detail-empty">Abra um cabo para ver endpoints, geografia e amostras de IP publico por endpoint.</div>
-            <div id="detail-content" style="display:none">
-                <div class="detail-summary" id="detail-summary"></div>
-                <div class="subhead">Endpoints e geografia</div>
-                <div class="endpoint-list" id="endpoint-list"></div>
-            </div>
+  <!-- PÁGINA: ROTAS -->
+  <section class="page" id="page-routes">
+    <div class="page-inner routes-grid">
+      <div class="fn-card">
+        <div class="fn-name">Top 3 Rotas</div>
+        <div class="field"><label>País origem</label><select id="route-country-a"></select></div>
+        <div class="field"><label>País destino</label><select id="route-country-b"></select></div>
+        <button class="btn primary" id="btn-top-routes">Calcular Rotas</button>
+        <div class="error" id="route-error"></div>
+        <div class="fn-result" id="route-result">Selecione os países.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name">Cortes Críticos</div>
+        <div class="field"><label>País origem</label><select id="cut-country-a"></select></div>
+        <div class="field"><label>País destino</label><select id="cut-country-b"></select></div>
+        <button class="btn primary" id="btn-critical-cuts">Analisar Isolamento</button>
+        <div class="error" id="cuts-error"></div>
+        <div class="fn-result" id="cuts-result">Selecione o par de países.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name">Risco de Endpoints</div>
+        <div class="field"><label>País</label><select id="risk-country"></select></div>
+        <button class="btn primary" id="btn-endpoint-risk">Mapear Risco</button>
+        <div class="error" id="risk-error"></div>
+        <div class="fn-result" id="risk-result">Selecione um país.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: TELEMETRIA -->
+  <section class="page" id="page-telemetry">
+    <div class="page-inner">
+      <div class="page-toolbar">
+        <input id="telemetry-cable" list="cable-list" placeholder="cable_id">
+        <select id="telemetry-hours">
+          <option value="6">6 horas</option>
+          <option value="24" selected>24 horas</option>
+          <option value="72">3 dias</option>
+          <option value="168">7 dias</option>
+          <option value="720">30 dias</option>
+        </select>
+        <button class="btn primary" id="btn-telemetry">Ver Telemetria</button>
+      </div>
+      <div class="error" id="telemetry-error"></div>
+      <div class="fn-result" id="telemetry-result">Selecione um cabo e janela de tempo.</div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: SONDA -->
+  <section class="page" id="page-probe">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
+        <div class="fn-name">Sonda de Rede</div>
+        <div class="field"><label>Cabo</label><select id="probe-cable"></select></div>
+        <div class="field"><label>Endpoint</label><select id="probe-endpoint-select"><option value="">— selecione um cabo —</option></select></div>
+        <div class="field"><label>IP alvo</label><input id="probe-ip" type="text" placeholder="preenchido automaticamente ou manual"></div>
+        <div class="field probe-full-wrap">
+          <label class="probe-full-label">
+            <input type="checkbox" id="probe-full-scan">
+            Sonda completa
+            <span class="mode-meta">5 portas · 5 amostras · jitter · throughput</span>
+          </label>
         </div>
+        <button class="btn primary fn-action" id="btn-probe">📡 Iniciar Sonda</button>
+      </div>
+      <div class="probe-result-area">
+        <div class="error" id="probe-error"></div>
+        <div class="fn-result" id="probe-result">Selecione um cabo e endpoint para executar a sonda.</div>
+      </div>
+    </div>
+  </section>
 
-        <div class="panel-body tab-panel" id="tab-top-routes">
-            <section class="function-card">
-                <div class="fn-name">FUNCAO_ROTA_TOP3</div>
-                <div class="field">
-                    <label for="route-country-a">Pais origem</label>
-                    <select id="route-country-a"></select>
-                </div>
-                <div class="field">
-                    <label for="route-country-b">Pais destino</label>
-                    <select id="route-country-b"></select>
-                </div>
-                <button class="btn primary fn-action" id="btn-top-routes">Top 3 Rotas</button>
-            </section>
+</main>
 
-            <div class="error" id="route-error"></div>
-            <div class="function-result" id="route-result">Selecione os países e execute a análise de rotas.</div>
-        </div>
-
-        <div class="panel-body tab-panel" id="tab-critical-cuts">
-            <section class="function-card">
-                <div class="fn-name">FUNCAO_CORTE_ISOLAMENTO</div>
-                <div class="field">
-                    <label for="cut-country-a">Pais origem</label>
-                    <select id="cut-country-a"></select>
-                </div>
-                <div class="field">
-                    <label for="cut-country-b">Pais destino</label>
-                    <select id="cut-country-b"></select>
-                </div>
-                <button class="btn primary fn-action" id="btn-critical-cuts">Cabos que isolam</button>
-            </section>
-
-            <div class="error" id="cuts-error"></div>
-            <div class="function-result" id="cuts-result">Selecione o par de países para analisar cabos críticos.</div>
-        </div>
-
-        <div class="panel-body tab-panel" id="tab-endpoint-risk">
-            <section class="function-card">
-                <div class="fn-name">FUNCAO_ENDPOINT_RISCO</div>
-                <div class="field">
-                    <label for="risk-country">Pais</label>
-                    <select id="risk-country"></select>
-                </div>
-                <button class="btn primary fn-action" id="btn-endpoint-risk">Endpoints com risco</button>
-            </section>
-
-            <div class="error" id="risk-error"></div>
-            <div class="function-result" id="risk-result">Selecione um país para mapear endpoints de risco.</div>
-        </div>
-
-        <div class="panel-body tab-panel" id="tab-telemetry">
-            <section class="function-card">
-                <div class="fn-name">FUNCAO_TELEMETRIA_CABO</div>
-                <div class="field">
-                    <label for="telemetry-cable">Cabo</label>
-                    <input id="telemetry-cable" list="cable-list" placeholder="Selecione um cable_id">
-                </div>
-                <div class="field">
-                    <label for="telemetry-hours">Janela de tempo</label>
-                    <select id="telemetry-hours">
-                        <option value="6">Últimas 6 horas</option>
-                        <option value="24" selected>Últimas 24 horas</option>
-                        <option value="72">Últimos 3 dias</option>
-                        <option value="168">Última semana</option>
-                        <option value="720">Último mês</option>
-                    </select>
-                </div>
-                <button class="btn primary fn-action" id="btn-telemetry">Buscar telemetria</button>
-            </section>
-
-            <div class="error" id="telemetry-error"></div>
-            <div class="function-result" id="telemetry-result">Telemetria avançada: execute para ver indicadores do cabo e base para análises futuras.</div>
-        </div>
-
-        <div class="panel-body tab-panel" id="tab-network-probe">
-            <section class="function-card">
-                <div class="fn-name">SONDA_DE_REDE</div>
-                <div class="field">
-                    <label for="probe-cable">Cabo</label>
-                    <select id="probe-cable"></select>
-                </div>
-                <div class="field">
-                    <label for="probe-endpoint-select">Endpoint</label>
-                    <select id="probe-endpoint-select"><option value="">— selecione um cabo primeiro —</option></select>
-                </div>
-                <div class="field">
-                    <label for="probe-ip">IP alvo (preenchido automaticamente ou manual)</label>
-                    <input id="probe-ip" type="text" placeholder="ex: 196.216.2.1" autocomplete="off">
-                </div>
-                <div class="field">
-                    <label class="probe-full-label">
-                        <input type="checkbox" id="probe-full-scan">
-                        Sonda completa <span class="mode-meta">portas 443 · 80 · 22 · 8080 · 8443 · 5 amostras · jitter · throughput</span>
-                    </label>
-                </div>
-                <button class="btn primary fn-action" id="btn-probe">Iniciar Sonda</button>
-            </section>
-
-            <div class="error" id="probe-error"></div>
-            <div class="function-result" id="probe-result">
-                Selecione um cabo e endpoint para executar a sonda de conectividade de rede.
-                A sonda testa TCP connect, estima RTT e perda de pacotes, e simula a rota de hops até o endpoint.
-            </div>
-        </div>
-    </main>
+<!-- ── MODAL: RESULTADO DA SONDA ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="probe-modal">
+  <div class="modal-box" id="probe-modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Resultado da Sonda</span>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
 </div>
 
+<!-- ── ALERT TICKER ──────────────────────────────────────────────────────── -->
+<div class="alert-ticker" id="alert-ticker"></div>
+
+<script src="https://unpkg.com/globe.gl"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

@@ -975,18 +975,22 @@ function buildTelemetryPayload(array $details, array $series, bool $fallbackUsed
     ]);
 }
 
-if (isset($_GET['api'])) {
+if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || isset($_POST['action'])) {
     try {
         if (!extension_loaded('pdo_pgsql')) {
             throw new RuntimeException('Extensão pdo_pgsql não está carregada.');
         }
 
         $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser);
-        $mode = $_GET['mode'] ?? 'all';
-        $q = trim((string) ($_GET['q'] ?? ''));
+        $req  = array_merge($_GET, $_POST);
+        $mode = (string) ($req['mode'] ?? $req['action'] ?? 'all');
+        if ($mode === 'search' && isset($req['mode'])) {
+            $mode = (string) $req['mode'];
+        }
+        $q = trim((string) ($req['q'] ?? $req['cable_id'] ?? ''));
         $cols = cableColumns('c');
-        $countryA = trim((string) ($_GET['countryA'] ?? ''));
-        $countryB = trim((string) ($_GET['countryB'] ?? ''));
+        $countryA = trim((string) ($req['countryA'] ?? $req['country_a'] ?? ''));
+        $countryB = trim((string) ($req['countryB'] ?? $req['country_b'] ?? ''));
 
         switch ($mode) {
             case 'countries':
@@ -1072,6 +1076,7 @@ if (isset($_GET['api'])) {
                 $stmt->execute([':q' => "%{$q}%"]);
                 break;
 
+            case 'detail':
             case 'details':
                 if ($q === '') {
                     throw new InvalidArgumentException('Selecione um cabo para visualizar os detalhes.');
@@ -1091,6 +1096,7 @@ if (isset($_GET['api'])) {
                     'routes' => $routes,
                 ]);
 
+            case 'critical_cuts':
             case 'critical_cables':
                 if ($countryA === '' || $countryB === '') {
                     throw new InvalidArgumentException('Selecione dois paises para analisar isolamento por corte de cabo.');
@@ -1134,6 +1140,7 @@ if (isset($_GET['api'])) {
                 ]);
 
             case 'endpoint_risk':
+                $q = $q ?: trim((string) ($req['country'] ?? ''));
                 if ($q === '') {
                     throw new InvalidArgumentException('Selecione um pais para listar endpoints com risco.');
                 }
@@ -1175,7 +1182,7 @@ if (isset($_GET['api'])) {
                 if ($q === '') {
                     throw new InvalidArgumentException('Selecione um cabo para visualizar telemetria.');
                 }
-                $hours = filter_var($_GET['hours'] ?? 24, FILTER_VALIDATE_INT) ?: 24;
+                $hours = filter_var($req['hours'] ?? 24, FILTER_VALIDATE_INT) ?: 24;
                 $details = fetchCableDetails($pdo, $q);
                 $series = fetchTelemetrySeries($pdo, $q, $hours);
                 $fallbackUsed = false;
@@ -1192,13 +1199,102 @@ if (isset($_GET['api'])) {
                 $alerts = fetchActiveAlerts($pdo);
                 jsonResponse(['total' => count($alerts), 'alerts' => $alerts]);
 
+            case 'globe_data':
+                $arcs   = [];
+                $pts    = [];
+                $seen   = [];
+                $segSql = "
+                    WITH segs AS (
+                        SELECT
+                            c.cable_id, c.cable_name, c.is_operational,
+                            lp.endpoint_id, lp.latitude  AS lat, lp.longitude AS lng,
+                            lp.city_name,  lp.country_name, clp.endpoint_order,
+                            LAG(lp.latitude)    OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS plat,
+                            LAG(lp.longitude)   OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS plng,
+                            LAG(lp.endpoint_id) OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS peid,
+                            LAG(lp.city_name)   OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS pcity,
+                            LAG(lp.country_name)OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS pcountry
+                        FROM cable_landing_points clp
+                        JOIN cables c ON c.cable_id = clp.cable_id
+                        JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id
+                        WHERE lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
+                    )
+                    SELECT s.*,
+                        EXISTS(
+                            SELECT 1 FROM telemetry_alerts ta
+                            WHERE ta.cable_id = s.cable_id AND ta.resolved_at IS NULL
+                        ) AS has_alert,
+                        (SELECT ip_start::text FROM endpoint_ip_samples eis
+                         WHERE eis.endpoint_id = s.endpoint_id
+                         ORDER BY sample_order LIMIT 1) AS ip_sample
+                    FROM segs s WHERE s.plat IS NOT NULL
+                    ORDER BY s.cable_id, s.endpoint_order
+                ";
+                foreach ($pdo->query($segSql)->fetchAll() as $row) {
+                    $arcs[] = [
+                        'cable_id'     => $row['cable_id'],
+                        'cable_name'   => $row['cable_name'],
+                        'is_operational' => (bool) $row['is_operational'],
+                        'has_alert'    => (bool) $row['has_alert'],
+                        'startLat'     => (float) $row['plat'],
+                        'startLng'     => (float) $row['plng'],
+                        'endLat'       => (float) $row['lat'],
+                        'endLng'       => (float) $row['lng'],
+                        'startCity'    => (string) ($row['pcity']       ?? ''),
+                        'startCountry' => (string) ($row['pcountry']    ?? ''),
+                        'endCity'      => (string) ($row['city_name']   ?? ''),
+                        'endCountry'   => (string) ($row['country_name'] ?? ''),
+                        'ip_sample'    => (string) ($row['ip_sample']   ?? ''),
+                    ];
+                    foreach ([
+                        [$row['endpoint_id'], $row['lat'],  $row['lng'],  $row['city_name'],  $row['country_name'],  $row['ip_sample']],
+                        [$row['peid'],        $row['plat'], $row['plng'], $row['pcity'],      $row['pcountry'],      null],
+                    ] as [$eid, $lt, $ln, $city, $country, $ip]) {
+                        if ($eid && !isset($seen[$eid])) {
+                            $seen[$eid] = true;
+                            $pts[] = [
+                                'endpoint_id'  => $eid,
+                                'lat'          => (float) $lt,
+                                'lng'          => (float) $ln,
+                                'city_name'    => (string) ($city    ?? ''),
+                                'country_name' => (string) ($country ?? ''),
+                                'cable_id'     => $row['cable_id'],
+                                'cable_name'   => $row['cable_name'],
+                                'ip_sample'    => (string) ($ip ?? ''),
+                                'is_operational' => (bool) $row['is_operational'],
+                                'has_alert'    => (bool) $row['has_alert'],
+                            ];
+                        }
+                    }
+                }
+                jsonResponse(['arcs' => $arcs, 'points' => $pts]);
+                break;
+
+            case 'endpoints':
+                if ($q === '') {
+                    throw new InvalidArgumentException('Selecione um cabo para listar endpoints.');
+                }
+                $epStmt = $pdo->prepare(
+                    "SELECT lp.endpoint_id, lp.city_name, lp.country_name,
+                            lp.latitude, lp.longitude,
+                            (SELECT ip_start::text FROM endpoint_ip_samples eis
+                             WHERE eis.endpoint_id = lp.endpoint_id
+                             ORDER BY sample_order LIMIT 1) AS ip_sample
+                     FROM cable_landing_points clp
+                     JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id
+                     WHERE clp.cable_id = :cid
+                     ORDER BY clp.endpoint_order"
+                );
+                $epStmt->execute([':cid' => $q]);
+                jsonResponse(['endpoints' => $epStmt->fetchAll()]);
+
             case 'probe':
                 if ($q === '') {
                     throw new InvalidArgumentException('Selecione um cabo para a sonda de rede.');
                 }
-                $endpointId = trim((string) ($_GET['endpoint_id'] ?? ''));
-                $targetIp   = trim((string) ($_GET['ip'] ?? ''));
-                $fullScan   = filter_var($_GET['full'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $endpointId = trim((string) ($req['endpoint_id'] ?? ''));
+                $targetIp   = trim((string) ($req['ip'] ?? ''));
+                $fullScan   = filter_var($req['full'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
                 if ($targetIp === '' && $endpointId !== '') {
                     $ipStmt = $pdo->prepare(
