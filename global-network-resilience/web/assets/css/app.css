@@ -1054,6 +1054,96 @@ select {
   overflow-y: auto;
 }
 
+/* ── Real-time probe modal ─────────────────────────────────────────────── */
+.modal-box.rt-mode {
+  max-width: 98vw;
+  width: 98vw;
+  max-height: 95vh;
+  height: 95vh;
+  overflow: hidden;
+}
+
+.modal-box.rt-mode .modal-body {
+  padding: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: calc(95vh - 56px);
+}
+
+.rt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.rt-panel {
+  background: rgba(12, 8, 24, 0.7);
+  border: 1px solid rgba(168, 113, 255, 0.22);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.rt-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  padding: 6px 10px 2px;
+  flex-shrink: 0;
+}
+
+.rt-chart {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.rt-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 0;
+  font-size: 12px;
+  color: var(--text-soft);
+  flex-shrink: 0;
+}
+
+.rt-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2ddc82;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.rt-dot.alert { background: #ff465f; }
+
+.rt-info { flex: 1; }
+
+.rt-metrics {
+  display: flex;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.rt-metric-val { color: var(--accent); font-weight: 600; }
+
+.rt-stop {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
 .alert-ticker {
   position: fixed;
   bottom: 0;
@@ -1208,6 +1298,13 @@ select {
 
 .panel-body {
   padding: 16px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .summary-card {
@@ -1518,10 +1615,18 @@ tr.bs-found {
 
 .endpoint-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.ep-status { font-size: 13px; flex-shrink: 0; }
+
+.ep-loc {
+  font-size: 12px;
+  margin-left: auto;
+  color: var(--text-soft);
 }
 
 .endpoint-title {

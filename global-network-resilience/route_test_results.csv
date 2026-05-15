@@ -1,0 +1,23 @@
+fato,rota,descricao,nota,url_testada,registros,erro,timestamp
+conexão,all,Lista todos os cabos,,http://localhost:8089/api.php?api=1&mode=all,699,,2026-05-15T17:58:50
+conexão,countries,Lista países com cabos,,http://localhost:8089/api.php?api=1&mode=countries,188,,2026-05-15T17:58:50
+conexão,name,Busca cabo por nome parcial,,http://localhost:8089/api.php?api=1&mode=name&q=south,24,,2026-05-15T17:58:50
+conexão,owners,Busca cabo por proprietário,,http://localhost:8089/api.php?api=1&mode=owners&q=google,34,,2026-05-15T17:58:50
+conexão,suppliers,Busca cabo por fornecedor,,http://localhost:8089/api.php?api=1&mode=suppliers&q=alcatel,6,,2026-05-15T17:58:50
+conexão,year,Busca cabo por ano de operação,,http://localhost:8089/api.php?api=1&mode=year&q=2020,24,,2026-05-15T17:58:50
+conexão,operational,Filtra cabos por status operacional,,http://localhost:8089/api.php?api=1&mode=operational&q=true,603,,2026-05-15T17:58:50
+conexão,landing,Busca cabos com N landing points,q deve ser número inteiro,http://localhost:8089/api.php?api=1&mode=landing&q=4,83,,2026-05-15T17:58:50
+conexão,endpoint,Busca cabos por nome de endpoint,,http://localhost:8089/api.php?api=1&mode=endpoint&q=luanda,3,,2026-05-15T17:58:50
+conexão,country,Busca cabos por país,,http://localhost:8089/api.php?api=1&mode=country&q=Albania,4,,2026-05-15T17:58:50
+conexão,detail,Detalhes de cabo (alias detail),,http://localhost:8089/api.php?api=1&mode=detail&q=2africa,54,,2026-05-15T17:58:50
+conexão,details,Detalhes de cabo (alias details),,http://localhost:8089/api.php?api=1&mode=details&q=2africa,54,,2026-05-15T17:58:50
+conexão,top_routes,Top 3 rotas entre dois países,,http://localhost:8089/api.php?api=1&mode=top_routes&countryA=Albania&countryB=Bahamas,3,,2026-05-15T17:58:50
+conexão,critical_cuts,Cortes críticos entre países,,http://localhost:8089/api.php?api=1&mode=critical_cuts&countryA=Albania&countryB=Bahamas,1,,2026-05-15T17:58:50
+conexão,critical_cables,Alias de critical_cuts,,http://localhost:8089/api.php?api=1&mode=critical_cables&countryA=Albania&countryB=Bahamas,1,,2026-05-15T17:58:50
+conexão,endpoint_risk,Risco de endpoints de um país,,http://localhost:8089/api.php?api=1&mode=endpoint_risk&q=Albania,2,,2026-05-15T17:58:50
+conexão,telemetry,Telemetria de cabo (24h),,http://localhost:8089/api.php?api=1&mode=telemetry&q=2africa&hours=24,1,,2026-05-15T17:58:50
+conexão,alerts,Alertas ativos,,http://localhost:8089/api.php?api=1&mode=alerts,4,,2026-05-15T17:58:50
+conexão,globe_data,Paths e pontos do globo 3D,,http://localhost:8089/api.php?api=1&mode=globe_data,1908,,2026-05-15T17:58:50
+conexão,endpoints,Endpoints de um cabo específico,,http://localhost:8089/api.php?api=1&mode=endpoints&q=2africa,54,,2026-05-15T17:58:50
+conexão,probe,Sonda de rede em endpoint,,http://localhost:8089/api.php?api=1&mode=probe&q=luanda-angola&cable_id=2africa,1,,2026-05-15T17:58:50
+falha de conexão,cable_id,Busca binária (frontend only),"modo exclusivo do frontend, sem rota de API",http://localhost:8089/api.php?api=1&mode=cable_id&q=2africa,,HTTP 400: Modo desconhecido.,2026-05-15T17:58:50

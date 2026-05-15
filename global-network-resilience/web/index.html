@@ -30,27 +30,15 @@
 <nav class="drawer" id="drawer">
   <div class="drawer-header">
     <span>Navegação</span>
-    <button class="drawer-close" id="drawer-close">✕</button>
+    <button class="drawer-close" id="drawer-close">X</button>
   </div>
   <ul class="drawer-nav">
-    <li><a href="#" class="nav-link active" data-page="map">
-      <span class="nav-icon">🌍</span>Mapa Global
-    </a></li>
-    <li><a href="#" class="nav-link" data-page="search">
-      <span class="nav-icon">🔍</span>Busca de Cabos
-    </a></li>
-    <li><a href="#" class="nav-link" data-page="detail">
-      <span class="nav-icon">📋</span>Detalhes do Cabo
-    </a></li>
-    <li><a href="#" class="nav-link" data-page="routes">
-      <span class="nav-icon">🗺</span>Análise de Rotas
-    </a></li>
-    <li><a href="#" class="nav-link" data-page="telemetry">
-      <span class="nav-icon">📈</span>Telemetria
-    </a></li>
-    <li><a href="#" class="nav-link" data-page="probe">
-      <span class="nav-icon">📡</span>Sonda de Rede
-    </a></li>
+    <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
+    <li><a href="#" class="nav-link" data-page="search">Busca de Cabos</a></li>
+    <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
+    <li><a href="#" class="nav-link" data-page="routes">Análise de Rotas</a></li>
+    <li><a href="#" class="nav-link" data-page="telemetry">Telemetria</a></li>
+    <li><a href="#" class="nav-link" data-page="probe">Sonda de Rede</a></li>
   </ul>
   <div class="drawer-footer">
     PostgreSQL · porta 55432
@@ -77,12 +65,12 @@
     <div class="selection-panel" id="selection-panel">
       <div class="sel-header">
         <span class="sel-title" id="sel-title">Endpoint</span>
-        <button class="sel-close" id="sel-close">✕</button>
+        <button class="sel-close" id="sel-close">X</button>
       </div>
       <div class="sel-body" id="sel-body"></div>
       <div class="sel-actions">
-        <button class="btn primary" id="sel-probe-btn">📡 Sondar Endpoint</button>
-        <button class="btn" id="sel-detail-btn">📋 Ver Detalhes</button>
+        <button class="btn primary" id="sel-probe-btn">Sondar Endpoint</button>
+        <button class="btn" id="sel-detail-btn">Ver Detalhes</button>
       </div>
     </div>
   </section>
@@ -213,7 +201,7 @@
             <span class="mode-meta">5 portas · 5 amostras · jitter · throughput</span>
           </label>
         </div>
-        <button class="btn primary fn-action" id="btn-probe">📡 Iniciar Sonda</button>
+        <button class="btn primary fn-action" id="btn-probe">Iniciar Sonda</button>
       </div>
       <div class="probe-result-area">
         <div class="error" id="probe-error"></div>
@@ -229,7 +217,7 @@
   <div class="modal-box" id="probe-modal-box">
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Resultado da Sonda</span>
-      <button class="modal-close" id="modal-close">✕</button>
+      <button class="modal-close" id="modal-close">X</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
   </div>
@@ -239,6 +227,7 @@
 <div class="alert-ticker" id="alert-ticker"></div>
 
 <script src="https://unpkg.com/globe.gl"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

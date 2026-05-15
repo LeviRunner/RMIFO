@@ -1200,74 +1200,111 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 jsonResponse(['total' => count($alerts), 'alerts' => $alerts]);
 
             case 'globe_data':
-                $arcs   = [];
-                $pts    = [];
-                $seen   = [];
-                $segSql = "
-                    WITH segs AS (
-                        SELECT
-                            c.cable_id, c.cable_name, c.is_operational,
-                            lp.endpoint_id, lp.latitude  AS lat, lp.longitude AS lng,
-                            lp.city_name,  lp.country_name, clp.endpoint_order,
-                            LAG(lp.latitude)    OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS plat,
-                            LAG(lp.longitude)   OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS plng,
-                            LAG(lp.endpoint_id) OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS peid,
-                            LAG(lp.city_name)   OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS pcity,
-                            LAG(lp.country_name)OVER (PARTITION BY clp.cable_id ORDER BY clp.endpoint_order) AS pcountry
-                        FROM cable_landing_points clp
-                        JOIN cables c ON c.cable_id = clp.cable_id
-                        JOIN landing_points lp ON lp.endpoint_id = clp.endpoint_id
-                        WHERE lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
-                    )
-                    SELECT s.*,
-                        EXISTS(
-                            SELECT 1 FROM telemetry_alerts ta
-                            WHERE ta.cable_id = s.cable_id AND ta.resolved_at IS NULL
-                        ) AS has_alert,
-                        (SELECT ip_start::text FROM endpoint_ip_samples eis
-                         WHERE eis.endpoint_id = s.endpoint_id
-                         ORDER BY sample_order LIMIT 1) AS ip_sample
-                    FROM segs s WHERE s.plat IS NOT NULL
-                    ORDER BY s.cable_id, s.endpoint_order
-                ";
-                foreach ($pdo->query($segSql)->fetchAll() as $row) {
-                    $arcs[] = [
-                        'cable_id'     => $row['cable_id'],
-                        'cable_name'   => $row['cable_name'],
-                        'is_operational' => (bool) $row['is_operational'],
-                        'has_alert'    => (bool) $row['has_alert'],
-                        'startLat'     => (float) $row['plat'],
-                        'startLng'     => (float) $row['plng'],
-                        'endLat'       => (float) $row['lat'],
-                        'endLng'       => (float) $row['lng'],
-                        'startCity'    => (string) ($row['pcity']       ?? ''),
-                        'startCountry' => (string) ($row['pcountry']    ?? ''),
-                        'endCity'      => (string) ($row['city_name']   ?? ''),
-                        'endCountry'   => (string) ($row['country_name'] ?? ''),
-                        'ip_sample'    => (string) ($row['ip_sample']   ?? ''),
+                $paths = [];
+                $pts   = [];
+                $seen  = [];
+
+                // Load status for all cables from DB (is_operational + active alerts)
+                $statusRows = $pdo->query("
+                    SELECT c.cable_id, c.cable_name, c.is_operational,
+                           EXISTS(
+                               SELECT 1 FROM telemetry_alerts ta
+                               WHERE ta.cable_id = c.cable_id AND ta.resolved_at IS NULL
+                           ) AS has_alert
+                    FROM cables c
+                ")->fetchAll();
+                $cableStatus = [];
+                foreach ($statusRows as $sr) {
+                    $cableStatus[$sr['cable_id']] = [
+                        'cable_name'     => $sr['cable_name'],
+                        'is_operational' => (bool) $sr['is_operational'],
+                        'has_alert'      => (bool) $sr['has_alert'],
                     ];
-                    foreach ([
-                        [$row['endpoint_id'], $row['lat'],  $row['lng'],  $row['city_name'],  $row['country_name'],  $row['ip_sample']],
-                        [$row['peid'],        $row['plat'], $row['plng'], $row['pcity'],      $row['pcountry'],      null],
-                    ] as [$eid, $lt, $ln, $city, $country, $ip]) {
-                        if ($eid && !isset($seen[$eid])) {
-                            $seen[$eid] = true;
+                }
+
+                // Load landing-point city/country for coordinate-enriched points
+                $lpRows = $pdo->query("
+                    SELECT lp.endpoint_id, lp.city_name, lp.country_name,
+                           lp.latitude, lp.longitude,
+                           (SELECT ip_start::text FROM endpoint_ip_samples eis
+                            WHERE eis.endpoint_id = lp.endpoint_id
+                            ORDER BY sample_order LIMIT 1) AS ip_sample
+                    FROM landing_points lp
+                    WHERE lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
+                ")->fetchAll();
+                // Index by rounded coords for quick lookup
+                $lpByCoord = [];
+                foreach ($lpRows as $lr) {
+                    $key = round((float)$lr['latitude'], 3) . ',' . round((float)$lr['longitude'], 3);
+                    $lpByCoord[$key] = $lr;
+                }
+
+                // Read the GeoJSON with actual cable paths (all 710 cables, 1908 segments)
+                $geoPath = $workspaceRoot . '/data/external/submarine_cables.geojson';
+                if (!file_exists($geoPath)) {
+                    jsonResponse(['error' => 'GeoJSON não encontrado.'], 500);
+                }
+                $geo = json_decode(file_get_contents($geoPath), true);
+                if (!isset($geo['features'])) {
+                    jsonResponse(['error' => 'GeoJSON inválido.'], 500);
+                }
+
+                foreach ($geo['features'] as $feature) {
+                    $props   = $feature['properties'];
+                    $cableId = $props['cable_id'] ?? '';
+                    $status  = $cableStatus[$cableId] ?? null;
+                    $cableName  = $status['cable_name']     ?? $props['cable_name'] ?? $cableId;
+                    $isOp       = $status['is_operational'] ?? true;
+                    $hasAlert   = $status['has_alert']      ?? false;
+
+                    $segments = $feature['geometry']['coordinates'] ?? [];
+
+                    foreach ($segments as $seg) {
+                        if (count($seg) < 2) continue;
+
+                        // GeoJSON: [lng, lat] → convert each point to [lat, lng] for globe.gl
+                        $pathPts = array_map(
+                            fn($c) => [(float)$c[1], (float)$c[0]],
+                            $seg
+                        );
+
+                        [$startLat, $startLng] = $pathPts[0];
+                        [$endLat,   $endLng]   = $pathPts[count($pathPts) - 1];
+
+                        $paths[] = [
+                            'cable_id'       => $cableId,
+                            'cable_name'     => $cableName,
+                            'is_operational' => $isOp,
+                            'has_alert'      => $hasAlert,
+                            'startLat'       => $startLat,
+                            'startLng'       => $startLng,
+                            'endLat'         => $endLat,
+                            'endLng'         => $endLng,
+                            'points'         => $pathPts,
+                        ];
+
+                        // Landing-point dots at each segment endpoint
+                        foreach ([[$startLat, $startLng], [$endLat, $endLng]] as [$lat, $lng]) {
+                            $key = round($lat, 3) . ',' . round($lng, 3);
+                            if (isset($seen[$key])) continue;
+                            $seen[$key] = true;
+                            $lp = $lpByCoord[$key] ?? null;
                             $pts[] = [
-                                'endpoint_id'  => $eid,
-                                'lat'          => (float) $lt,
-                                'lng'          => (float) $ln,
-                                'city_name'    => (string) ($city    ?? ''),
-                                'country_name' => (string) ($country ?? ''),
-                                'cable_id'     => $row['cable_id'],
-                                'cable_name'   => $row['cable_name'],
-                                'ip_sample'    => (string) ($ip ?? ''),
-                                'is_operational' => (bool) $row['is_operational'],
-                                'has_alert'    => (bool) $row['has_alert'],
+                                'endpoint_id'    => $lp['endpoint_id'] ?? $key,
+                                'lat'            => $lat,
+                                'lng'            => $lng,
+                                'city_name'      => $lp['city_name']    ?? '',
+                                'country_name'   => $lp['country_name'] ?? '',
+                                'cable_id'       => $cableId,
+                                'cable_name'     => $cableName,
+                                'ip_sample'      => $lp['ip_sample']    ?? '',
+                                'is_operational' => $isOp,
+                                'has_alert'      => $hasAlert,
                             ];
                         }
                     }
                 }
-                jsonResponse(['arcs' => $arcs, 'points' => $pts]);
+                jsonResponse(['paths' => $paths, 'points' => $pts]);
                 break;
 
             case 'endpoints':
