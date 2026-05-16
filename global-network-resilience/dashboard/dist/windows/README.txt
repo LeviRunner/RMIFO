@@ -10,7 +10,15 @@ EXECUÇÃO RÁPIDA
   (ou abra o Prompt de Comando e execute: run.bat)
 
 Na primeira execução o script cria um ambiente virtual (.venv\) e
-instala as dependências a partir do diretório deps\ local (sem internet).
+instala as dependências automaticamente.
+
+DEPENDÊNCIAS OFFLINE vs. ONLINE
+---------------------------------
+  deps\  contém wheels pré-baixados para Python 3.12 (cp312).
+
+  Python 3.12  → instala offline a partir de deps\ (sem internet)
+  Outras versões (3.10, 3.11, 3.13, 3.14 …) → instala via PyPI
+                  (requer conexão na primeira execução)
 
 CONFIGURAÇÃO DO BANCO (OPCIONAL)
 ---------------------------------

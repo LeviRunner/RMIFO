@@ -18,25 +18,26 @@ def _bootstrap_local_deps() -> None:
     _here     = Path(__file__).resolve().parent
     _plat_dir = {"linux": "linux", "win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
     _deps_dir = _here / "deps" / _plat_dir
-    _required = ["matplotlib", "numpy", "psycopg2", "networkx"]
+    _required = ["matplotlib", "numpy", "networkx"]
     _missing  = [p for p in _required if importlib.util.find_spec(p) is None]
 
     if not _missing:
         return
 
-    if _deps_dir.is_dir():
-        print(f"[RMIFO] Instalando dependências locais de {_deps_dir} …")
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "--quiet",
-            "--find-links", str(_deps_dir), "--no-index",
-            "matplotlib", "numpy", "psycopg2-binary", "networkx",
-        ])
-    else:
-        print("[RMIFO] deps/ não encontrado — instalando via PyPI …")
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "--quiet",
-            "matplotlib", "numpy", "psycopg2-binary", "networkx",
-        ])
+    _base = [sys.executable, "-m", "pip", "install", "--quiet", "--only-binary=:all:"]
+    _links = ["--find-links", str(_deps_dir)] if _deps_dir.is_dir() else []
+    _core  = ["matplotlib", "numpy", "networkx"]
+    _all   = _core + ["psycopg2-binary"]
+
+    # try with psycopg2-binary first; if no binary wheel exists (e.g. cp314), skip it
+    src = "local" if _deps_dir.is_dir() else "PyPI"
+    _no_idx = ["--no-index"] if (_deps_dir.is_dir() and sys.version_info[:2] == (3, 12)) else []
+    print(f"[RMIFO] Instalando dependências via {src} …")
+    try:
+        subprocess.check_call(_base + _links + _no_idx + _all)
+    except subprocess.CalledProcessError:
+        print("[RMIFO] psycopg2-binary indisponível para esta versão — modo demo ativo.")
+        subprocess.check_call(_base + _links + _core)
 
 _bootstrap_local_deps()
 # ─────────────────────────────────────────────────────────────────────────────

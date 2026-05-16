@@ -18,25 +18,26 @@ def _bootstrap_local_deps() -> None:
     _here     = Path(__file__).resolve().parent
     _plat_dir = {"linux": "linux", "win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
     _deps_dir = _here / "deps" / _plat_dir
-    _required = ["matplotlib", "numpy", "psycopg2", "networkx"]
+    _required = ["matplotlib", "numpy", "networkx"]
     _missing  = [p for p in _required if importlib.util.find_spec(p) is None]
 
     if not _missing:
         return
 
-    if _deps_dir.is_dir():
-        print(f"[RMIFO] Instalando dependências locais de {_deps_dir} …")
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "--quiet",
-            "--find-links", str(_deps_dir), "--no-index",
-            "matplotlib", "numpy", "psycopg2-binary", "networkx",
-        ])
-    else:
-        print("[RMIFO] deps/ não encontrado — instalando via PyPI …")
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "--quiet",
-            "matplotlib", "numpy", "psycopg2-binary", "networkx",
-        ])
+    _base = [sys.executable, "-m", "pip", "install", "--quiet", "--only-binary=:all:"]
+    _links = ["--find-links", str(_deps_dir)] if _deps_dir.is_dir() else []
+    _core  = ["matplotlib", "numpy", "networkx"]
+    _all   = _core + ["psycopg2-binary"]
+
+    # try with psycopg2-binary first; if no binary wheel exists (e.g. cp314), skip it
+    src = "local" if _deps_dir.is_dir() else "PyPI"
+    _no_idx = ["--no-index"] if (_deps_dir.is_dir() and sys.version_info[:2] == (3, 12)) else []
+    print(f"[RMIFO] Instalando dependências via {src} …")
+    try:
+        subprocess.check_call(_base + _links + _no_idx + _all)
+    except subprocess.CalledProcessError:
+        print("[RMIFO] psycopg2-binary indisponível para esta versão — modo demo ativo.")
+        subprocess.check_call(_base + _links + _core)
 
 _bootstrap_local_deps()
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,8 +117,47 @@ def db_query(conn, sql: str, params=()) -> list[dict]:
     except Exception:
         return []
 
-# ── real history files ────────────────────────────────────────────────────────
-def load_real_history_avg(cable_id: str, hours: int) -> dict:
+# ── real history: PG primary, JSON fallback ───────────────────────────────────
+def _real_history_from_pg(conn, cable_id: str, hours: int) -> dict:
+    """Query cable_telemetry_samples for real (non-synthetic) probe records."""
+    rows = db_query(conn, """
+        SELECT measured_at, latency_ms, jitter_ms, packet_loss_pct,
+               throughput_mbps, availability_pct, confidence_score, source
+        FROM cable_telemetry_samples
+        WHERE cable_id = %s
+          AND source   = 'active_tcp_connect'
+          AND estimated = FALSE
+          AND measured_at >= NOW() - (%s || ' hours')::INTERVAL
+        ORDER BY measured_at ASC
+    """, (cable_id, str(hours)))
+
+    if not rows:
+        return {}
+
+    unique = []
+    seen: set = set()
+    for r in rows:
+        ts = r["measured_at"]
+        if hasattr(ts, "tzinfo") and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        key = ts.isoformat()
+        if key not in seen:
+            seen.add(key)
+            unique.append({
+                "measured_at":      ts,
+                "latency_ms":       r["latency_ms"],
+                "jitter_ms":        r["jitter_ms"],
+                "packet_loss_pct":  r["packet_loss_pct"],
+                "throughput_mbps":  r["throughput_mbps"],
+                "availability_pct": r["availability_pct"],
+                "confidence_score": float(r["confidence_score"] or 0.95),
+                "source":           r["source"],
+            })
+
+    return _build_avg_result(unique, source="active_tcp_connect (pg)")
+
+
+def _real_history_from_json(cable_id: str, hours: int) -> dict:
     """Read probe_full + checkpoint JSON files, compute averages for cable_id within hours window."""
     if not HIST_DIR.is_dir():
         return {}
@@ -131,7 +171,6 @@ def load_real_history_avg(cable_id: str, hours: int) -> dict:
     )
 
     for fpath in files:
-        # Quick date filter from filename
         fname = Path(fpath).name
         date_part = fname[:10]
         try:
@@ -173,7 +212,6 @@ def load_real_history_avg(cable_id: str, hours: int) -> dict:
     if not records:
         return {}
 
-    # Deduplicate by measured_at
     seen: set = set()
     unique: list[dict] = []
     for rec in records:
@@ -183,13 +221,18 @@ def load_real_history_avg(cable_id: str, hours: int) -> dict:
             unique.append(rec)
     unique.sort(key=lambda r: r["measured_at"])
 
+    return _build_avg_result(unique, source="active_tcp_connect (json)")
+
+
+def _build_avg_result(unique: list[dict], source: str) -> dict:
     keys = ["latency_ms", "jitter_ms", "packet_loss_pct", "throughput_mbps", "availability_pct"]
     sums = {k: 0.0 for k in keys}
-    cnts = {k: 0 for k in keys}
+    cnts = {k: 0   for k in keys}
     for rec in unique:
         for k in keys:
-            if rec[k] is not None:
-                sums[k] += rec[k]
+            v = rec.get(k)
+            if v is not None:
+                sums[k] += v
                 cnts[k] += 1
 
     avg = {k: round(sums[k] / cnts[k], 3) if cnts[k] else None for k in keys}
@@ -205,12 +248,30 @@ def load_real_history_avg(cable_id: str, hours: int) -> dict:
         "avg_throughput_mbps":  avg["throughput_mbps"],
         "avg_availability_pct": avg["availability_pct"],
         "quality_score":        round(conf_mean * 100, 1),
-        "source":               "active_tcp_connect",
+        "source":               source,
         "history":              unique,
     }
 
-def tcp_probed_cable_ids() -> set[str]:
-    """Return set of cable_ids that appear in any probe_full history file."""
+
+def load_real_history_avg(cable_id: str, hours: int, conn=None) -> dict:
+    """PG → JSON fallback: real TCP probe averages for a cable within a time window."""
+    if conn is not None:
+        result = _real_history_from_pg(conn, cable_id, hours)
+        if result:
+            return result
+    return _real_history_from_json(cable_id, hours)
+
+
+def tcp_probed_cable_ids(conn=None) -> set[str]:
+    """Return cable_ids that have real TCP probe data — PG first, JSON fallback."""
+    if conn is not None:
+        rows = db_query(conn, """
+            SELECT DISTINCT cable_id FROM cable_telemetry_samples
+            WHERE source = 'active_tcp_connect' AND estimated = FALSE
+        """)
+        if rows:
+            return {r["cable_id"] for r in rows}
+
     ids: set[str] = set()
     if not HIST_DIR.is_dir():
         return ids
@@ -505,7 +566,7 @@ class RMIFOApp(tk.Tk):
 
     def _load_tcp_probed_ids(self):
         def worker():
-            ids = tcp_probed_cable_ids()
+            ids = tcp_probed_cable_ids(conn=self.conn)
             self.after(0, lambda: setattr(self, "_tcp_probed", ids))
         threading.Thread(target=worker, daemon=True).start()
 
@@ -821,7 +882,7 @@ class RMIFOApp(tk.Tk):
             if not db_rows:
                 db_rows = demo_telemetry(hours)
 
-            real_avg = load_real_history_avg(cable_id, hours)
+            real_avg = load_real_history_avg(cable_id, hours, conn=self.conn)
             self.after(0, lambda: self._render_telemetry(cable_id, hours, db_rows, real_avg))
 
         threading.Thread(target=worker, daemon=True).start()
