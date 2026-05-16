@@ -1369,11 +1369,11 @@ function startProbeRealtime(d, basePayload) {
         <div id="rt-lat" class="rt-chart"></div>
       </div>
       <div class="rt-panel">
-        <div class="rt-label">Jitter (ms) — Dispersão temporal 3D</div>
+        <div class="rt-label">Jitter (ms)</div>
         <div id="rt-jit" class="rt-chart"></div>
       </div>
       <div class="rt-panel">
-        <div class="rt-label">Perda de Pacotes (%) — Linha 3D</div>
+        <div class="rt-label">Perda de Pacotes (%)</div>
         <div id="rt-loss" class="rt-chart"></div>
       </div>
       <div class="rt-panel">
@@ -1458,44 +1458,35 @@ function startProbeRealtime(d, basePayload) {
       },
     }, cfg);
 
-    // ── Chart 2: Jitter scatter3d ──────────────────────────────────────────
+    // ── Chart 2: Jitter 2D line+area ──────────────────────────────────────
     Plotly.newPlot('rt-jit', [{
-      type: 'scatter3d',
-      mode: 'lines+markers',
+      type: 'scatter',
+      mode: 'lines',
       x: xs.slice(),
-      y: Array(N).fill(0),
-      z: jitHist.slice(),
-      line:   { color: '#f0b24f', width: 3 },
-      marker: { size: 3, color: jitHist.slice(),
-                colorscale: [[0,'#2ddc82'],[0.5,'#f0b24f'],[1,'#ff465f']],
-                showscale: false },
+      y: jitHist.slice(),
+      fill: 'tozeroy',
+      fillcolor: 'rgba(240,178,79,0.18)',
+      line: { color: '#f0b24f' },
     }], {
       ...layout,
-      scene: { ...scene,
-        yaxis: { ...scene.yaxis, visible: false },
-        zaxis: { ...scene.zaxis, title: 'ms' },
-        camera: { eye: { x: 2.2, y: 0.2, z: 1.6 } },
-      },
+      plot_bgcolor: 'rgba(12,8,24,0.6)',
+      xaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
+      yaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
+      margin: { l: 35, r: 10, t: 8, b: 30 },
     }, cfg);
 
-    // ── Chart 3: Packet-loss scatter3d ────────────────────────────────────
+    // ── Chart 3: Packet-loss 2D bar ───────────────────────────────────────
     Plotly.newPlot('rt-loss', [{
-      type: 'scatter3d',
-      mode: 'lines+markers',
+      type: 'bar',
       x: xs.slice(),
-      y: Array(N).fill(0),
-      z: lossHist.slice(),
-      line:   { color: '#ff465f', width: 3 },
-      marker: { size: 3, color: lossHist.slice(),
-                colorscale: [[0,'#2ddc82'],[0.5,'#f0b24f'],[1,'#ff1a6c']],
-                showscale: false },
+      y: lossHist.slice(),
+      marker: { color: lossHist.map(colorFromLoss) },
     }], {
       ...layout,
-      scene: { ...scene,
-        yaxis: { ...scene.yaxis, visible: false },
-        zaxis: { ...scene.zaxis, title: '%', range: [0, 30] },
-        camera: { eye: { x: 2.2, y: 0.2, z: 1.6 } },
-      },
+      plot_bgcolor: 'rgba(12,8,24,0.6)',
+      xaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
+      yaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff', range: [0, 30] },
+      margin: { l: 35, r: 10, t: 8, b: 30 },
     }, cfg);
 
     // ── Chart 4: Interference scatter3d ──────────────────────────────────
@@ -1519,6 +1510,14 @@ function startProbeRealtime(d, basePayload) {
         camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } },
       },
     }, cfg);
+
+    function colorFromLoss(v) {
+      const t = Math.min(1, v / 30);
+      const r = Math.round(45  + (255 - 45)  * t);
+      const g = Math.round(220 + (26  - 220) * t);
+      const b = Math.round(130 + (108 - 130) * t);
+      return `rgb(${r},${g},${b})`;
+    }
 
     // ── Noise helper ──────────────────────────────────────────────────────
     function noise(base, sigma, min = 0, max = Infinity) {
@@ -1562,8 +1561,8 @@ function startProbeRealtime(d, basePayload) {
 
       // ── Push updates to Plotly ────────────────────────────────────────
       Plotly.restyle('rt-lat', { z: [surface.map(r => r.slice())] });
-      Plotly.restyle('rt-jit',  { z: [jitHist.slice()],  'marker.color': [jitHist.slice()] });
-      Plotly.restyle('rt-loss', { z: [lossHist.slice()], 'marker.color': [lossHist.slice()] });
+      Plotly.restyle('rt-jit',  { y: [jitHist.slice()] });
+      Plotly.restyle('rt-loss', { y: [lossHist.slice()], 'marker.color': [lossHist.map(colorFromLoss)] });
       Plotly.restyle('rt-int',  { x: [intX.slice()], y: [intY.slice()], z: [intZ.slice()], 'marker.color': [intC.slice()] });
 
       // ── Footer metrics ────────────────────────────────────────────────

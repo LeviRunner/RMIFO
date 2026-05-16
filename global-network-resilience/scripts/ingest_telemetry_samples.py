@@ -23,7 +23,9 @@ import math
 import os
 import random
 import socket
+import statistics
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -158,23 +160,65 @@ def probe_mtr(
 # Protocolo 2: TCP SYN-ACK timing (sem raw sockets)
 # ---------------------------------------------------------------------------
 
+def _tcp_probe_port(host: str, port: int, timeout: float) -> float | None:
+    try:
+        t0 = datetime.now(timezone.utc)
+        sock = socket.create_connection((host, port), timeout=timeout)
+        t1 = datetime.now(timezone.utc)
+        sock.close()
+        rtt_ms = (t1 - t0).total_seconds() * 1000.0
+        return round(rtt_ms, 3) if rtt_ms > 0 else None
+    except Exception:
+        return None
+
+
 def probe_tcp_connect(
     host: str,
     timeout: int = 6,
+    full_scan: bool = False,
 ) -> tuple[float | None, datetime, datetime, str, str]:
+    ports = (443, 80, 22, 8443, 8080) if full_scan else (443, 80)
+    timeout_per_port = 2.0 if full_scan else float(timeout)
     sent_at = datetime.now(timezone.utc)
-    for port in (443, 80):
-        try:
-            t0 = datetime.now(timezone.utc)
-            sock = socket.create_connection((host, port), timeout=timeout)
-            t1 = datetime.now(timezone.utc)
-            sock.close()
-            rtt_ms = (t1 - t0).total_seconds() * 1000.0
-            if rtt_ms > 0:
-                return round(rtt_ms, 3), sent_at, t1, "active_tcp_connect", f"tcp-syn-ack-port{port}"
-        except Exception:
-            continue
+
+    if full_scan:
+        # Probe all ports concurrently
+        results: list[tuple[int, float]] = []
+        with ThreadPoolExecutor(max_workers=len(ports)) as ex:
+            futures = {ex.submit(_tcp_probe_port, host, p, timeout_per_port): p for p in ports}
+            for fut in as_completed(futures):
+                rtt = fut.result()
+                if rtt is not None:
+                    results.append((futures[fut], rtt))
+        if results:
+            best_port, best_rtt = min(results, key=lambda x: x[1])
+            return best_rtt, sent_at, datetime.now(timezone.utc), "active_tcp_connect", f"tcp-full-scan-port{best_port}"
+    else:
+        for port in ports:
+            rtt = _tcp_probe_port(host, port, timeout_per_port)
+            if rtt is not None:
+                return rtt, sent_at, datetime.now(timezone.utc), "active_tcp_connect", f"tcp-syn-ack-port{port}"
+
     return None, sent_at, datetime.now(timezone.utc), "synthetic", "tcp-connect-failed"
+
+
+def probe_jitter_passes(
+    host: str,
+    passes: int = 5,
+    timeout: float = 2.0,
+) -> tuple[float | None, float | None]:
+    """Multi-pass TCP probe to compute real jitter (stdev of RTTs)."""
+    rtts: list[float] = []
+    for port in (443, 80):
+        if len(rtts) >= passes:
+            break
+        for _ in range(passes - len(rtts)):
+            rtt = _tcp_probe_port(host, port, timeout)
+            if rtt is not None:
+                rtts.append(rtt)
+    if len(rtts) >= 2:
+        return round(statistics.mean(rtts), 3), round(statistics.stdev(rtts), 3)
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +391,18 @@ def upsert_reference(conn) -> None:
 # Loop principal
 # ---------------------------------------------------------------------------
 
-def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int) -> None:
+def save_history(base_dir: Path, measured_at: datetime, summary: dict, tag: str = "probe") -> Path:
+    hist_dir = base_dir / "data" / "local" / "history"
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    date_str = measured_at.strftime("%Y-%m-%d")
+    ts_str   = measured_at.strftime("%H%M%S")
+    path = hist_dir / f"{date_str}_{tag}_{ts_str}.json"
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(summary, fh, ensure_ascii=False, indent=2, default=str)
+    return path
+
+
+def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int, full_scan: bool = False) -> None:
     random.seed(seed)
     measured_at = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     conn = db_connect(base_dir)
@@ -355,9 +410,10 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
 
     log_dir = get_log_dir(base_dir)
     stats = {"mtr": 0, "tcp": 0, "http": 0, "synthetic": 0, "hops_total": 0}
-    
+    probe_records: list[dict] = []
+
     # Orçamento de rede: Máximo de ciclos MTR por execução para não saturar
-    mtr_budget = 250 
+    mtr_budget = 250
     used_budget = 0
 
     with conn:
@@ -406,16 +462,20 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
                 stats["mtr"] += 1
                 used_budget += current_cycles
 
-        # 2. TCP connect
+        # 2. TCP connect (full_scan probes 5 ports concurrently + multi-pass jitter)
         if latency_ms is None and host:
             tcp_lat, sent_at, received_at, source, method = probe_tcp_connect(
-                host, timeout=max(4, timeout // 2)
+                host, timeout=max(4, timeout // 2), full_scan=full_scan
             )
             if tcp_lat is not None and tcp_lat > 0:
                 latency_ms = round((baseline["latency_ms"] * 0.5) + (tcp_lat * 0.5), 3)
                 confidence = 0.78
                 estimated = False
                 stats["tcp"] += 1
+                if full_scan:
+                    _, measured_jitter = probe_jitter_passes(host, passes=5, timeout=2.0)
+                    if measured_jitter is not None:
+                        jitter_ms = measured_jitter
 
         # 3. HTTP curl
         if latency_ms is None and public_url:
@@ -517,6 +577,7 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
                     "hops":                    hops if hops else [],
                 }
                 append_packet_log(log_dir, measured_at, packet_record)
+                probe_records.append(packet_record)
                 # -------------------------------------------------------------
 
                 if sample_id and hops:
@@ -554,15 +615,37 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int)
     with conn:
         upsert_reference(conn)
 
+    finished_at = datetime.now(timezone.utc)
+
+    # ── Salvar histórico datado ────────────────────────────────────────────
+    tag = "probe_full" if full_scan else "probe"
+    summary = {
+        "gerado_em":       finished_at.isoformat(),
+        "medido_em":       measured_at.isoformat(),
+        "modo":            "full_scan" if full_scan else "standard",
+        "telemetry_model": TELEMETRY_MODEL_VERSION,
+        "totais": {
+            "cabos":      inserted,
+            "mtr":        stats["mtr"],
+            "tcp":        stats["tcp"],
+            "http":       stats["http"],
+            "sintetico":  stats["synthetic"],
+            "hops":       stats["hops_total"],
+        },
+        "registros": probe_records,
+    }
+    hist_path = save_history(base_dir, measured_at, summary, tag=tag)
+
     print(
-        f"\nConcluído em {datetime.now(timezone.utc).isoformat()}\n"
+        f"\nConcluido em {finished_at.isoformat()}\n"
         f"  Cabos inseridos : {inserted}\n"
         f"  mtr (hops)      : {stats['mtr']}\n"
         f"  TCP SYN-ACK     : {stats['tcp']}\n"
         f"  HTTP curl       : {stats['http']}\n"
-        f"  Sintético       : {stats['synthetic']}\n"
+        f"  Sintetico       : {stats['synthetic']}\n"
         f"  Hops gravados   : {stats['hops_total']}\n"
-        f"  Log de pacotes  : {log_dir}"
+        f"  Log de pacotes  : {log_dir}\n"
+        f"  Historico       : {hist_path}"
     )
 
 
@@ -574,10 +657,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ingestão de telemetria – mtr / TCP / HTTP / sintético"
     )
-    parser.add_argument("--limit",      type=int, default=9999, help="Máximo de cabos (default: todos)")
-    parser.add_argument("--seed",       type=int, default=42,   help="Seed ruído sintético")
-    parser.add_argument("--timeout",    type=int, default=6,    help="Timeout por sonda (segundos)")
-    parser.add_argument("--mtr-cycles", type=int, default=3,    help="Ciclos mtr por cabo")
+    parser.add_argument("--limit",      type=int,  default=9999, help="Máximo de cabos (default: todos)")
+    parser.add_argument("--seed",       type=int,  default=42,   help="Seed ruído sintético")
+    parser.add_argument("--timeout",    type=int,  default=6,    help="Timeout por sonda (segundos)")
+    parser.add_argument("--mtr-cycles", type=int,  default=3,    help="Ciclos mtr por cabo")
+    parser.add_argument("--full-scan",  action="store_true",      help="Sonda completa: 5 portas, 5 passes jitter, histórico datado")
     return parser.parse_args()
 
 
@@ -589,4 +673,5 @@ if __name__ == "__main__":
         args.seed,
         args.timeout,
         args.mtr_cycles,
+        full_scan=args.full_scan,
     )
