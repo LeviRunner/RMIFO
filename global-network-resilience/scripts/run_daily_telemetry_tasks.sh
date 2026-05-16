@@ -11,20 +11,38 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
     PYTHON_BIN="python3"
 fi
 
-echo "--- [$(date)] Iniciando Ciclo de Telemetria ---"
+FULL_SCAN="${FULL_SCAN:-1}"          # 1 = sonda completa (padrão), 0 = padrão
+MTR_CYCLES="${MTR_CYCLES:-100}"      # 100 pacotes por rota via mtr
+TIMEOUT="${TIMEOUT:-8}"
 
-# 1. Processa Rollups (Garante que a lógica adaptativa tenha dados frescos)
-echo "[1/3] Atualizando Rollups de performance..."
+echo "--- [$(date)] Iniciando Ciclo de Telemetria RMIFO ---"
+echo "    Modo: $([ "${FULL_SCAN}" = "1" ] && echo 'sonda completa (100 pacotes/rota)' || echo 'padrão')"
+
+# 1. Rollups (garante dados frescos para lógica adaptativa)
+echo "[1/3] Atualizando rollups de performance..."
 "${PYTHON_BIN}" "${BASE_DIR}/scripts/compute_telemetry_rollups.py"
 
-# 2. Ingestão Adaptativa (Usa os rollups para decidir o esforço)
-echo "[2/3] Executando ingestão adaptativa (mtr/tcp/http)..."
-"${PYTHON_BIN}" "${BASE_DIR}/scripts/ingest_telemetry_samples.py" --mtr-cycles 3 --timeout 8
+# 2. Ingestão com sonda completa — 100 pacotes por rota, identificação RMIFO
+echo "[2/3] Sonda completa — ${MTR_CYCLES} pacotes por rota, agente: RMIFO-GlobalNetworkResilience..."
+if [[ "${FULL_SCAN}" = "1" ]]; then
+    "${PYTHON_BIN}" "${BASE_DIR}/scripts/ingest_telemetry_samples.py" \
+        --full-scan \
+        --mtr-cycles "${MTR_CYCLES}" \
+        --timeout "${TIMEOUT}"
+else
+    "${PYTHON_BIN}" "${BASE_DIR}/scripts/ingest_telemetry_samples.py" \
+        --mtr-cycles 3 \
+        --timeout "${TIMEOUT}"
+fi
 
-# 3. Validação de Baseline (Opcional, gera alertas se houver desvio)
+# 3. Rollups pós-ingestão (consolida os novos dados)
+echo "[3/3] Rollups pós-ingestão..."
+"${PYTHON_BIN}" "${BASE_DIR}/scripts/compute_telemetry_rollups.py"
+
+# 4. Validação de baseline e alertas
 if [[ -f "${BASE_DIR}/scripts/validate_telemetry_baseline.py" ]]; then
-    echo "[3/3] Validando métricas contra o baseline..."
+    echo "[4/4] Validando métricas contra o baseline..."
     "${PYTHON_BIN}" "${BASE_DIR}/scripts/validate_telemetry_baseline.py"
 fi
 
-echo "--- [$(date)] Ciclo concluído com sucesso ---"
+echo "--- [$(date)] Ciclo concluído — RMIFO Global Network Resilience ---"

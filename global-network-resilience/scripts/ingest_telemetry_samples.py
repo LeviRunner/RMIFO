@@ -49,7 +49,9 @@ def append_packet_log(log_dir: Path, measured_at: datetime, record: dict) -> Non
 
 import psycopg2
 
-TELEMETRY_MODEL_VERSION = "1.3.0"
+TELEMETRY_MODEL_VERSION = "1.4.0"
+PROBE_AGENT            = "RMIFO-GlobalNetworkResilience/1.4.0"
+PROBE_HEADER           = f"X-Probe-Source: {PROBE_AGENT}"
 
 
 # ---------------------------------------------------------------------------
@@ -101,12 +103,14 @@ def extract_host(url: str | None) -> str | None:
 
 def probe_mtr(
     host: str,
-    cycles: int = 3,
+    cycles: int = 100,
     timeout: int = 10,
 ) -> tuple[float | None, list[dict], datetime, datetime, str, str]:
     cmd = [
         "mtr", "--report", f"--report-cycles={cycles}",
-        "--no-dns", "--json", "--timeout", str(timeout), host,
+        "--no-dns", "--json", "--timeout", str(timeout),
+        "--comment", PROBE_AGENT,   # identifica RMIFO no campo comment do MTR
+        host,
     ]
     sent_at = datetime.now(timezone.utc)
     try:
@@ -160,11 +164,55 @@ def probe_mtr(
 # Protocolo 2: TCP SYN-ACK timing (sem raw sockets)
 # ---------------------------------------------------------------------------
 
+FULL_SCAN_PORTS   = (443, 80, 22, 8443, 8080)
+PACKETS_PER_ROUTE = 100   # pacotes por rota para resultado estatisticamente preciso
+
+_RMIFO_TCP_PAYLOAD = (
+    f"RMIFO-PROBE/1.0\r\n"
+    f"Agent: {PROBE_AGENT}\r\n"
+    f"Project: Global-Network-Resilience\r\n\r\n"
+).encode()
+
+
+def discover_open_ports(
+    host: str,
+    ports: tuple = FULL_SCAN_PORTS,
+    timeout: float = 1.5,
+) -> list[int]:
+    """Verifica quais portas respondem antes do scan completo.
+    Executa todas em paralelo com timeout curto (1.5s).
+    Retorna apenas as portas abertas para não desperdiçar os 100 pacotes."""
+    open_ports: list[int] = []
+
+    def check_port(port: int) -> tuple[int, bool]:
+        try:
+            sock = socket.create_connection((host, port), timeout=timeout)
+            sock.close()
+            return port, True
+        except Exception:
+            return port, False
+
+    with ThreadPoolExecutor(max_workers=len(ports)) as ex:
+        futures = {ex.submit(check_port, p): p for p in ports}
+        for fut in as_completed(futures):
+            port, is_open = fut.result()
+            if is_open:
+                open_ports.append(port)
+
+    open_ports.sort()
+    return open_ports
+
+
 def _tcp_probe_port(host: str, port: int, timeout: float) -> float | None:
     try:
         t0 = datetime.now(timezone.utc)
         sock = socket.create_connection((host, port), timeout=timeout)
         t1 = datetime.now(timezone.utc)
+        # Envia payload RMIFO identificando a sonda no pacote de rede
+        try:
+            sock.sendall(_RMIFO_TCP_PAYLOAD)
+        except Exception:
+            pass
         sock.close()
         rtt_ms = (t1 - t0).total_seconds() * 1000.0
         return round(rtt_ms, 3) if rtt_ms > 0 else None
@@ -172,19 +220,28 @@ def _tcp_probe_port(host: str, port: int, timeout: float) -> float | None:
         return None
 
 
+
 def probe_tcp_connect(
     host: str,
     timeout: int = 6,
     full_scan: bool = False,
+    open_ports: list[int] | None = None,
 ) -> tuple[float | None, datetime, datetime, str, str]:
-    ports = (443, 80, 22, 8443, 8080) if full_scan else (443, 80)
+    # Em full_scan usa apenas portas já confirmadas abertas; evita timeout desnecessário
+    if full_scan:
+        ports = open_ports if open_ports else FULL_SCAN_PORTS
+    else:
+        ports = (443, 80)
     timeout_per_port = 2.0 if full_scan else float(timeout)
     sent_at = datetime.now(timezone.utc)
 
+    if not ports:
+        return None, sent_at, datetime.now(timezone.utc), "synthetic", "tcp-no-open-ports"
+
     if full_scan:
-        # Probe all ports concurrently
+        # Sonda todas as portas abertas em paralelo; usa a melhor RTT
         results: list[tuple[int, float]] = []
-        with ThreadPoolExecutor(max_workers=len(ports)) as ex:
+        with ThreadPoolExecutor(max_workers=max(1, len(ports))) as ex:
             futures = {ex.submit(_tcp_probe_port, host, p, timeout_per_port): p for p in ports}
             for fut in as_completed(futures):
                 rtt = fut.result()
@@ -204,21 +261,41 @@ def probe_tcp_connect(
 
 def probe_jitter_passes(
     host: str,
-    passes: int = 5,
+    packets: int = PACKETS_PER_ROUTE,
     timeout: float = 2.0,
-) -> tuple[float | None, float | None]:
-    """Multi-pass TCP probe to compute real jitter (stdev of RTTs)."""
+    open_ports: list[int] | None = None,
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """Envia N pacotes nas portas ABERTAS e calcula: média, jitter (stdev), p95, perda.
+    Pré-requisito: discover_open_ports() já deve ter sido chamado."""
+    ports_to_use = open_ports if open_ports else [443, 80]
+    if not ports_to_use:
+        return None, None, None, 100.0
+
     rtts: list[float] = []
-    for port in (443, 80):
-        if len(rtts) >= passes:
-            break
-        for _ in range(passes - len(rtts)):
-            rtt = _tcp_probe_port(host, port, timeout)
-            if rtt is not None:
-                rtts.append(rtt)
-    if len(rtts) >= 2:
-        return round(statistics.mean(rtts), 3), round(statistics.stdev(rtts), 3)
-    return None, None
+    attempts = 0
+    per_port = max(1, packets // len(ports_to_use))
+
+    for port in ports_to_use:
+        remaining = per_port
+        with ThreadPoolExecutor(max_workers=min(20, remaining)) as ex:
+            futs = [ex.submit(_tcp_probe_port, host, port, timeout) for _ in range(remaining)]
+            for fut in as_completed(futs):
+                attempts += 1
+                rtt = fut.result()
+                if rtt is not None:
+                    rtts.append(rtt)
+
+    if len(rtts) < 2:
+        loss = round((1 - len(rtts) / max(attempts, 1)) * 100, 2)
+        return None, None, None, loss
+
+    rtts_sorted = sorted(rtts)
+    mean_rtt = round(statistics.mean(rtts), 3)
+    jitter   = round(statistics.stdev(rtts), 3)
+    p95_idx  = max(0, int(len(rtts_sorted) * 0.95) - 1)
+    p95      = round(rtts_sorted[p95_idx], 3)
+    loss_pct = round((1 - len(rtts) / max(attempts, 1)) * 100, 2)
+    return mean_rtt, jitter, p95, loss_pct
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +311,9 @@ def probe_http_latency(
     cmd = [
         "curl", "-o", "/dev/null", "-sS", "-L",
         "--connect-timeout", str(timeout), "--max-time", str(timeout),
+        "-A", PROBE_AGENT,
+        "-H", PROBE_HEADER,
+        "-H", "X-Probe-Project: Global-Network-Resilience",
         "-w", "%{time_total}", url,
     ]
     sent_at = datetime.now(timezone.utc)
@@ -444,11 +524,16 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
         confidence = 0.56
         estimated = True
 
-        # Amostragem Adaptativa: Se instável, triplica os ciclos. 
+        # ── Pré-scan: descobre portas abertas antes de enviar 100 pacotes ────
+        open_ports: list[int] = []
+        if host and full_scan:
+            open_ports = discover_open_ports(host, ports=FULL_SCAN_PORTS, timeout=1.5)
+
+        # Amostragem Adaptativa: Se instável, triplica os ciclos.
         # Se o budget acabou, reduz para o mínimo.
         current_cycles = mtr_cycles * 3 if health_map.get(cable_id, {}).get("is_unstable") else mtr_cycles
         if used_budget + current_cycles > mtr_budget:
-            current_cycles = 1 # Coleta mínima para manter histórico sem pesar
+            current_cycles = 1  # Coleta mínima para manter histórico sem pesar
 
         # 1. mtr
         if host and used_budget < mtr_budget:
@@ -462,20 +547,29 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
                 stats["mtr"] += 1
                 used_budget += current_cycles
 
-        # 2. TCP connect (full_scan probes 5 ports concurrently + multi-pass jitter)
+        # 2. TCP connect — usa apenas portas abertas confirmadas pelo pré-scan
         if latency_ms is None and host:
             tcp_lat, sent_at, received_at, source, method = probe_tcp_connect(
-                host, timeout=max(4, timeout // 2), full_scan=full_scan
+                host, timeout=max(4, timeout // 2), full_scan=full_scan,
+                open_ports=open_ports if full_scan else None,
             )
             if tcp_lat is not None and tcp_lat > 0:
                 latency_ms = round((baseline["latency_ms"] * 0.5) + (tcp_lat * 0.5), 3)
                 confidence = 0.78
                 estimated = False
                 stats["tcp"] += 1
-                if full_scan:
-                    _, measured_jitter = probe_jitter_passes(host, passes=5, timeout=2.0)
-                    if measured_jitter is not None:
-                        jitter_ms = measured_jitter
+                if full_scan and open_ports:
+                    # 100 pacotes distribuídos pelas portas abertas: média, jitter, p95, perda
+                    mean_r, jit_r, p95_r, loss_r = probe_jitter_passes(
+                        host, packets=PACKETS_PER_ROUTE, timeout=2.0,
+                        open_ports=open_ports,
+                    )
+                    if mean_r is not None:
+                        latency_ms      = round((baseline["latency_ms"] * 0.3) + (mean_r * 0.7), 3)
+                        jitter_ms       = jit_r
+                        packet_loss_pct = loss_r if loss_r is not None else packet_loss_pct
+                        confidence      = 0.95
+                        method          = f"tcp-{PACKETS_PER_ROUTE}pkt-ports{open_ports}-p95={p95_r}ms"
 
         # 3. HTTP curl
         if latency_ms is None and public_url:
@@ -573,6 +667,9 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
                     "confidence_score":        round(confidence, 3),
                     "estimated":               estimated,
                     "telemetry_model_version": TELEMETRY_MODEL_VERSION,
+                    "open_ports":              open_ports,
+                    "packets_per_route":       PACKETS_PER_ROUTE if full_scan else None,
+                    "probe_agent":             PROBE_AGENT,
                     "metadata":                metadata,
                     "hops":                    hops if hops else [],
                 }
@@ -611,6 +708,40 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
             f"proto={method:<28} lat={round(latency_ms,1):>8.1f}ms  hops={len(hops):>2}",
             flush=True,
         )
+
+        # Checkpoint a cada 50 cabos
+        if inserted % 50 == 0:
+            cp_at = datetime.now(timezone.utc)
+            recent = probe_records[-50:]
+            lats   = [r["latency_ms"]      for r in recent if r["latency_ms"]      is not None]
+            jits   = [r["jitter_ms"]       for r in recent if r["jitter_ms"]       is not None]
+            losses = [r["packet_loss_pct"] for r in recent if r["packet_loss_pct"] is not None]
+            cp_summary = {
+                "checkpoint":    inserted,
+                "total_cabos":   len(cables),
+                "progresso_pct": round(prog, 1),
+                "gerado_em":     cp_at.isoformat(),
+                "ultimos_50": {
+                    "mtr":       stats["mtr"],
+                    "tcp":       stats["tcp"],
+                    "http":      stats["http"],
+                    "sintetico": stats["synthetic"],
+                    "lat_media_ms":  round(sum(lats)   / len(lats),   2) if lats   else None,
+                    "jit_media_ms":  round(sum(jits)   / len(jits),   2) if jits   else None,
+                    "perda_media_pct": round(sum(losses) / len(losses), 3) if losses else None,
+                },
+                "registros": recent,
+            }
+            cp_path = save_history(base_dir, cp_at, cp_summary, tag=f"checkpoint_{inserted:04d}")
+            print(
+                f"\n  *** CHECKPOINT {inserted}/{len(cables)} ({prog:.1f}%) ***\n"
+                f"      lat_media={cp_summary['ultimos_50']['lat_media_ms']} ms  "
+                f"jitter={cp_summary['ultimos_50']['jit_media_ms']} ms  "
+                f"perda={cp_summary['ultimos_50']['perda_media_pct']}%  "
+                f"tcp={stats['tcp']}  http={stats['http']}  sintetico={stats['synthetic']}\n"
+                f"      salvo em: {cp_path}\n",
+                flush=True,
+            )
 
     with conn:
         upsert_reference(conn)
