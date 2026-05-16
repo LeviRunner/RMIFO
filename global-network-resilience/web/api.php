@@ -1222,6 +1222,25 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     ];
                 }
 
+                // Load set of cable IDs with verified real TCP probe data from latest history
+                $tcpProbedIds = [];
+                $histDir = $workspaceRoot . '/data/local/history';
+                if (is_dir($histDir)) {
+                    $probeFiles = glob($histDir . '/*_probe_full_*.json');
+                    if ($probeFiles) {
+                        rsort($probeFiles);
+                        $probeJson = @file_get_contents($probeFiles[0]);
+                        if ($probeJson) {
+                            $probeData = json_decode($probeJson, true);
+                            foreach (($probeData['registros'] ?? []) as $reg) {
+                                if (($reg['source'] ?? '') === 'active_tcp_connect') {
+                                    $tcpProbedIds[$reg['cable_id']] = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Load landing-point city/country for coordinate-enriched points
                 $lpRows = $pdo->query("
                     SELECT lp.endpoint_id, lp.city_name, lp.country_name,
@@ -1253,9 +1272,10 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     $props   = $feature['properties'];
                     $cableId = $props['cable_id'] ?? '';
                     $status  = $cableStatus[$cableId] ?? null;
-                    $cableName  = $status['cable_name']     ?? $props['cable_name'] ?? $cableId;
-                    $isOp       = $status['is_operational'] ?? true;
-                    $hasAlert   = $status['has_alert']      ?? false;
+                    $cableName   = $status['cable_name']     ?? $props['cable_name'] ?? $cableId;
+                    $isOp        = $status['is_operational'] ?? true;
+                    $hasAlert    = $status['has_alert']      ?? false;
+                    $hasTcpProbe = isset($tcpProbedIds[$cableId]);
 
                     $segments = $feature['geometry']['coordinates'] ?? [];
 
@@ -1276,6 +1296,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                             'cable_name'     => $cableName,
                             'is_operational' => $isOp,
                             'has_alert'      => $hasAlert,
+                            'has_tcp_probe'  => $hasTcpProbe,
                             'startLat'       => $startLat,
                             'startLng'       => $startLng,
                             'endLat'         => $endLat,
@@ -1300,6 +1321,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                                 'ip_sample'      => $lp['ip_sample']    ?? '',
                                 'is_operational' => $isOp,
                                 'has_alert'      => $hasAlert,
+                                'has_tcp_probe'  => $hasTcpProbe,
                             ];
                         }
                     }

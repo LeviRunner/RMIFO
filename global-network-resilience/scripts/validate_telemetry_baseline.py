@@ -1,4 +1,4 @@
-⁰#!/usr/bin/env python3
+#!/usr/bin/env python3
 import os
 import psycopg2
 from pathlib import Path

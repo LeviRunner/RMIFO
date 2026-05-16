@@ -331,12 +331,14 @@ const CITY_DATA = [
 function pathColor(d) {
   if (!d.is_operational) return 'rgba(255,70,95,0.85)';
   if (d.has_alert)       return 'rgba(255,185,45,0.90)';
+  if (d.has_tcp_probe)   return 'rgba(168,113,255,0.88)';
   return 'rgba(45,220,130,0.82)';
 }
 
 function ptColor(d) {
   if (!d.is_operational) return '#ff4f66';
   if (d.has_alert)       return '#ffbe3c';
+  if (d.has_tcp_probe)   return '#a871ff';
   return '#41da8c';
 }
 
@@ -1363,34 +1365,123 @@ function startProbeRealtime(d, basePayload) {
   const baseThru = +(r.throughput_mbps ?? 420);
 
   ProbeModal.show(`Tempo Real — ${esc(cableName)}`, `
-    <div class="rt-grid">
-      <div class="rt-panel">
-        <div class="rt-label">Latência (ms) — Superfície 3D por frequência</div>
-        <div id="rt-lat" class="rt-chart"></div>
+    <div class="rt-dash">
+
+      <!-- ── Main area: charts left + rings sidebar right ─────────────── -->
+      <div class="rt-main">
+
+        <!-- Charts 2-column layout -->
+        <div class="rt-cols">
+
+          <!-- Left: Interferência + Latência -->
+          <div class="rt-col">
+            <div class="rt-panel">
+              <div class="rt-label">Interferência — eventos 3D</div>
+              <div id="rt-int" class="rt-chart"></div>
+            </div>
+            <div class="rt-panel">
+              <div class="rt-label">Latência — superfície 3D por frequência</div>
+              <div id="rt-lat" class="rt-chart"></div>
+            </div>
+          </div>
+
+          <!-- Right charts: Jitter + Perda de Pacotes -->
+          <div class="rt-col">
+            <div class="rt-panel">
+              <div class="rt-label">Jitter (ms)</div>
+              <div id="rt-jit" class="rt-chart"></div>
+            </div>
+            <div class="rt-panel">
+              <div class="rt-label">Perda de Pacotes (%)</div>
+              <div id="rt-loss" class="rt-chart"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── Ring-gauge sidebar (right) ──────────────────────────────── -->
+        <div class="rt-rings">
+
+          <div class="rt-ring-panel">
+            <div class="rt-ring-wrap">
+              <svg class="rt-ring-svg" viewBox="0 0 96 96">
+                <circle class="rt-ring-bg"   cx="48" cy="48" r="38"/>
+                <circle class="rt-ring-fill" cx="48" cy="48" r="38" id="ring-lat"
+                  stroke="#f0b24f" stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+              </svg>
+              <div class="rt-ring-center">
+                <div class="rt-ring-value" id="rv-lat">—</div>
+                <div class="rt-ring-unit">ms</div>
+              </div>
+            </div>
+            <div class="rt-ring-label">Latência</div>
+            <div class="rt-ring-pct" id="rp-lat">—</div>
+          </div>
+
+          <div class="rt-ring-divider"></div>
+
+          <div class="rt-ring-panel">
+            <div class="rt-ring-wrap">
+              <svg class="rt-ring-svg" viewBox="0 0 96 96">
+                <circle class="rt-ring-bg"   cx="48" cy="48" r="38"/>
+                <circle class="rt-ring-fill" cx="48" cy="48" r="38" id="ring-loss"
+                  stroke="#2ddc82" stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+              </svg>
+              <div class="rt-ring-center">
+                <div class="rt-ring-value" id="rv-loss">—</div>
+                <div class="rt-ring-unit">%</div>
+              </div>
+            </div>
+            <div class="rt-ring-label">Perda</div>
+            <div class="rt-ring-pct" id="rp-loss">—</div>
+          </div>
+
+          <div class="rt-ring-divider"></div>
+
+          <div class="rt-ring-panel">
+            <div class="rt-ring-wrap">
+              <svg class="rt-ring-svg" viewBox="0 0 96 96">
+                <circle class="rt-ring-bg"   cx="48" cy="48" r="38"/>
+                <circle class="rt-ring-fill" cx="48" cy="48" r="38" id="ring-jit"
+                  stroke="#f0b24f" stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+              </svg>
+              <div class="rt-ring-center">
+                <div class="rt-ring-value" id="rv-jit">—</div>
+                <div class="rt-ring-unit">ms</div>
+              </div>
+            </div>
+            <div class="rt-ring-label">Jitter</div>
+            <div class="rt-ring-pct" id="rp-jit">—</div>
+          </div>
+
+          <div class="rt-ring-divider"></div>
+
+          <div class="rt-ring-panel">
+            <div class="rt-ring-wrap">
+              <svg class="rt-ring-svg" viewBox="0 0 96 96">
+                <circle class="rt-ring-bg"   cx="48" cy="48" r="38"/>
+                <circle class="rt-ring-fill" cx="48" cy="48" r="38" id="ring-thr"
+                  stroke="#a871ff" stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+              </svg>
+              <div class="rt-ring-center">
+                <div class="rt-ring-value" id="rv-thr">—</div>
+                <div class="rt-ring-unit">Mbps</div>
+              </div>
+            </div>
+            <div class="rt-ring-label">Throughput</div>
+            <div class="rt-ring-pct" id="rp-thr">—</div>
+          </div>
+
+        </div>
       </div>
-      <div class="rt-panel">
-        <div class="rt-label">Jitter (ms)</div>
-        <div id="rt-jit" class="rt-chart"></div>
+
+      <!-- ── Footer ────────────────────────────────────────────────────── -->
+      <div class="rt-footer">
+        <span class="rt-dot" id="rt-dot"></span>
+        <span class="rt-info" id="rt-info">${esc(cableName)} · simulando…</span>
+        <button class="btn rt-stop" id="rt-stop">Parar</button>
       </div>
-      <div class="rt-panel">
-        <div class="rt-label">Perda de Pacotes (%)</div>
-        <div id="rt-loss" class="rt-chart"></div>
-      </div>
-      <div class="rt-panel">
-        <div class="rt-label">Interferência — Eventos 3D em tempo real</div>
-        <div id="rt-int" class="rt-chart"></div>
-      </div>
-    </div>
-    <div class="rt-footer">
-      <span class="rt-dot" id="rt-dot"></span>
-      <span class="rt-info" id="rt-info">${esc(cableName)} · simulando…</span>
-      <span class="rt-metrics">
-        <span>Lat: <span class="rt-metric-val" id="rtv-lat">—</span> ms</span>
-        <span>Jitter: <span class="rt-metric-val" id="rtv-jit">—</span> ms</span>
-        <span>Perda: <span class="rt-metric-val" id="rtv-loss">—</span>%</span>
-        <span>Throughput: <span class="rt-metric-val" id="rtv-thr">—</span> Mbps</span>
-      </span>
-      <button class="btn rt-stop" id="rt-stop">⏹ Parar</button>
+
     </div>
   `);
 
@@ -1399,83 +1490,69 @@ function startProbeRealtime(d, basePayload) {
 
   function initRtCharts() {
 
-    const N        = 40;   // time steps kept in history
-    const BANDS    = 8;    // frequency bands for surface chart
-    const INTERVAL = 320;  // ms between updates
+    const N        = 120;  // time steps (120 × 500 ms = 60 s)
+    const INTERVAL = 500;  // ms between updates
 
-    const xs     = Array.from({ length: N },     (_, i) => i);
-    const freqs  = Array.from({ length: BANDS }, (_, i) => (i + 1) * 12.5); // MHz
+    const xs = Array.from({ length: N }, (_, i) => i);
 
     // Rolling history arrays
     let latHist  = Array(N).fill(baseLat);
     let jitHist  = Array(N).fill(baseJit);
     let lossHist = Array(N).fill(baseLoss);
+    let intHist  = Array(N).fill(0);
 
-    // 2-D surface: BANDS rows × N cols
-    let surface = Array.from({ length: BANDS }, () => Array(N).fill(baseLat));
-
-    // Interference scatter
-    let intX = [], intY = [], intZ = [], intC = [];
+    // EMA for latency smoothing (2D line)
+    let latEMA = baseLat;
 
     let tick = 0;
     let interferenceActive = false;
     let running = true;
 
-    // ── Plotly shared config ───────────────────────────────────────────────
-    const scene = {
-      bgcolor: 'rgba(8,6,15,0)',
-      xaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff', title: 'tempo' },
-      yaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
-      zaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
-    };
+    // ── Shared layout base ─────────────────────────────────────────────────
+    const BG    = 'rgba(100,55,185,0.20)';  // roxo claro uniforme
+    const GRID  = 'rgba(168,113,255,0.22)';
+    const FTEXT = '#c8c0d8';
     const layout = {
       paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor:  'rgba(0,0,0,0)',
-      font:   { color: '#c8c0d8', family: 'Space Grotesk, sans-serif', size: 9 },
-      margin: { l: 0, r: 0, t: 0, b: 0 },
+      plot_bgcolor:  BG,
+      font:   { color: FTEXT, family: 'Space Grotesk, sans-serif', size: 9 },
+      margin: { l: 38, r: 10, t: 8, b: 30 },
       autosize: true,
     };
-    const cfg = { displayModeBar: false, responsive: true };
+    const ax2d = { gridcolor: GRID, color: '#a871ff', zeroline: false };
+    const cfg  = { displayModeBar: false, responsive: true };
 
-    // ── Chart 1: Latency 3D surface ────────────────────────────────────────
+    // ── Chart 1: Latência 2D linha suavizada ──────────────────────────────
     Plotly.newPlot('rt-lat', [{
-      type: 'surface',
-      x: xs,
-      y: freqs,
-      z: surface.map(r => r.slice()),
-      colorscale: [[0,'#2ddc82'],[0.35,'#f0b24f'],[0.7,'#ff7040'],[1,'#ff1a6c']],
-      showscale: false,
-      opacity: 0.88,
-      contours: {
-        z: { show: true, usecolormap: true, highlightcolor: '#a871ff', project: { z: true } }
-      },
+      type: 'scatter',
+      mode: 'lines',
+      x: xs.slice(),
+      y: latHist.slice(),
+      fill: 'tozeroy',
+      fillcolor: 'rgba(240,178,79,0.14)',
+      line: { color: '#f0b24f', width: 2, shape: 'spline', smoothing: 1.3 },
     }], {
       ...layout,
-      scene: { ...scene,
-        yaxis: { ...scene.yaxis, title: 'freq (MHz)' },
-        zaxis: { ...scene.zaxis, title: 'ms' },
-        camera: { eye: { x: 1.7, y: -1.5, z: 1.3 } },
-      },
+      xaxis: { ...ax2d, title: 'tempo (s)' },
+      yaxis: { ...ax2d, title: 'ms' },
     }, cfg);
 
-    // ── Chart 2: Jitter 2D line+area ──────────────────────────────────────
+    // ── Chart 2: Jitter 2D linha ──────────────────────────────────────────
     Plotly.newPlot('rt-jit', [{
       type: 'scatter',
       mode: 'lines',
       x: xs.slice(),
       y: jitHist.slice(),
       fill: 'tozeroy',
-      fillcolor: 'rgba(240,178,79,0.18)',
-      line: { color: '#f0b24f' },
+      fillcolor: 'rgba(168,113,255,0.16)',
+      line: { color: '#a871ff', width: 2, shape: 'spline', smoothing: 1.1 },
     }], {
       ...layout,
-      plot_bgcolor: 'rgba(12,8,24,0.6)',
-      xaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
-      yaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
-      margin: { l: 35, r: 10, t: 8, b: 30 },
+      xaxis: { ...ax2d },
+      yaxis: { ...ax2d, title: 'ms' },
     }, cfg);
 
-    // ── Chart 3: Packet-loss 2D bar ───────────────────────────────────────
+    // ── Chart 3: Perda de Pacotes 2D barras ──────────────────────────────
     Plotly.newPlot('rt-loss', [{
       type: 'bar',
       x: xs.slice(),
@@ -1483,32 +1560,23 @@ function startProbeRealtime(d, basePayload) {
       marker: { color: lossHist.map(colorFromLoss) },
     }], {
       ...layout,
-      plot_bgcolor: 'rgba(12,8,24,0.6)',
-      xaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff' },
-      yaxis: { gridcolor: 'rgba(168,113,255,0.18)', color: '#a871ff', range: [0, 30] },
-      margin: { l: 35, r: 10, t: 8, b: 30 },
+      xaxis: { ...ax2d },
+      yaxis: { ...ax2d, title: '%', range: [0, 30] },
     }, cfg);
 
-    // ── Chart 4: Interference scatter3d ──────────────────────────────────
+    // ── Chart 4: Interferência 2D linha + área ────────────────────────────
     Plotly.newPlot('rt-int', [{
-      type: 'scatter3d',
-      mode: 'markers',
-      x: [], y: [], z: [],
-      marker: {
-        size: 5,
-        color: [],
-        colorscale: [[0,'#2ddc82'],[0.4,'#f0b24f'],[0.7,'#ff465f'],[1,'#ff1a6c']],
-        showscale: false,
-        opacity: 0.85,
-      },
+      type: 'scatter',
+      mode: 'lines',
+      x: xs.slice(),
+      y: intHist.slice(),
+      fill: 'tozeroy',
+      fillcolor: 'rgba(255,70,95,0.14)',
+      line: { color: '#ff465f', width: 2, shape: 'spline', smoothing: 1.2 },
     }], {
       ...layout,
-      scene: { ...scene,
-        xaxis: { ...scene.xaxis, title: 'tempo' },
-        yaxis: { ...scene.yaxis, title: 'freq' },
-        zaxis: { ...scene.zaxis, title: 'intensidade' },
-        camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } },
-      },
+      xaxis: { ...ax2d, title: 'tempo (s)' },
+      yaxis: { ...ax2d, title: 'intensidade', range: [0, 35] },
     }, cfg);
 
     function colorFromLoss(v) {
@@ -1543,36 +1611,61 @@ function startProbeRealtime(d, basePayload) {
       const newLoss = interferenceActive ? noise(14, 7, 0, 100) : noise(baseLoss, 0.4, 0);
       const newThru = interferenceActive ? noise(baseThru * 0.3, 50, 0) : noise(baseThru, 30, 0);
 
+      // EMA suaviza a linha de latência (α=0.25)
+      latEMA = latEMA * 0.75 + newLat * 0.25;
+
       // Roll histories
-      latHist  = [...latHist.slice(1),  newLat];
+      latHist  = [...latHist.slice(1),  latEMA];
       jitHist  = [...jitHist.slice(1),  newJit];
       lossHist = [...lossHist.slice(1), newLoss];
 
-      // Update surface: each frequency band adds slight variance
-      surface = surface.map((row, ri) => {
-        const ff = 1 + (ri / BANDS) * 0.45;
-        return [...row.slice(1), noise(newLat * ff, 8, 1)];
-      });
-
-      // Interference scatter (rolling 80 events)
-      const intIntensity = interferenceActive ? noise(22, 9, 5) : noise(2, 1.2, 0);
-      intX = [...intX, tick]; intY = [...intY, noise(50, 40, 0, 99)]; intZ = [...intZ, intIntensity]; intC = [...intC, intIntensity];
-      if (intX.length > 80) { intX = intX.slice(-80); intY = intY.slice(-80); intZ = intZ.slice(-80); intC = intC.slice(-80); }
+      // Interferência: intensidade alta durante burst, ruído baixo fora
+      const intIntensity = interferenceActive ? noise(22, 7, 5, 35) : noise(1.5, 1, 0, 5);
+      intHist = [...intHist.slice(1), intIntensity];
 
       // ── Push updates to Plotly ────────────────────────────────────────
-      Plotly.restyle('rt-lat', { z: [surface.map(r => r.slice())] });
+      Plotly.restyle('rt-lat',  { y: [latHist.slice()] });
       Plotly.restyle('rt-jit',  { y: [jitHist.slice()] });
       Plotly.restyle('rt-loss', { y: [lossHist.slice()], 'marker.color': [lossHist.map(colorFromLoss)] });
-      Plotly.restyle('rt-int',  { x: [intX.slice()], y: [intY.slice()], z: [intZ.slice()], 'marker.color': [intC.slice()] });
+      Plotly.restyle('rt-int',  { y: [intHist.slice()] });
 
-      // ── Footer metrics ────────────────────────────────────────────────
+      // ── Ring-gauge updates ────────────────────────────────────────────
+      const CIRC = 238.76;
+      function setRing(id, pct, color) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.strokeDashoffset = CIRC * (1 - Math.min(1, Math.max(0, pct)));
+        if (color) el.style.stroke = color;
+      }
+      function ringColorLat(ms) {
+        if (ms < 60)  return '#2ddc82';
+        if (ms < 180) return '#f0b24f';
+        if (ms < 350) return '#ff7040';
+        return '#ff1a6c';
+      }
+      function ringColorLoss(pct) {
+        if (pct < 1)  return '#2ddc82';
+        if (pct < 5)  return '#f0b24f';
+        if (pct < 15) return '#ff7040';
+        return '#ff1a6c';
+      }
+      const latPct  = newLat  / 500;
+      const jitPct  = newJit  / 200;
+      const lossPct = newLoss / 30;
+      const thrPct  = newThru / 1000;
+      setRing('ring-lat',  latPct,  ringColorLat(newLat));
+      setRing('ring-jit',  jitPct,  '#f0b24f');
+      setRing('ring-loss', lossPct, ringColorLoss(newLoss));
+      setRing('ring-thr',  thrPct,  '#a871ff');
+      const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setText('rv-lat',  newLat.toFixed(0));   setText('rp-lat',  (latPct  * 100).toFixed(0) + '%');
+      setText('rv-jit',  newJit.toFixed(1));   setText('rp-jit',  (jitPct  * 100).toFixed(0) + '%');
+      setText('rv-loss', newLoss.toFixed(2));  setText('rp-loss', (lossPct * 100).toFixed(0) + '%');
+      setText('rv-thr',  newThru.toFixed(0));  setText('rp-thr',  (thrPct  * 100).toFixed(0) + '%');
+
+      // ── Footer status ─────────────────────────────────────────────────
       const dot = document.getElementById('rt-dot');
       if (dot) dot.className = 'rt-dot' + (interferenceActive ? ' alert' : '');
-      const setV = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-      setV('rtv-lat',  newLat.toFixed(1));
-      setV('rtv-jit',  newJit.toFixed(1));
-      setV('rtv-loss', newLoss.toFixed(2));
-      setV('rtv-thr',  newThru.toFixed(0));
       const infoEl = document.getElementById('rt-info');
       if (infoEl) infoEl.textContent = `${cableName}${interferenceActive ? ' · [ALERTA] interferência detectada' : ' · sonda ativa'}`;
 
