@@ -36,9 +36,10 @@
     <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
     <li><a href="#" class="nav-link" data-page="search">Busca de Cabos</a></li>
     <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
-    <li><a href="#" class="nav-link" data-page="routes">Análise de Rotas</a></li>
-    <li><a href="#" class="nav-link" data-page="telemetry">Telemetria</a></li>
-    <li><a href="#" class="nav-link" data-page="probe">Sonda de Rede</a></li>
+    <li><a href="#" class="nav-link" data-page="routes">Top 3 Rotas</a></li>
+    <li><a href="#" class="nav-link" data-page="risk">Risco de Endpoints</a></li>
+    <li><a href="#" class="nav-link" data-page="cuts">Cortes Críticos</a></li>
+    <li><a href="#" class="nav-link" data-page="probe">Sonda &amp; Telemetria</a></li>
   </ul>
   <div class="drawer-footer">
     PostgreSQL · porta 55432
@@ -79,18 +80,9 @@
   <!-- PÁGINA: BUSCA -->
   <section class="page" id="page-search">
     <div class="page-inner">
-      <div class="page-toolbar">
-        <div class="mode-tabs" id="mode-list">
-          <button class="mode-btn active" data-mode="cable_id">cable_id <span class="mode-meta">binária</span></button>
-          <button class="mode-btn" data-mode="name">nome</button>
-          <button class="mode-btn" data-mode="owners">proprietário</button>
-          <button class="mode-btn" data-mode="year">ano</button>
-          <button class="mode-btn" data-mode="operational">status</button>
-          <button class="mode-btn" data-mode="landing">landing pts</button>
-          <button class="mode-btn" data-mode="suppliers">supplier</button>
-          <button class="mode-btn" data-mode="endpoint">endpoint</button>
-          <button class="mode-btn" data-mode="country">país</button>
-        </div>
+
+      <!-- Barra de busca -->
+      <div class="search-header">
         <div class="search-bar">
           <input id="query-input" type="text" placeholder="Buscar..." autocomplete="off">
           <select id="bool-input" style="display:none">
@@ -100,24 +92,44 @@
           <button class="btn primary" id="search-btn">Buscar</button>
           <button class="btn" id="clear-btn">Limpar</button>
         </div>
-      </div>
-      <div class="binary-box" id="binary-box" style="display:none">
-        <div class="binary-step" id="binary-step">—</div>
-        <div class="progress"><div id="binary-progress"></div></div>
-        <div class="binary-controls">
-          <button class="btn primary" id="binary-play">▶ Reproduzir</button>
-          <button class="btn" id="binary-prev">‹ Anterior</button>
-          <button class="btn" id="binary-next">Próximo ›</button>
-          <button class="btn" id="binary-reset">⟳ Reiniciar</button>
+        <div class="mode-tabs" id="mode-list">
+          <button class="mode-btn active" data-mode="cable_id">ID <span class="mode-meta">binária</span></button>
+          <button class="mode-btn" data-mode="name">Nome</button>
+          <button class="mode-btn" data-mode="owners">Proprietário</button>
+          <button class="mode-btn" data-mode="suppliers">Fornecedor</button>
+          <button class="mode-btn" data-mode="year">Ano</button>
+          <button class="mode-btn" data-mode="operational">Status</button>
+          <button class="mode-btn" data-mode="landing">Pontos</button>
+          <button class="mode-btn" data-mode="endpoint">Endpoint</button>
+          <button class="mode-btn" data-mode="country">País</button>
         </div>
+      </div>
+
+      <!-- Visualização da busca binária (apenas modo ID) -->
+      <div class="binary-box" id="binary-box" style="display:none">
+        <div class="binary-top">
+          <div class="binary-step" id="binary-step">—</div>
+          <div class="binary-controls">
+            <button class="btn primary" id="binary-play">Reproduzir</button>
+            <button class="btn" id="binary-prev">Anterior</button>
+            <button class="btn" id="binary-next">Próximo</button>
+            <button class="btn" id="binary-reset">Reiniciar</button>
+          </div>
+        </div>
+        <div class="progress"><div id="binary-progress"></div></div>
         <div class="binary-log" id="binary-log"></div>
       </div>
-      <div class="result-bar"><span id="result-count">—</span></div>
+
+      <!-- Contagem e erros -->
+      <div class="result-bar"><span id="result-count">Selecione um modo e execute a busca.</span></div>
       <div class="error" id="search-error"></div>
-      <div class="empty" id="search-empty">Selecione um modo e execute a busca.</div>
+      <div class="empty" id="search-empty" style="display:none"></div>
+
+      <!-- Tabela de resultados -->
       <div class="table-wrap" id="search-table-wrap" style="display:none">
         <table><thead id="search-head"></thead><tbody id="search-body"></tbody></table>
       </div>
+
     </div>
   </section>
 
@@ -140,74 +152,117 @@
   </section>
 
   <!-- PÁGINA: ROTAS -->
+  <!-- PÁGINA: TOP 3 ROTAS -->
   <section class="page" id="page-routes">
-    <div class="page-inner routes-grid">
-      <div class="fn-card">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
         <div class="fn-name">Top 3 Rotas</div>
-        <div class="field"><label>País origem</label><select id="route-country-a"></select></div>
-        <div class="field"><label>País destino</label><select id="route-country-b"></select></div>
-        <button class="btn primary" id="btn-top-routes">Calcular Rotas</button>
+        <div class="field"><label>País origem</label><select id="route-country-a" class="country-select"></select></div>
+        <div class="field"><label>País destino</label><select id="route-country-b" class="country-select"></select></div>
+        <button class="btn primary fn-action" id="btn-top-routes">Calcular Rotas</button>
         <div class="error" id="route-error"></div>
-        <div class="fn-result" id="route-result">Selecione os países.</div>
       </div>
-      <div class="fn-card">
-        <div class="fn-name">Cortes Críticos</div>
-        <div class="field"><label>País origem</label><select id="cut-country-a"></select></div>
-        <div class="field"><label>País destino</label><select id="cut-country-b"></select></div>
-        <button class="btn primary" id="btn-critical-cuts">Analisar Isolamento</button>
-        <div class="error" id="cuts-error"></div>
-        <div class="fn-result" id="cuts-result">Selecione o par de países.</div>
+      <div class="probe-result-area">
+        <div class="fn-result" id="route-result">Selecione os países e calcule as rotas.</div>
       </div>
-      <div class="fn-card">
+    </div>
+  </section>
+
+  <!-- PÁGINA: RISCO DE ENDPOINTS -->
+  <section class="page" id="page-risk">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
         <div class="fn-name">Risco de Endpoints</div>
-        <div class="field"><label>País</label><select id="risk-country"></select></div>
-        <button class="btn primary" id="btn-endpoint-risk">Mapear Risco</button>
+        <div class="field"><label>País</label><select id="risk-country" class="country-select"></select></div>
+        <button class="btn primary fn-action" id="btn-endpoint-risk">Mapear Risco</button>
         <div class="error" id="risk-error"></div>
-        <div class="fn-result" id="risk-result">Selecione um país.</div>
+      </div>
+      <div class="probe-result-area">
+        <div class="fn-result" id="risk-result">Selecione um país para mapear o risco dos endpoints.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: CORTES CRÍTICOS -->
+  <section class="page" id="page-cuts">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
+        <div class="fn-name">Cortes Críticos</div>
+        <div class="field"><label>País origem</label><select id="cut-country-a" class="country-select"></select></div>
+        <div class="field"><label>País destino</label><select id="cut-country-b" class="country-select"></select></div>
+        <button class="btn primary fn-action" id="btn-critical-cuts">Analisar Isolamento</button>
+        <div class="error" id="cuts-error"></div>
+      </div>
+      <div class="probe-result-area">
+        <div class="fn-result" id="cuts-result">Selecione o par de países para análise de isolamento.</div>
       </div>
     </div>
   </section>
 
   <!-- PÁGINA: TELEMETRIA -->
-  <section class="page" id="page-telemetry">
-    <div class="page-inner">
-      <div class="page-toolbar">
-        <input id="telemetry-cable" list="cable-list" placeholder="cable_id">
-        <select id="telemetry-hours">
-          <option value="6">6 horas</option>
-          <option value="24" selected>24 horas</option>
-          <option value="72">3 dias</option>
-          <option value="168">7 dias</option>
-          <option value="720">30 dias</option>
-        </select>
-        <button class="btn primary" id="btn-telemetry">Ver Telemetria</button>
-      </div>
-      <div class="error" id="telemetry-error"></div>
-      <div class="fn-result" id="telemetry-result">Selecione um cabo e janela de tempo.</div>
-    </div>
-  </section>
-
-  <!-- PÁGINA: SONDA -->
+  <!-- PÁGINA: SONDA & TELEMETRIA -->
   <section class="page" id="page-probe">
-    <div class="page-inner probe-layout">
-      <div class="fn-card probe-card">
-        <div class="fn-name">Sonda de Rede</div>
-        <div class="field"><label>Cabo</label><select id="probe-cable"></select></div>
-        <div class="field"><label>Endpoint</label><select id="probe-endpoint-select"><option value="">— selecione um cabo —</option></select></div>
-        <div class="field"><label>IP alvo</label><input id="probe-ip" type="text" placeholder="preenchido automaticamente ou manual"></div>
-        <div class="field probe-full-wrap">
-          <label class="probe-full-label">
-            <input type="checkbox" id="probe-full-scan">
-            Sonda completa
-            <span class="mode-meta">5 portas · 5 amostras · jitter · throughput</span>
+    <div class="page-inner probe-v2">
+
+      <!-- Barra superior: input de cabo + modo + janela -->
+      <div class="probe-top-bar">
+        <div class="probe-cable-field">
+          <input id="probe-cable-input" type="text" list="probe-cable-list"
+                 placeholder="Nome ou ID do cabo…" autocomplete="off" spellcheck="false">
+          <datalist id="probe-cable-list"></datalist>
+        </div>
+        <div class="probe-mode-wrap">
+          <label class="probe-mode-opt">
+            <input type="radio" name="probe-mode" id="probe-mode-history" value="history" checked>
+            <span>Histórico de Janela</span>
+          </label>
+          <label class="probe-mode-opt">
+            <input type="radio" name="probe-mode" id="probe-mode-realtime" value="realtime">
+            <span>Monitoramento em Tempo Real</span>
           </label>
         </div>
-        <button class="btn primary fn-action" id="btn-probe">Iniciar Sonda</button>
+        <div class="probe-window-wrap" id="probe-window-wrap">
+          <select id="telemetry-hours">
+            <option value="6">6 h</option>
+            <option value="24" selected>24 h</option>
+            <option value="72">3 d</option>
+            <option value="168">7 d</option>
+            <option value="720">30 d</option>
+          </select>
+          <button class="btn primary" id="btn-telemetry">Carregar</button>
+        </div>
       </div>
-      <div class="probe-result-area">
+
+      <!-- Barra de legenda -->
+      <div class="probe-legend-bar" id="probe-legend-bar">
+        <div class="probe-legend-item">
+          <span class="plb-label">Janela</span>
+          <span class="plb-value" id="legend-janela">—</span>
+        </div>
+        <div class="probe-legend-divider"></div>
+        <div class="probe-legend-item">
+          <span class="plb-label">Qualidade</span>
+          <span class="plb-value" id="legend-qualidade">—</span>
+        </div>
+        <div class="probe-legend-divider"></div>
+        <div class="probe-legend-item">
+          <span class="plb-label">Origem</span>
+          <span class="plb-value" id="legend-origem">—</span>
+        </div>
+        <div class="probe-legend-divider"></div>
+        <div class="probe-legend-item">
+          <span class="plb-label">Amostras</span>
+          <span class="plb-value" id="legend-amostras">—</span>
+        </div>
+      </div>
+
+      <!-- Área de conteúdo -->
+      <div class="probe-content-area">
         <div class="error" id="probe-error"></div>
-        <div class="fn-result" id="probe-result">Selecione um cabo e endpoint para executar a sonda.</div>
+        <div class="fn-result" id="probe-result">Digite o nome de um cabo e selecione o modo de análise.</div>
+        <div id="telemetry-result"></div>
       </div>
+
     </div>
   </section>
 

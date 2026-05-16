@@ -893,6 +893,107 @@ function stddev(array $values): ?float
     return sqrt($variance / ($n - 1));
 }
 
+function loadRealHistoryAvg(string $cableId, int $hours, string $workspaceRoot): array
+{
+    $histDir = rtrim($workspaceRoot, '/') . '/data/local/history';
+    if (!is_dir($histDir)) return [];
+
+    $cutoff = time() - ($hours * 3600);
+
+    // Collect probe_full and checkpoint files (not rollup — those are pre-aggregated across all cables)
+    $files = array_merge(
+        glob($histDir . '/*_probe_full_*.json') ?: [],
+        glob($histDir . '/*_checkpoint_*.json') ?: []
+    );
+
+    $records = [];
+    foreach ($files as $file) {
+        // Quick date check from filename to avoid reading old files
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})_/', basename($file), $m)) {
+            $fileDay = strtotime($m[1]);
+            if ($fileDay !== false && $fileDay < ($cutoff - 86400)) continue;
+        }
+
+        $raw = @file_get_contents($file);
+        if (!$raw) continue;
+        $data = json_decode($raw, true);
+        if (!is_array($data)) continue;
+
+        $regs = $data['registros'] ?? [];
+        foreach ($regs as $reg) {
+            if (($reg['cable_id'] ?? '') !== $cableId) continue;
+            $ts = strtotime($reg['measured_at'] ?? '');
+            if ($ts === false || $ts < $cutoff) continue;
+            $records[] = [
+                'measured_at'      => $reg['measured_at'],
+                'latency_ms'       => isset($reg['latency_ms'])       ? (float) $reg['latency_ms']       : null,
+                'jitter_ms'        => isset($reg['jitter_ms'])        ? (float) $reg['jitter_ms']        : null,
+                'packet_loss_pct'  => isset($reg['packet_loss_pct'])  ? (float) $reg['packet_loss_pct']  : null,
+                'throughput_mbps'  => isset($reg['throughput_mbps'])  ? (float) $reg['throughput_mbps']  : null,
+                'availability_pct' => isset($reg['availability_pct']) ? (float) $reg['availability_pct'] : null,
+                'source'           => $reg['source'] ?? 'history',
+                'confidence_score' => isset($reg['confidence_score']) ? (float) $reg['confidence_score'] : 0.95,
+                'estimated'        => false,
+            ];
+        }
+    }
+
+    if (!$records) return [];
+
+    // Deduplicate by measured_at (probe_full and checkpoint may overlap)
+    $seen = [];
+    $unique = [];
+    foreach ($records as $rec) {
+        $key = $rec['measured_at'];
+        if (!isset($seen[$key])) {
+            $seen[$key] = true;
+            $unique[] = $rec;
+        }
+    }
+    usort($unique, static fn($a, $b) => strcmp($a['measured_at'], $b['measured_at']));
+
+    $n = count($unique);
+    $keys = ['latency_ms', 'jitter_ms', 'packet_loss_pct', 'throughput_mbps', 'availability_pct'];
+    $sum = array_fill_keys($keys, 0.0);
+    $cnt = array_fill_keys($keys, 0);
+
+    foreach ($unique as $rec) {
+        foreach ($keys as $k) {
+            if ($rec[$k] !== null) {
+                $sum[$k] += $rec[$k];
+                $cnt[$k]++;
+            }
+        }
+    }
+
+    $avg = [];
+    foreach ($keys as $k) {
+        $avg[$k] = $cnt[$k] > 0 ? round($sum[$k] / $cnt[$k], 3) : null;
+    }
+
+    // Quality score: mean confidence × availability factor
+    $confSum = 0.0; $confCnt = 0;
+    foreach ($unique as $rec) {
+        $confSum += $rec['confidence_score'];
+        $confCnt++;
+    }
+    $qualityScore = $confCnt > 0 ? round(($confSum / $confCnt) * 100, 1) : null;
+
+    return [
+        'sample_count'         => $n,
+        'window_start'         => $unique[0]['measured_at'],
+        'window_end'           => $unique[$n - 1]['measured_at'],
+        'avg_latency_ms'       => $avg['latency_ms'],
+        'avg_jitter_ms'        => $avg['jitter_ms'],
+        'avg_packet_loss_pct'  => $avg['packet_loss_pct'],
+        'avg_throughput_mbps'  => $avg['throughput_mbps'],
+        'avg_availability_pct' => $avg['availability_pct'],
+        'quality_score'        => $qualityScore,
+        'source'               => 'active_tcp_connect',
+        'history'              => $unique,
+    ];
+}
+
 function buildTelemetryPayload(array $details, array $series, bool $fallbackUsed): array
 {
     $base = cableTelemetry($details);
@@ -1190,9 +1291,11 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     $series = generateSyntheticTelemetrySeries($details, 96, 15);
                     $fallbackUsed = true;
                 }
+                $realAvg = loadRealHistoryAvg($q, $hours, $workspaceRoot);
                 jsonResponse([
-                    'details' => $details,
+                    'details'  => $details,
                     'telemetry' => buildTelemetryPayload($details, $series, $fallbackUsed),
+                    'real_avg' => $realAvg ?: null,
                 ]);
 
             case 'alerts':

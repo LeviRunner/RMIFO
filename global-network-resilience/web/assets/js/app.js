@@ -106,12 +106,13 @@ function extractData(payload) {
 const Router = {
   current: 'map',
   titles: {
-    map: 'Mapa Global',
+    map:    'Mapa Global',
     search: 'Busca de Cabos',
     detail: 'Detalhes do Cabo',
-    routes: 'Análise de Rotas',
-    telemetry: 'Telemetria',
-    probe: 'Sonda de Rede',
+    routes: 'Top 3 Rotas',
+    risk:   'Risco de Endpoints',
+    cuts:   'Cortes Críticos',
+    probe:  'Sonda & Telemetria',
   },
   go(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -745,11 +746,14 @@ function initSearchPage() {
     const total = AppState.search.binarySteps.length;
     const rows  = searchBody ? Array.from(searchBody.querySelectorAll('tr')) : [];
 
-    rows.forEach((row, ri) => {
+    // Map each visible row to its index in the full sorted allCables array
+    rows.forEach(row => {
+      const ri = AppState.allCables.findIndex(c => c.cable_id === row.dataset.cableId);
       row.classList.remove('bs-eliminated', 'bs-range', 'bs-mid', 'bs-found');
+      if (ri === -1) return;
       if (step.notFound) { row.classList.add('bs-eliminated'); return; }
       if (ri < step.lo || ri > step.hi) row.classList.add('bs-eliminated');
-      else if (ri === step.mid)         row.classList.add(step.found ? 'bs-found' : 'bs-mid');
+      else if (ri === step.mid)          row.classList.add(step.found ? 'bs-found' : 'bs-mid');
       else                               row.classList.add('bs-range');
     });
 
@@ -797,19 +801,27 @@ function initSearchPage() {
           AppState.allCables = extractData(payload);
           populateCableDatalist();
         }
-        renderRows(AppState.allCables);
         if (!query) {
-          if (resultCount) resultCount.textContent = `${AppState.allCables.length} cabos carregados.`;
+          renderRows(AppState.allCables);
+          if (resultCount) resultCount.textContent = `${AppState.allCables.length} cabos — sem filtro.`;
           return;
         }
+        // Filter to cables similar to the query (substring match on id or name)
+        const q = query.toLowerCase();
+        const similar = AppState.allCables.filter(c =>
+          String(c.cable_id).toLowerCase().includes(q) ||
+          String(c.cable_name || '').toLowerCase().includes(q)
+        );
+        renderRows(similar);
+
+        // Binary search runs on the full sorted array for visualization
         AppState.search.binarySteps = buildBinarySteps(query);
         applyBinaryStep(0);
         const found = AppState.search.binarySteps[AppState.search.binarySteps.length - 1].found;
         if (resultCount) {
           const n = AppState.search.binarySteps.length;
-          resultCount.textContent = found
-            ? `1 resultado · busca binária em ${n} passos.`
-            : `0 resultados · busca binária encerrada em ${n} passos.`;
+          const exact = found ? ' · exato encontrado' : ' · exato não encontrado';
+          resultCount.textContent = `${similar.length} resultado(s) semelhantes · busca binária: ${n} passos${exact}.`;
         }
         return;
       }
@@ -1013,11 +1025,11 @@ async function loadCableList() {
     AppState.allCables = extractData(payload);
     populateCableDatalist();
 
-    // Populate probe cable select
-    const probeCable = document.getElementById('probe-cable');
-    if (probeCable) {
-      probeCable.innerHTML = AppState.allCables.map(c =>
-        `<option value="${esc(c.cable_id)}">${esc(c.cable_name)}</option>`
+    // Populate probe cable datalist
+    const probeCableList = document.getElementById('probe-cable-list');
+    if (probeCableList) {
+      probeCableList.innerHTML = AppState.allCables.map(c =>
+        `<option value="${esc(c.cable_id)}">${esc(c.cable_name || c.cable_id)}</option>`
       ).join('');
     }
   } catch (err) {
@@ -1197,12 +1209,30 @@ function buildLinePoints(values, width, height, padding) {
   }).join(' ');
 }
 
-function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label = 'Latência (ms)') {
+function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label = 'Latência (ms)', realHistory = []) {
   const valid = history.map(r => Number(r[metric])).filter(v => isFinite(v));
-  if (valid.length < 2) return '<p class="muted">Amostras insuficientes para o gráfico.</p>';
+  const realValid = (realHistory || []).map(r => Number(r[metric])).filter(v => isFinite(v));
+  if (valid.length < 2 && realValid.length < 2) return '<p class="muted">Amostras insuficientes para o gráfico.</p>';
 
   const W = 920, H = 220, P = 26;
-  const pts = buildLinePoints(valid, W, H, P);
+
+  // Unified scale so both series share the same Y axis
+  const allVals = [...valid, ...realValid];
+  const minVal = Math.min(...allVals);
+  const maxVal = Math.max(...allVals);
+  const range  = maxVal - minVal || 1;
+
+  function buildPts(vals) {
+    if (vals.length < 2) return '';
+    return vals.map((v, i) => {
+      const x = P + (i / (vals.length - 1)) * (W - P * 2);
+      const y = (H - P) - ((v - minVal) / range) * (H - P * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+  }
+
+  const ptsDB   = buildPts(valid);
+  const ptsReal = buildPts(realValid);
 
   const metricBtns = [
     ['latency_ms',      'Latência'],
@@ -1216,18 +1246,31 @@ function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label =
   ).join('');
 
   const ciText = Array.isArray(ciLatency)
-    ? `IC 95%: ${ciLatency.join(' – ')} ms`
+    ? ` · IC 95%: ${ciLatency.join(' – ')} ms`
+    : '';
+
+  const realLegend = realValid.length
+    ? `<span class="tel-legend-real">&#9632; TCP Probe (${realValid.length} amostras reais)</span>`
+    : '';
+  const dbLegend = valid.length
+    ? `<span class="tel-legend-db">&#9632; DB / Sintético (${valid.length} pts)</span>`
     : '';
 
   return `
     <div class="telemetry-chart-wrap">
-      <div style="display:flex;gap:6px;margin-bottom:8px;">${metricBtns}</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        ${metricBtns}
+        <span style="flex:1"></span>
+        ${dbLegend}${realLegend}
+      </div>
       <svg class="telemetry-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
         <line class="telemetry-axis" x1="${P}" y1="${H-P}" x2="${W-P}" y2="${H-P}"></line>
         <line class="telemetry-axis" x1="${P}" y1="${P}"   x2="${P}"   y2="${H-P}"></line>
-        <polyline class="telemetry-line" points="${pts}"></polyline>
+        ${ptsDB   ? `<polyline class="telemetry-line telemetry-line-db"   points="${ptsDB}"></polyline>`   : ''}
+        ${ptsReal ? `<polyline class="telemetry-line telemetry-line-real" points="${ptsReal}"></polyline>` : ''}
+        ${realValid.length === 1 ? `<circle class="tel-real-dot" cx="${P}" cy="${((H-P) - ((realValid[0]-minVal)/range)*(H-P*2)).toFixed(1)}" r="5"></circle>` : ''}
       </svg>
-      <div class="telemetry-legend">${esc(label)} ao longo da janela. ${esc(ciText)}</div>
+      <div class="telemetry-legend">${esc(label)} ao longo da janela.${esc(ciText)}</div>
     </div>`;
 }
 
@@ -1252,63 +1295,74 @@ function animateGauge(gaugeId, valueId, target, maxValue, unit) {
   })(performance.now());
 }
 
+function fmtNum(v, dec = 1) {
+  return (v !== null && v !== undefined && isFinite(v)) ? Number(v).toFixed(dec) : '—';
+}
+
 function renderTelemetryResult(payload) {
   const cable     = (payload.details && payload.details.cable) || payload.cable || {};
   const telemetry = payload.telemetry || payload;
   const history   = Array.isArray(telemetry.history) ? telemetry.history : [];
+  const realAvg   = payload.real_avg || null;
+  const realHist  = (realAvg && Array.isArray(realAvg.history)) ? realAvg.history : [];
   const latP      = (telemetry.percentiles && telemetry.percentiles.latency_ms)      || {};
   const thrP      = (telemetry.percentiles && telemetry.percentiles.throughput_mbps) || {};
   const plP       = (telemetry.percentiles && telemetry.percentiles.packet_loss_pct) || {};
   const ci        = telemetry.confidence_interval_latency_ms;
 
-  // Cache for metric switching
+  // Cache for metric switching (includes real history)
   AppState.lastTelemetryHistory    = history;
   AppState.lastTelemetryCiLatency  = ci;
+  AppState.lastRealHistory         = realHist;
 
   window.__telemetryMetric = (metric, label) => {
     const chartDiv = document.getElementById('telemetry-chart-container');
-    if (chartDiv) chartDiv.innerHTML = renderTelemetryChart(AppState.lastTelemetryHistory, AppState.lastTelemetryCiLatency, metric, label);
+    if (chartDiv) chartDiv.innerHTML = renderTelemetryChart(
+      AppState.lastTelemetryHistory, AppState.lastTelemetryCiLatency, metric, label, AppState.lastRealHistory
+    );
   };
 
-  const chartHtml = renderTelemetryChart(history, ci);
+  const chartHtml = renderTelemetryChart(history, ci, 'latency_ms', 'Latência (ms)', realHist);
+
+  // Real-data card HTML (shown only when history files have data)
+  const realCardHtml = realAvg && realAvg.sample_count > 0 ? `
+    <div class="subhead real-subhead" style="margin-top:16px;">
+      Média Real · TCP Probe
+      <span class="real-badge">${realAvg.sample_count} amostras</span>
+    </div>
+    <div class="real-avg-grid">
+      <div class="real-avg-card">
+        <div class="rac-label">Latência</div>
+        <div class="rac-value lat">${fmtNum(realAvg.avg_latency_ms)} <span>ms</span></div>
+      </div>
+      <div class="real-avg-card">
+        <div class="rac-label">Jitter</div>
+        <div class="rac-value jit">${fmtNum(realAvg.avg_jitter_ms)} <span>ms</span></div>
+      </div>
+      <div class="real-avg-card">
+        <div class="rac-label">Perda</div>
+        <div class="rac-value loss">${fmtNum(realAvg.avg_packet_loss_pct, 3)} <span>%</span></div>
+      </div>
+      <div class="real-avg-card">
+        <div class="rac-label">Throughput</div>
+        <div class="rac-value thr">${fmtNum(realAvg.avg_throughput_mbps, 1)} <span>Mbps</span></div>
+      </div>
+      <div class="real-avg-card">
+        <div class="rac-label">Disponib.</div>
+        <div class="rac-value avail">${fmtNum(realAvg.avg_availability_pct, 2)} <span>%</span></div>
+      </div>
+      <div class="real-avg-card">
+        <div class="rac-label">Qualidade</div>
+        <div class="rac-value qual">${fmtNum(realAvg.quality_score, 1)} <span>/ 100</span></div>
+      </div>
+    </div>` : '';
 
   const resultEl = document.getElementById('telemetry-result');
   if (!resultEl) return;
 
   resultEl.innerHTML = `
     <h3>Telemetria · ${esc(cable.cable_name || 'Cabo')}</h3>
-    <div class="detail-summary" style="margin-bottom:12px;">
-      <div class="summary-card"><div class="k">janela</div><div class="v">${esc(telemetry.window_start)}</div></div>
-      <div class="summary-card"><div class="k">qualidade</div><div class="v">${esc(telemetry.data_quality_score)} / 100</div></div>
-      <div class="summary-card"><div class="k">origem</div><div class="v">${esc(telemetry.source)}</div></div>
-      <div class="summary-card"><div class="k">amostras</div><div class="v">${esc(telemetry.sample_size || history.length)}</div></div>
-    </div>
-    <div class="telemetry-grid">
-      <div class="gauge">
-        <svg viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
-          <circle id="gauge-latency" cx="60" cy="60" r="48" fill="none" stroke="#58a6ff" stroke-width="10" transform="rotate(-90 60 60)"></circle>
-        </svg>
-        <div class="value" id="value-latency">0 ms</div>
-        <div class="label">latência</div>
-      </div>
-      <div class="gauge">
-        <svg viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
-          <circle id="gauge-pps" cx="60" cy="60" r="48" fill="none" stroke="#3fb950" stroke-width="10" transform="rotate(-90 60 60)"></circle>
-        </svg>
-        <div class="value" id="value-pps">0 pps</div>
-        <div class="label">pacotes/s</div>
-      </div>
-      <div class="gauge">
-        <svg viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="48" fill="none" stroke="#30363d" stroke-width="10"></circle>
-          <circle id="gauge-machines" cx="60" cy="60" r="48" fill="none" stroke="#f2cc60" stroke-width="10" transform="rotate(-90 60 60)"></circle>
-        </svg>
-        <div class="value" id="value-machines">0 maq</div>
-        <div class="label">máquinas est.</div>
-      </div>
-    </div>
+    ${realCardHtml}
     <div class="subhead" style="margin-top:16px;">Série Temporal</div>
     <div id="telemetry-chart-container">${chartHtml}</div>
     <div class="subhead" style="margin-top:16px;">Percentis (Baseline)</div>
@@ -1323,35 +1377,9 @@ function renderTelemetryResult(payload) {
       </table>
     </div>`;
 
-  animateGauge('gauge-latency',  'value-latency',  telemetry.latency_ms,                   250,     'ms');
-  animateGauge('gauge-pps',      'value-pps',       telemetry.packets_per_second,            3000000, 'pps');
-  animateGauge('gauge-machines', 'value-machines',  telemetry.connected_machines_estimate,   1200000, 'maq');
 }
 
-function initTelemetryPage() {
-  const btn       = document.getElementById('btn-telemetry');
-  const errEl     = document.getElementById('telemetry-error');
-  const resultEl  = document.getElementById('telemetry-result');
-
-  if (!btn) return;
-  btn.addEventListener('click', async () => {
-    clearEl(errEl);
-    const cableId = (document.getElementById('telemetry-cable') || {}).value
-      ? document.getElementById('telemetry-cable').value.trim()
-      : '';
-    const hours   = parseInt(
-      (document.getElementById('telemetry-hours') || {}).value || '24', 10
-    ) || 24;
-
-    if (!cableId) { showError(errEl, 'Selecione um cabo.'); return; }
-    try {
-      const payload = await apiFetch({ action: 'telemetry', cable_id: cableId, hours });
-      renderTelemetryResult(payload);
-    } catch (err) {
-      showError(errEl, err.message);
-    }
-  });
-}
+function initTelemetryPage() { /* merged into initProbePage */ }
 
 // ─── Probe page ───────────────────────────────────────────────────────────────
 
@@ -1775,58 +1803,122 @@ async function loadProbeEndpoints(cableId) {
 }
 
 function initProbePage() {
-  const cableSel    = document.getElementById('probe-cable');
-  const endpointSel = document.getElementById('probe-endpoint-select');
-  const ipInput     = document.getElementById('probe-ip');
-  const fullScan    = document.getElementById('probe-full-scan');
-  const btn         = document.getElementById('btn-probe');
+  const cableInput  = document.getElementById('probe-cable-input');
+  const cableList   = document.getElementById('probe-cable-list');
+  const modeHistory = document.getElementById('probe-mode-history');
+  const modeRT      = document.getElementById('probe-mode-realtime');
+  const windowWrap  = document.getElementById('probe-window-wrap');
+  const hoursEl     = document.getElementById('telemetry-hours');
+  const btnTel      = document.getElementById('btn-telemetry');
   const errEl       = document.getElementById('probe-error');
   const resultEl    = document.getElementById('probe-result');
+  const telResultEl = document.getElementById('telemetry-result');
 
-  if (cableSel) {
-    cableSel.addEventListener('change', () => loadProbeEndpoints(cableSel.value));
+  function setLegend(janela, qualidade, origem, amostras) {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    set('legend-janela',    janela);
+    set('legend-qualidade', qualidade);
+    set('legend-origem',    origem);
+    set('legend-amostras',  amostras);
   }
 
-  if (endpointSel) {
-    endpointSel.addEventListener('change', () => {
-      const opt = endpointSel.options[endpointSel.selectedIndex];
-      if (opt && ipInput) ipInput.value = opt.dataset.ip || '';
+  function resetContent(placeholder) {
+    clearEl(errEl);
+    if (telResultEl) telResultEl.innerHTML = '';
+    if (resultEl) { resultEl.textContent = placeholder; resultEl.style.display = ''; }
+  }
+
+  function applyMode() {
+    const isHistory = modeHistory && modeHistory.checked;
+    if (windowWrap) windowWrap.style.display = isHistory ? '' : 'none';
+  }
+
+  function populateCableList() {
+    if (!cableList || !AppState.allCables || !AppState.allCables.length) return;
+    cableList.innerHTML = AppState.allCables
+      .map(c => `<option value="${esc(c.cable_id)}">${esc(c.cable_name || c.cable_id)}</option>`)
+      .join('');
+  }
+
+  function tryPopulate() {
+    if (AppState.allCables && AppState.allCables.length) populateCableList();
+    else setTimeout(tryPopulate, 600);
+  }
+  tryPopulate();
+
+  applyMode();
+
+  // ── Mode switch ────────────────────────────────────────────────────────
+  if (modeHistory) {
+    modeHistory.addEventListener('change', () => {
+      applyMode();
+      resetContent('Clique em Carregar para ver o histórico de janela.');
+      setLegend('—', '—', '—', '—');
     });
   }
 
-  if (btn) {
-    btn.addEventListener('click', async () => {
+  if (modeRT) {
+    modeRT.addEventListener('change', () => {
+      applyMode();
+      const cableId = cableInput ? cableInput.value.trim() : '';
+      if (!cableId) {
+        showError(errEl, 'Digite o nome ou ID do cabo primeiro.');
+        if (modeHistory) { modeHistory.checked = true; applyMode(); }
+        return;
+      }
+      resetContent('');
+      setLegend('Tempo real · 60 s', '—', cableId, '—');
+      startProbeRealtime({ cable_id: cableId, cable_name: cableId }, {});
+    });
+  }
+
+  // ── Carregar histórico ─────────────────────────────────────────────────
+  if (btnTel) {
+    btnTel.addEventListener('click', async () => {
       clearEl(errEl);
-      const cableId    = cableSel    ? cableSel.value.trim()    : '';
-      const endpointId = endpointSel ? endpointSel.value.trim() : '';
-      const ip         = ipInput     ? ipInput.value.trim()     : '';
-      const full       = fullScan    ? (fullScan.checked ? '1' : '0') : '0';
+      const cableId = cableInput ? cableInput.value.trim() : '';
+      const hours   = parseInt((hoursEl || {}).value || '24', 10) || 24;
+      if (!cableId) { showError(errEl, 'Digite o nome ou ID do cabo.'); return; }
 
-      if (!cableId) { showError(errEl, 'Selecione um cabo.'); return; }
-
-      btn.disabled    = true;
-      btn.textContent = 'Sondando…';
-
+      btnTel.disabled    = true;
+      btnTel.textContent = 'Carregando…';
       try {
-        const fd = new FormData();
-        fd.append('action',      'probe');
-        fd.append('cable_id',    cableId);
-        fd.append('endpoint_id', endpointId);
-        fd.append('ip',          ip);
-        fd.append('full',        full);
-        const payload = await apiPost(fd);
-        const html    = renderProbeResult(payload);
+        const payload  = await apiFetch({ action: 'telemetry', cable_id: cableId, hours });
+        const tel      = payload.telemetry || payload;
+        const realAvg  = payload.real_avg || null;
+        const hasReal  = realAvg && realAvg.sample_count > 0;
 
-        // Show in inline result area
-        if (resultEl) resultEl.innerHTML = html;
+        // Legend prefers real TCP probe data; falls back to DB/synthetic
+        if (hasReal) {
+          const wStart = realAvg.window_start
+            ? new Date(realAvg.window_start).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+            : `${hours} h`;
+          setLegend(
+            wStart,
+            realAvg.quality_score != null ? `${realAvg.quality_score} / 100` : '—',
+            'TCP Probe',
+            realAvg.sample_count
+          );
+        } else {
+          const hist = Array.isArray(tel.history) ? tel.history : [];
+          const windowLabel = tel.window_start
+            ? new Date(tel.window_start).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+            : `${hours} h`;
+          setLegend(
+            windowLabel,
+            tel.data_quality_score != null ? `${tel.data_quality_score} / 100` : '—',
+            tel.source || '—',
+            tel.sample_size ?? hist.length
+          );
+        }
 
-        // Also show in floating modal
-        ProbeModal.show('Resultado da Sonda — ' + cableId, html);
+        if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
+        if (telResultEl) { telResultEl.innerHTML = ''; renderTelemetryResult(payload); }
       } catch (err) {
         showError(errEl, err.message);
       } finally {
-        btn.disabled    = false;
-        btn.textContent = 'Iniciar Sonda';
+        btnTel.disabled    = false;
+        btnTel.textContent = 'Carregar';
       }
     });
   }

@@ -9,10 +9,11 @@ Plataforma de análise e monitoramento de cabos submarinos de fibra ótica com t
 ```
 RMIFO/
 ├── README.md
-├── .gitignore
-├── data/                              ← datasets e logs de runtime (gitignored)
+├── data/
 │   ├── external/                      ← CSVs e JSONs de cabos e GeoIP
-│   └── local/log/                     ← histórico de sondas e telemetria
+│   └── local/
+│       ├── history/                   ← Histórico de probes TCP reais (JSON)
+│       └── log/                       ← Logs de runtime
 │
 └── global-network-resilience/
     ├── web/                           ← Interface web (PHP + HTML + JS)
@@ -25,25 +26,25 @@ RMIFO/
     ├── terminal/                      ← Aplicação CLI em C
     │   ├── Makefile
     │   └── src/
-    │       ├── rmifo.c                ← entry point e menu principal
-    │       ├── db.c / db.h            ← conexão libpq
-    │       ├── display.c / display.h  ← ANSI, tabelas, sparklines
-    │       ├── search.c / search.h    ← 9 modos de busca + busca binária
-    │       ├── routes.c / routes.h    ← DFS rotas, BFS cortes críticos
-    │       ├── telemetry.c / .h       ← sparklines de telemetria e alertas
-    │       └── probe.c / probe.h      ← TCP/ICMP/HTTP/UDP-DNS + JSONL
+    │       ├── rmifo.c
+    │       ├── db.c / db.h
+    │       ├── display.c / display.h
+    │       ├── search.c / search.h
+    │       ├── routes.c / routes.h
+    │       ├── telemetry.c / .h
+    │       └── probe.c / probe.h
     │
     ├── dashboard/                     ← Dashboard gráfico Python
     │   ├── dashboard.py
     │   ├── requirements.txt
-    │   └── build.sh                   ← PyInstaller cross-platform
+    │   └── build.sh
     │
-    ├── db/                            ← Banco de dados
-    │   ├── schema.sql                 ← schema PostgreSQL
-    │   ├── seed.sql                   ← 15 cabos reais + telemetria + alertas
-    │   └── setup.sh                   ← setup completo em um comando
+    ├── db/
+    │   ├── schema.sql
+    │   ├── seed.sql
+    │   └── setup.sh
     │
-    └── scripts/                       ← Scripts operacionais
+    └── scripts/
         ├── install_postgres_ubuntu.sh
         ├── start_local_postgres.sh
         ├── start_web.sh
@@ -61,14 +62,54 @@ RMIFO/
 ## Funcionalidades
 
 ### Interface Web — `web/`
-- Busca por cable_id com demonstração visual de busca binária
-- Filtros por nome, owners, ano, status operacional, endpoints e país
-- Detalhes do cabo com metadata, endpoints e amostras de IP
-- Sonda de rede multi-protocolo: TCP → ICMP → HTTP → UDP/DNS
-- Modo sonda completa: 5 portas, 5 amostras, jitter e throughput
-- Histórico de sondas em `data/local/log/probe/YYYY-MM-DD.jsonl`
-- Telemetria com sparklines e estatísticas p50/p95/p99
-- Alertas ativos de telemetria
+
+#### Mapa Global
+- Globo 3D interativo com todos os 699 cabos submarinos e seus landing points
+- Cores por status: verde (operacional) · amarelo (alerta) · roxo (TCP probe real) · vermelho (inativo)
+- Painel lateral ao clicar em endpoint: metadata, botão "Sondar" e "Ver Detalhes"
+- Legenda com indicador de cables com dados TCP reais de probe
+
+#### Busca de Cabos
+- 9 modos de busca: ID, Nome, Proprietário, Fornecedor, Ano, Status, Landing Point, Endpoint, País
+- Visualização animada de busca binária (modo ID): passos anterior/próximo/reproduzir/reiniciar
+- Tabela de resultados filtra apenas cabos com dados semelhantes ao termo buscado
+- Destaque visual das etapas da busca binária no ID exato no array completo
+
+#### Detalhes do Cabo
+- Metadata completa: nome, comprimento, capacidade, proprietários, fornecedores, ano, tipo
+- Lista de endpoints com país, cidade e IP sondável
+- Navegação via datalist com autocomplete
+
+#### Top 3 Rotas
+- Selecione país de origem e destino
+- Calcula as 3 melhores rotas via grafo de cabos operacionais
+- Exibe sequência de cabos, score de resiliência e hop count
+
+#### Risco de Endpoints
+- Selecione um país para mapear endpoints de risco
+- Calcula grau de conectividade (cabos), alcance de países e score de risco
+- Classifica congestionamento: alto · médio · baixo
+
+#### Cortes Críticos
+- Selecione par de países para análise de isolamento
+- Identifica quais cabos, se cortados, isolam completamente a conectividade entre os países
+- Ranking por criticidade e número de rotas afetadas
+
+#### Sonda & Telemetria (página unificada)
+- **Input de cabo**: campo de texto com autocomplete por nome ou ID
+- **Seletor de modo**:
+  - **Histórico de Janela** — selecione janela de 6 h / 24 h / 3 d / 7 d / 30 d
+  - **Monitoramento em Tempo Real** — dashboard ao vivo com 60 segundos de histórico
+- **Barra de legenda**: Janela · Qualidade · Origem · Amostras — atualiza com dados reais quando disponíveis
+- **Dados Reais (TCP Probe)**: lê arquivos `data/local/history/` e exibe:
+  - Média de latência, jitter, perda de pacotes, throughput, disponibilidade, qualidade
+  - Atualiza automaticamente Janela/Qualidade/Origem/Amostras com valores reais
+  - Número exato de amostras TCP coletadas
+- **Gráfico com overlay**: série DB/sintética (linha tracejada roxa) + pontos reais TCP (linha sólida verde)
+- **Modo tempo real**: 4 gráficos 2D atualizando a cada 500 ms — Latência (EMA), Jitter, Perda, Interferência
+- **Alertas**: badge no header com contagem de alertas ativos; ticker de alertas na base da tela
+
+---
 
 ### Terminal C — `terminal/`
 - Menu principal com 6 módulos: Busca · Detalhes · Rotas · Sonda · Telemetria · Alertas
@@ -78,19 +119,54 @@ RMIFO/
 - Sonda multi-protocolo com fallback sintético e histórico JSONL
 - Sparklines ▁▂▃▄▅▆▇█ de latência, jitter, perda, throughput e disponibilidade
 
+---
+
 ### Dashboard Python — `dashboard/`
-- Janela gráfica nativa (Tkinter + matplotlib), funciona no VS Code e standalone
-- 5 painéis: Busca · Telemetria · Sonda · Rotas · Alertas
-- Gráficos ao vivo com auto-refresh a cada 30 segundos
-- Grafo interativo de países/cabos via NetworkX
-- Modo demo automático sem banco de dados
-- Executável cross-platform via PyInstaller
+
+Janela gráfica nativa (Tkinter + matplotlib), funciona no VS Code e standalone.
+
+#### Painel: Busca de Cabos
+- 9 modos de busca: nome, cabo_id, proprietário, fornecedor, ano, status, landing, endpoint, país
+- Tabela com coluna **TCP** indicando cabos com dados de probe real (`data/local/history/`)
+- Cabos com probe TCP real destacados em roxo na tabela
+- Duplo clique abre janela de detalhes: metadata + endpoints + IP sample
+
+#### Painel: Sonda & Telemetria (unificado)
+- Campo de texto para selecionar cabo por nome ou ID
+- Toggle de modo: **Histórico de Janela** | **Monitoramento em Tempo Real**
+- Barra de legenda: Janela · Qualidade · Origem · Amostras
+- **Dados Reais**: lê `data/local/history/*_probe_full_*.json` e `*_checkpoint_*.json`
+  - Calcula médias reais: latência, jitter, perda, throughput, disponibilidade, qualidade
+  - Cards visuais com valores médios por tipo de métrica (coloridos por tipo)
+- **Gráficos 2×2**: Latência · Jitter · Perda · Throughput — sobreposição de série DB (tracejada) + TCP real (sólida verde)
+- **Modo tempo real**: 4 gráficos atualizando a cada 500 ms com EMA na latência; métricas ao vivo em destaque
+
+#### Painel: Top 3 Rotas
+- Input de país de origem e destino
+- Busca cabos operacionais com landing points nos dois países
+- Exibe top 3 rotas com cable_id e nome
+
+#### Painel: Risco de Endpoints
+- Input de país
+- Calcula grau de conectividade, alcance e score de risco por endpoint
+- Tabela com classificação: alto (vermelho) · médio (amarelo) · baixo (verde)
+
+#### Painel: Cortes Críticos
+- Input de par de países
+- Identifica cabos críticos cuja remoção isolaria os países
+- Marcação visual de criticidade na tabela de saída
+
+#### Painel: Alertas
+- Lista de alertas ativos de telemetria com severidade, valor atual vs baseline e timestamp
+- Badge de alertas no cabeçalho da janela
+
+---
 
 ### Banco de Dados — `db/`
 - 699 cabos reais, 1.934 landing points, 7.077 amostras de IP sondáveis
-- 8.583 amostras horárias de telemetria (30 dias) + 7.210 rollups
+- Tabelas: `cable_telemetry_samples`, `telemetry_rollup_5m`, `telemetry_rollup_1h`
 - Vista `endpoints` para compatibilidade entre as interfaces
-- 4 alertas de teste ativos
+- Tabela `telemetry_alerts` com alertas ativos e histórico
 
 ---
 
@@ -98,11 +174,12 @@ RMIFO/
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend web | HTML5, CSS3, JavaScript (Vanilla) |
-| Backend web | PHP 8.4 com PDO PostgreSQL |
-| Terminal | C11, libpq, GCC, POSIX |
-| Dashboard | Python 3.12 · Tkinter · Matplotlib · NetworkX · psycopg2 |
+| Frontend web | HTML5 + CSS3 + JavaScript (Vanilla) + globe.gl + Plotly.js |
+| Backend web | PHP 8.3 com PDO PostgreSQL |
+| Terminal | C11 · libpq · GCC · POSIX |
+| Dashboard | Python 3.12 · Tkinter · Matplotlib · psycopg2 |
 | Banco | PostgreSQL 16 local (socket Unix, porta 55432) |
+| Histórico TCP | JSON em `data/local/history/` (probe_full + checkpoint) |
 
 ---
 
@@ -125,9 +202,19 @@ bash db/setup.sh
 
 ### Web
 ```bash
+WORKSPACE_ROOT=/workspaces/RMIFO \
+PG_SOCKET=/workspaces/RMIFO/.local/run \
+PG_PORT=55432 \
+php -d extension=/home/codespace/.php/usr/lib/php/20230831/pdo_pgsql.so \
+    -S 0.0.0.0:8080 \
+    -t /workspaces/RMIFO/global-network-resilience/web
+# Acesse: http://localhost:8080/
+```
+
+Ou via script:
+```bash
 cd global-network-resilience
 ./scripts/start_web.sh
-# Acesse: http://localhost:8080/
 ```
 
 ### Terminal C
@@ -140,7 +227,7 @@ make
 ### Dashboard Python
 ```bash
 pip install -r global-network-resilience/dashboard/requirements.txt
-python global-network-resilience/dashboard/dashboard.py
+WORKSPACE_ROOT=/workspaces/RMIFO python global-network-resilience/dashboard/dashboard.py
 ```
 
 ### Executável standalone (cross-platform)
@@ -166,7 +253,7 @@ bash db/setup.sh --reset   # apaga e recria do zero
   -d global_network_resilience
 ```
 
-### Variáveis de ambiente (todas as interfaces)
+### Variáveis de ambiente
 ```bash
 export WORKSPACE_ROOT=/workspaces/RMIFO
 export PG_SOCKET=/workspaces/RMIFO/.local/run
@@ -179,12 +266,59 @@ export PGUSER=postgres
 
 ## Pipeline de telemetria
 
+Os scripts em `scripts/` produzem e consomem dados em dois destinos:
+
+| Destino | Formato | Conteúdo |
+|---|---|---|
+| `data/local/history/` | JSON por execução | Registros brutos TCP por cabo (`probe_full`, `checkpoint`) |
+| PostgreSQL | Tabelas relacionais | Rollups 5 m e 1 h, alertas, amostras de referência |
+
 ```bash
+# Execução manual do pipeline completo
 cd global-network-resilience
-./scripts/run_daily_telemetry_tasks.sh   # execução manual
+./scripts/run_daily_telemetry_tasks.sh
+
+# Ingestão de amostras
+python scripts/ingest_telemetry_samples.py
+
+# Rollups
+python scripts/compute_telemetry_rollups.py
+
+# Validação de baseline e geração de alertas
+python scripts/validate_telemetry_baseline.py
 
 # Cron diário às 03:15 UTC
-(crontab -l 2>/dev/null; echo "15 3 * * * cd /workspaces/RMIFO/global-network-resilience && ./scripts/run_daily_telemetry_tasks.sh >> /workspaces/RMIFO/data/local/log/telemetry_cron.log 2>&1") | crontab -
+(crontab -l 2>/dev/null; \
+ echo "15 3 * * * cd /workspaces/RMIFO/global-network-resilience && \
+   ./scripts/run_daily_telemetry_tasks.sh \
+   >> /workspaces/RMIFO/data/local/log/telemetry_cron.log 2>&1") | crontab -
+```
+
+---
+
+## Arquivos de histórico TCP (`data/local/history/`)
+
+Gerados pelos scripts de sonda e ingestão, consumidos pela interface web e pelo dashboard para exibir **médias de dados reais**:
+
+| Padrão de nome | Conteúdo |
+|---|---|
+| `YYYY-MM-DD_probe_full_HHMMSS.json` | Probe completo de todos os 699 cabos |
+| `YYYY-MM-DD_checkpoint_NNNN_HHMMSS.json` | Checkpoint incremental (50 cabos) |
+| `YYYY-MM-DD_rollup_HHMMSS.json` | Resumo agregado por cabo |
+
+Campos por registro:
+```json
+{
+  "cable_id": "2africa",
+  "measured_at": "2026-05-16T01:26:00+00:00",
+  "latency_ms": 102.2,
+  "jitter_ms": 15.651,
+  "packet_loss_pct": 0.293,
+  "throughput_mbps": 150892703.272,
+  "availability_pct": 99.949,
+  "source": "active_tcp_connect",
+  "confidence_score": 0.95
+}
 ```
 
 ---
@@ -194,11 +328,11 @@ cd global-network-resilience
 | Tipo | Local |
 |---|---|
 | Interface web (HTML, PHP, JS, CSS) | `global-network-resilience/web/` |
-| Fontes C e headers | `global-network-resilience/terminal/src/` |
+| Fontes C e headers | `global-network-resilience/terminal/` |
 | Dashboard Python | `global-network-resilience/dashboard/` |
 | Schema e seed SQL | `global-network-resilience/db/` |
 | Scripts operacionais | `global-network-resilience/scripts/` |
 | Datasets externos | `data/external/` (gitignored) |
-| Logs e runtime | `data/local/` (gitignored) |
+| Histórico TCP real | `data/local/history/` (gitignored) |
+| Logs e runtime | `data/local/log/` (gitignored) |
 | PostgreSQL local | `.local/` (gitignored) |
-| Documentação | `README.md` (raiz do workspace) |
