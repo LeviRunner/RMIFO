@@ -23,7 +23,7 @@ global-network-resilience/.local/
 data/local/
 
 # ── Dados externos volumosos (GeoIP, datasets) ────────────────────────────────
-data/external/
+data/external/geoip_database.csv
 
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
