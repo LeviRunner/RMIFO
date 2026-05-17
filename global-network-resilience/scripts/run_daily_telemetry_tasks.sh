@@ -3,8 +3,11 @@ set -euo pipefail
 
 # run_daily_telemetry_tasks.sh — Orquestra a saúde da rede
 
-WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-BASE_DIR="${WORKSPACE_ROOT}/global-network-resilience"
+# Detecta BASE_DIR a partir da localização do próprio script (Railway + local)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="${BASE_DIR:-$(dirname "$SCRIPT_DIR")}"
+# WORKSPACE_ROOT para os scripts Python que usam parent.parent.parent de __file__
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(dirname "$BASE_DIR")}"
 PYTHON_BIN="${WORKSPACE_ROOT}/.venv/bin/python"
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then

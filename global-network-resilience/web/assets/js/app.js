@@ -2015,7 +2015,12 @@ function initDailyPage() {
       updateBadge(data.status);
       if (data.progress) updateProgress(data.progress);
       if (data.summary)  setStats(data.summary, data.progress);
-      if (data.status === 'running' || data.status === 'already_running') {
+      if (data.status === 'starting') {
+        // script iniciou mas ainda não escreveu nenhuma linha de progresso
+        if (progressLbl) progressLbl.textContent = 'Iniciando script…';
+        pollTimer = setTimeout(poll, 4000);
+      } else if (data.status === 'running' || data.status === 'already_running') {
+        if (!data.progress && progressLbl) progressLbl.textContent = 'Aguardando primeiro cabo…';
         pollTimer = setTimeout(poll, 3000);
       } else if (data.status === 'completed') {
         // completed — clear probe highlight
@@ -2140,16 +2145,26 @@ function initHistoryPage() {
     summaryEl.style.display = '';
   }
 
-  // Load available dates when page opens
-  document.querySelector('[data-page="history"]')?.addEventListener('click', async () => {
-    if (dateSelect && dateSelect.options.length <= 1) {
-      try {
-        const data = await apiFetch({ action: 'history_list' });
-        const dates = data.dates || [];
-        dateSelect.innerHTML = '<option value="">— Selecione uma data —</option>'
-          + dates.map(d => `<option value="${esc(d.date)}">${esc(d.date)} (${d.run_count} execução${d.run_count > 1 ? 'ões' : ''})</option>`).join('');
-      } catch { /* silent */ }
+  async function loadHistoryDates() {
+    if (!dateSelect) return;
+    try {
+      const data  = await apiFetch({ action: 'history_list' });
+      const dates = data.dates || [];
+      if (dates.length === 0) {
+        dateSelect.innerHTML = '<option value="">Nenhum histórico encontrado</option>';
+        if (errEl) { errEl.textContent = 'Nenhuma execução encontrada em data/local/historico/. Execute a Sonda Diária primeiro.'; errEl.style.display = ''; }
+        return;
+      }
+      dateSelect.innerHTML = '<option value="">— Selecione uma data —</option>'
+        + dates.map(d => `<option value="${esc(d.date)}">${esc(d.date)} (${d.run_count} execução${d.run_count > 1 ? 'ões' : ''})</option>`).join('');
+    } catch (err) {
+      if (errEl) { errEl.textContent = 'Erro ao carregar datas: ' + err.message; errEl.style.display = ''; }
     }
+  }
+
+  // Carrega datas ao abrir a página (nav click)
+  document.querySelector('[data-page="history"]')?.addEventListener('click', () => {
+    if (dateSelect && dateSelect.options.length <= 1) loadHistoryDates();
   });
 
   if (filterCable) filterCable.addEventListener('input', applyFilters);
