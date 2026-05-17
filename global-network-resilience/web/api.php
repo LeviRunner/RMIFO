@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-$workspaceRoot = getenv('WORKSPACE_ROOT') ?: dirname(__DIR__, 3);
-$pgSocket = getenv('PG_SOCKET') ?: $workspaceRoot . '/.local/run';
-$pgPort = (int) (getenv('PG_PORT') ?: 55432);
-$pgDbname = 'global_network_resilience';
-$pgUser = 'postgres';
+$workspaceRoot = getenv('WORKSPACE_ROOT') ?: '/tmp';
+$pgSocket = getenv('PGHOST')     ?: getenv('PG_SOCKET') ?: 'localhost';
+$pgPort   = (int) (getenv('PGPORT')     ?: getenv('PG_PORT')   ?: 5432);
+$pgDbname = getenv('PGDATABASE') ?: 'global_network_resilience';
+$pgUser   = getenv('PGUSER')     ?: 'postgres';
+$pgPass   = getenv('PGPASSWORD') ?: '';
 
 // Evita warnings/notices em HTML antes do JSON da API.
 ini_set('display_errors', '0');
@@ -16,10 +17,10 @@ set_error_handler(static function (int $severity, string $message, string $file,
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
-function getDb(string $socket, int $port, string $dbname, string $user): PDO
+function getDb(string $host, int $port, string $dbname, string $user, string $pass = ''): PDO
 {
-    $dsn = "pgsql:host={$socket};port={$port};dbname={$dbname}";
-    return new PDO($dsn, $user, '', [
+    $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
+    return new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
@@ -1084,7 +1085,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             throw new RuntimeException('Extensão pdo_pgsql não está carregada.');
         }
 
-        $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser);
+        $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
         $req  = array_merge($_GET, $_POST);
         $mode = (string) ($req['mode'] ?? $req['action'] ?? 'all');
         if ($mode === 'search' && isset($req['mode'])) {
