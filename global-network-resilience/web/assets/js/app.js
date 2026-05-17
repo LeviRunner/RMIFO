@@ -528,10 +528,6 @@ function initGlobe() {
       const alertIds  = new Set(paths.filter(p => p.has_alert).map(p => p.cable_id));
       updateAlertBadge(alertIds.size);
 
-      // Alert ticker — one entry per unique alert cable
-      const seen = new Set();
-      const alertCables = paths.filter(p => p.has_alert && !seen.has(p.cable_id) && seen.add(p.cable_id));
-      updateAlertTicker(alertCables);
     })
     .catch(err => {
       if (globeTip) globeTip.textContent = `Erro ao carregar dados do globo: ${err.message}`;
@@ -543,20 +539,6 @@ function updateAlertBadge(count) {
   if (!badge) return;
   badge.textContent = count;
   badge.style.display = count > 0 ? '' : 'none';
-}
-
-function updateAlertTicker(alertCables) {
-  const ticker = document.getElementById('alert-ticker');
-  if (!ticker) return;
-  if (!alertCables.length) {
-    ticker.classList.remove('active');
-    return;
-  }
-  const content = alertCables
-    .map(a => a.cable_name)
-    .join('   |   ');
-  ticker.textContent = content;
-  ticker.classList.add('active');
 }
 
 // Selection panel buttons

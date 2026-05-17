@@ -1440,39 +1440,6 @@ select {
   padding: 4px 10px;
 }
 
-.alert-ticker {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 80;
-  display: none;
-  padding: 8px 20px;
-  background: rgba(240, 178, 79, 0.12);
-  border-top: 1px solid rgba(240, 178, 79, 0.45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.alert-ticker.active {
-  display: block;
-}
-
-.alert-ticker-inner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  overflow: hidden;
-}
-
-.alert-ticker-text {
-  font-size: 12px;
-  color: var(--warn);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .error {
   display: none;
   padding: 10px 14px;
