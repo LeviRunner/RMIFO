@@ -2136,59 +2136,88 @@ tr.bs-found {
   animation: fade-in-up 0.3s ease both;
 }
 
+/* ── Tablet / landscape mobile (≤ 900 px) ────────────────────────────────── */
 @media (max-width: 900px) {
-  .routes-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .probe-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .probe-top-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .probe-mode-wrap {
-    justify-content: center;
-  }
-
-  .probe-legend-bar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 14px;
-  }
-
-  .probe-legend-item {
-    min-width: 80px;
-  }
-
-  .probe-legend-divider {
-    display: none;
-  }
+  .routes-grid       { grid-template-columns: repeat(2, 1fr); }
+  .probe-layout      { grid-template-columns: 1fr; }
+  .probe-top-bar     { flex-direction: column; align-items: stretch; }
+  .probe-mode-wrap   { justify-content: flex-start; flex-wrap: wrap; }
+  .probe-legend-bar  { flex-wrap: wrap; gap: 8px; padding: 10px 14px; }
+  .probe-legend-item { min-width: 80px; }
+  .probe-legend-divider { display: none; }
 }
 
+/* ── Portrait mobile (≤ 640 px) ──────────────────────────────────────────── */
 @media (max-width: 640px) {
+
+  /* Variável de cabeçalho menor */
+  :root { --header-h: 48px; }
+
+  /* Header */
+  #app-header    { padding: 0 12px; }
+  .header-logo   { font-size: 14px; }
+  .header-center { font-size: 13px; }
+
+  /* Página interna */
   .page-inner {
-    padding: 12px 12px 80px;
+    padding: 12px 10px 24px;
+    gap: 12px;
   }
 
-  .routes-grid {
-    grid-template-columns: 1fr;
-  }
+  /* Botões */
+  .btn { padding: 9px 14px; font-size: 13px; }
+  .btn.primary.fn-action { width: 100%; justify-content: center; }
 
-  .detail-summary {
-    grid-template-columns: 1fr 1fr;
+  /* ── Tabelas: min-width força scroll horizontal sem quebrar texto ───── */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  .table-wrap table { min-width: 520px; }
 
-  .globe-legend {
-    gap: 8px;
+  thead th {
+    padding: 8px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  td, th {
     padding: 8px 10px;
     font-size: 12px;
-    flex-wrap: wrap;
+    white-space: nowrap;
   }
+  /* Células de texto longo (notas, nomes) podem quebrar */
+  td.wrap, th.wrap { white-space: normal; }
 
+  /* ── Busca ──────────────────────────────────────────────────────────── */
+  .search-bar { flex-wrap: wrap; }
+  .search-bar input { min-width: 0; flex: 1 1 60%; }
+  .search-bar .btn  { flex: 1; }
+  .mode-tabs  { gap: 4px; }
+  .mode-btn   { padding: 5px 9px; font-size: 11px; }
+  .mode-meta  { display: none; }
+
+  /* Busca binária: controles abaixo do texto */
+  .binary-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .binary-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .binary-controls .btn { flex: 1; min-width: 70px; font-size: 12px; }
+  .binary-step  { font-size: 12px; min-width: 0; }
+  .binary-log   { font-size: 11px; max-height: 130px; }
+
+  /* ── Detalhes ───────────────────────────────────────────────────────── */
+  .detail-summary    { grid-template-columns: 1fr 1fr; }
+  .page-toolbar      { flex-direction: column; }
+  .page-toolbar input { width: 100%; }
+  .page-toolbar .btn  { width: 100%; justify-content: center; }
+
+  /* ── Painel de seleção do globo (bottom sheet) ──────────────────────── */
   .selection-panel {
     width: 100%;
     top: auto;
@@ -2201,324 +2230,81 @@ tr.bs-found {
     transform: translateY(100%);
     transition: transform 0.28s cubic-bezier(0.22, 0.78, 0.22, 1);
   }
+  .selection-panel.open { transform: translateY(0); }
+  .sel-header { padding: 10px 12px; }
+  .sel-title  { font-size: 13px; }
 
-  .selection-panel.open {
-    transform: translateY(0);
-  }
-
-  #app-header {
-    padding: 0 12px;
-  }
-
-  .header-logo {
-    font-size: 14px;
-  }
-
-  .modal-box {
-    width: 96vw;
-    max-height: 90vh;
-  }
-
-  /* Tabelas: scroll horizontal sem quebrar células */
-  .table-wrap {
-    -webkit-overflow-scrolling: touch;
-  }
-
-  td, th {
-    font-size: 12px;
-    padding: 8px 10px;
-  }
-
-  /* RT gauge sidebar → horizontal no topo */
-  .rt-main {
-    flex-direction: column;
-  }
-
-  .rt-rings {
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-around;
-    padding: 10px 6px;
-  }
-
-  .rt-ring-divider { display: none; }
-
-  .rt-ring-wrap,
-  .rt-ring-svg {
-    width: 76px;
-    height: 76px;
-  }
-
-  .real-avg-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   MOBILE — smartphones (≤ 480 px)
-   ═══════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 480px) {
-
-  /* ── Layout geral ─────────────────────────────────────────────────────── */
-  .page-inner {
-    padding: 10px 10px 80px;
-    gap: 12px;
-  }
-
-  #app-header {
-    padding: 0 10px;
-    height: 48px;
-  }
-
-  .header-logo { font-size: 13px; }
-
-  .header-title {
-    font-size: 13px;
-    letter-spacing: 0.02em;
-  }
-
-  /* ── Botões gerais ────────────────────────────────────────────────────── */
-  .btn {
-    padding: 9px 14px;
-    font-size: 13px;
-  }
-
-  .btn-primary,
-  .btn-danger {
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* ── Barra de busca + chips de modo ──────────────────────────────────── */
-  .search-bar {
-    flex-wrap: wrap;
-  }
-
-  .search-bar .btn {
-    flex: 1;
-  }
-
-  .mode-tabs {
-    gap: 4px;
-  }
-
-  .mode-btn {
-    padding: 5px 9px;
-    font-size: 11px;
-  }
-
-  .mode-meta {
-    display: none;           /* oculta sub-rótulo "binária" nos chips */
-  }
-
-  /* ── Tabelas ─────────────────────────────────────────────────────────── */
-  .table-wrap {
-    -webkit-overflow-scrolling: touch;
-  }
-
-  thead th {
-    padding: 7px 8px;
-    font-size: 10px;
-    white-space: nowrap;
-  }
-
-  td, th {
-    padding: 7px 8px;
-    font-size: 12px;
-  }
-
-  /* Colunas de ação (botões) não encolhem */
-  td:first-child,
-  th:first-child {
-    white-space: nowrap;
-  }
-
-  /* ── Seção de resultado de busca ─────────────────────────────────────── */
-  .result-info {
-    font-size: 11px;
-  }
-
-  /* ── Visualização da busca binária ───────────────────────────────────── */
-  .binary-viz {
-    min-height: 100px;
-    font-size: 12px;
-  }
-
-  .binary-log {
-    font-size: 11px;
-    max-height: 140px;
-  }
-
-  .binary-step {
-    font-size: 11px;
-    padding: 4px 8px;
-  }
-
-  /* ── Cards / seções ──────────────────────────────────────────────────── */
-  .section-head {
-    font-size: 12px;
-  }
-
-  .detail-summary {
-    grid-template-columns: 1fr;
-  }
-
-  /* ── Dashboard RT (Sonda Tempo Real) ─────────────────────────────────── */
-  .rt-main {
-    flex-direction: column;   /* empilha gráficos + gauges */
-  }
-
-  .rt-cols {
-    flex-direction: column;   /* empilha as duas colunas de gráficos */
-    min-height: 300px;
-  }
-
-  .rt-col {
-    flex-direction: row;      /* coloca os dois gráficos da coluna lado a lado */
-    min-height: 120px;
-  }
-
-  /* Gauges viram linha horizontal na parte inferior */
-  .rt-rings {
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-around;
-    padding: 10px 6px;
-    gap: 0;
-  }
-
-  .rt-ring-panel {
-    flex: 0 0 auto;
-    gap: 2px;
-  }
-
-  .rt-ring-wrap,
-  .rt-ring-svg {
-    width: 68px;
-    height: 68px;
-  }
-
-  .rt-ring-value { font-size: 14px; }
-  .rt-ring-label { font-size: 9px; }
-  .rt-ring-divider { display: none; }
-
-  /* ── Telemetria histórica ────────────────────────────────────────────── */
-  .telemetry-chart-wrap {
-    height: 180px;
-  }
-
-  .tabs {
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-
-  .tab-btn {
-    padding: 5px 10px;
-    font-size: 11px;
-  }
-
-  /* Cabeçalho da seção de telemetria */
-  .tel-header {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .tel-legend-real {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  /* ── Rotas (Top 3) ───────────────────────────────────────────────────── */
-  .routes-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .route-card {
-    padding: 12px;
-  }
-
-  /* ── Risco de endpoints ──────────────────────────────────────────────── */
-  .risk-controls {
-    flex-direction: column;
-  }
-
-  /* ── Seleção no globo (painel lateral) ───────────────────────────────── */
-  .selection-panel {
-    width: 100%;
-    height: 50vh;
-  }
-
-  .sel-header {
-    padding: 10px 12px;
-  }
-
-  .sel-title { font-size: 13px; }
-
-  /* ── Legenda do globo ────────────────────────────────────────────────── */
+  /* ── Legenda do globo ───────────────────────────────────────────────── */
   .globe-legend {
-    padding: 6px 8px;
     gap: 6px;
-    font-size: 11px;
-    flex-wrap: wrap;
-  }
-
-  .legend-dot {
-    width: 8px;
-    height: 8px;
-  }
-
-  /* ── Modal ───────────────────────────────────────────────────────────── */
-  .modal-box {
-    width: 96vw;
-    padding: 16px 14px;
-    max-height: 88vh;
-  }
-
-  /* ── Probe top bar ───────────────────────────────────────────────────── */
-  .probe-top-bar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .probe-mode-wrap {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .probe-legend-bar {
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px;
-  }
-
-  .probe-legend-item {
-    min-width: 70px;
+    padding: 7px 10px;
     font-size: 11px;
   }
+  .leg-item { gap: 5px; }
 
+  /* ── Probe layout (Rotas, Risco, Cortes) ────────────────────────────── */
+  .probe-layout       { grid-template-columns: 1fr; gap: 10px; }
+  .probe-card         { padding: 14px; gap: 10px; }
+  .probe-result-area  { padding: 12px; }
+  .fn-name            { font-size: 14px; }
+
+  /* ── Probe legend bar ───────────────────────────────────────────────── */
+  .probe-legend-bar  { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+  .probe-legend-item { min-width: 60px; font-size: 11px; }
   .probe-legend-divider { display: none; }
 
-  /* ── Real-avg grid ───────────────────────────────────────────────────── */
-  .real-avg-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
+  /* ── RT dashboard ───────────────────────────────────────────────────── */
+  /* Gauges ficam em linha horizontal abaixo dos gráficos */
+  .rt-main  { flex-direction: column; gap: 8px; }
+  .rt-cols  { min-height: 260px; }
 
-  .real-avg-card {
-    padding: 8px 10px;
+  .rt-rings {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-evenly;
+    padding: 8px 4px;
+    gap: 0;
   }
+  .rt-ring-divider { display: none; }
+  .rt-ring-panel   { gap: 2px; }
+  .rt-ring-wrap,
+  .rt-ring-svg     { width: 72px; height: 72px; }
+  .rt-ring-value   { font-size: 14px; }
+  .rt-ring-label   { font-size: 9px; }
+  .rt-ring-pct     { font-size: 9px; }
 
-  .rac-value { font-size: 15px; }
+  /* ── Telemetria histórica ───────────────────────────────────────────── */
+  .telemetry-chart-wrap { height: 190px; }
+  .tabs    { gap: 4px; flex-wrap: wrap; }
+  .tab-btn { padding: 5px 10px; font-size: 11px; }
+  .tel-header { flex-wrap: wrap; gap: 6px; }
+  .tel-legend-real { margin-left: 0; }
+
+  /* Real-avg cards: 2 colunas */
+  .real-avg-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .real-avg-card { padding: 8px 10px; }
+  .rac-value     { font-size: 15px; }
+
+  /* ── Modal ──────────────────────────────────────────────────────────── */
+  .modal-box { width: 96vw; padding: 16px 14px; max-height: 88vh; }
+
+  /* ── Rotas ──────────────────────────────────────────────────────────── */
+  .routes-grid { grid-template-columns: 1fr; }
+  .route-card  { padding: 12px; }
+}
+
+/* ── Smartphones pequenos (≤ 400 px) ─────────────────────────────────────── */
+@media (max-width: 400px) {
+  .page-inner { padding: 10px 8px 20px; }
+
+  .mode-btn { padding: 4px 7px; font-size: 10px; }
+
+  .rt-ring-wrap,
+  .rt-ring-svg  { width: 58px; height: 58px; }
+  .rt-ring-value { font-size: 12px; }
+
+  .binary-controls .btn { font-size: 11px; padding: 6px 8px; }
+
+  thead th { font-size: 10px; padding: 6px 8px; }
+  td, th   { font-size: 11px; padding: 6px 8px; }
 }
