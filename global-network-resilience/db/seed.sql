@@ -253,6 +253,20 @@ CROSS JOIN generate_series(
 ) gs
 ON CONFLICT (cable_id, measured_at) DO NOTHING;
 
+-- ── Amostras TCP reais (marcam cabos como sondados ativamente → cor roxa) ────
+INSERT INTO cable_telemetry_samples
+    (cable_id, measured_at, latency_ms, jitter_ms, packet_loss_pct,
+     throughput_mbps, availability_pct, source, method, confidence_score, estimated)
+VALUES
+  ('marea',        NOW() - INTERVAL '1 hour',  51.2, 2.1, 0.01, 8400.0, 99.9, 'active_tcp_connect', 'tcp-syn-ack', 0.98, FALSE),
+  ('jupiter',      NOW() - INTERVAL '1 hour', 119.4, 5.3, 0.03, 5900.0, 99.8, 'active_tcp_connect', 'tcp-syn-ack', 0.97, FALSE),
+  ('2africa',      NOW() - INTERVAL '1 hour', 183.7, 8.2, 0.05, 3750.0, 99.7, 'active_tcp_connect', 'tcp-syn-ack', 0.96, FALSE),
+  ('equiano',      NOW() - INTERVAL '1 hour', 141.0, 6.1, 0.02, 4480.0, 99.8, 'active_tcp_connect', 'tcp-syn-ack', 0.97, FALSE),
+  ('asc',          NOW() - INTERVAL '1 hour',  76.3, 3.2, 0.01, 6750.0, 99.9, 'active_tcp_connect', 'tcp-syn-ack', 0.98, FALSE),
+  ('brusa',        NOW() - INTERVAL '2 hours', 67.8, 2.8, 0.02, 7180.0, 99.9, 'active_tcp_connect', 'tcp-syn-ack', 0.97, FALSE),
+  ('sea-me-we-4',  NOW() - INTERVAL '2 hours',166.2, 9.4, 0.08, 5100.0, 99.5, 'active_tcp_connect', 'tcp-syn-ack', 0.95, FALSE)
+ON CONFLICT (cable_id, measured_at) DO NOTHING;
+
 -- ── Rollup 1h (derivado das amostras) ────────────────────────────────────────
 INSERT INTO telemetry_rollup_1h
     (cable_id, bucket, avg_latency_ms, avg_jitter_ms, max_latency_ms,

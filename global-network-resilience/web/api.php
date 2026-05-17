@@ -1385,9 +1385,23 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     ];
                 }
 
-                // Load set of cable IDs with verified real TCP probe data from latest history
+                // Load set of cable IDs with verified real TCP probe data
+                // Source 1: DB (primary — works on Railway and locally with DB)
                 $tcpProbedIds = [];
-                $histDir = $workspaceRoot . '/data/local/history';
+                try {
+                    $tcpRows = $pdo->query("
+                        SELECT DISTINCT cable_id
+                        FROM cable_telemetry_samples
+                        WHERE source = 'active_tcp_connect'
+                          AND measured_at > NOW() - INTERVAL '72 hours'
+                    ")->fetchAll(PDO::FETCH_COLUMN);
+                    foreach ($tcpRows as $cid) {
+                        $tcpProbedIds[$cid] = true;
+                    }
+                } catch (\Throwable) {}
+
+                // Source 2: local JSON history files (fallback / offline)
+                $histDir = rtrim($workspaceRoot, '/') . '/data/local/history';
                 if (is_dir($histDir)) {
                     $probeFiles = array_merge(
                         glob($histDir . '/*_probe_full_*.json')       ?: [],

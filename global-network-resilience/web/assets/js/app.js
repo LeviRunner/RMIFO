@@ -501,10 +501,10 @@ function initGlobe() {
         .pathPointLng(p => p[1])
         .pathPointAlt(() => 0)          // altitude 0 = flush on globe surface
         .pathColor(pathColor)
-        .pathStroke(0.6)                // world-space width (~70 km at equator)
-        .pathDashLength(0.08)           // subtle animated dash
-        .pathDashGap(0.004)
-        .pathDashAnimateTime(4000)
+        .pathStroke(0.5)
+        .pathDashLength(1)              // solid line (no gaps)
+        .pathDashGap(0)
+        .pathDashAnimateTime(0)
         // ── Landing-point dots ─────────────────────────────────────────────
         .pointsData(pts)
         .pointLat('lat')
@@ -553,7 +553,7 @@ function updateAlertTicker(alertCables) {
     return;
   }
   const content = alertCables
-    .map(a => `${a.cable_name} · ${a.startCity} → ${a.endCity}`)
+    .map(a => a.cable_name)
     .join('   |   ');
   ticker.textContent = content;
   ticker.classList.add('active');
