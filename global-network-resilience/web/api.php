@@ -1120,22 +1120,6 @@ function buildTelemetryPayload(array $details, array $series, bool $fallbackUsed
 }
 
 if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || isset($_POST['action'])) {
-    // Endpoint de diagnóstico temporário — remover após confirmar conexão Railway
-    if (($_GET['action'] ?? '') === 'dbinfo') {
-        header('Content-Type: application/json');
-        echo json_encode([
-            'database_url_set' => !empty(getenv('DATABASE_URL')),
-            'pghost'           => getenv('PGHOST') ?: null,
-            'pgport'           => getenv('PGPORT') ?: null,
-            'pg_socket'        => getenv('PG_SOCKET') ?: null,
-            'pg_port'          => getenv('PG_PORT') ?: null,
-            'resolved_host'    => $pgSocket,
-            'resolved_port'    => $pgPort,
-            'resolved_db'      => $pgDbname,
-            'pdo_pgsql'        => extension_loaded('pdo_pgsql'),
-        ]);
-        exit;
-    }
 
     try {
         if (!extension_loaded('pdo_pgsql')) {
