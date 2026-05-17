@@ -165,10 +165,13 @@ def _real_history_from_json(cable_id: str, hours: int) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     records: list[dict] = []
 
-    files = sorted(
+    # Busca em MM/DD/ subdiretórios e na raiz (compatibilidade legada)
+    files = sorted(set(
         glob.glob(str(HIST_DIR / "*_probe_full_*.json")) +
-        glob.glob(str(HIST_DIR / "*_checkpoint_*.json"))
-    )
+        glob.glob(str(HIST_DIR / "*_checkpoint_*.json")) +
+        glob.glob(str(HIST_DIR / "*" / "*" / "*_probe_full_*.json")) +
+        glob.glob(str(HIST_DIR / "*" / "*" / "*_checkpoint_*.json"))
+    ))
 
     for fpath in files:
         fname = Path(fpath).name
@@ -275,7 +278,11 @@ def tcp_probed_cable_ids(conn=None) -> set[str]:
     ids: set[str] = set()
     if not HIST_DIR.is_dir():
         return ids
-    for fpath in glob.glob(str(HIST_DIR / "*_probe_full_*.json")):
+    probe_files = (
+        glob.glob(str(HIST_DIR / "*_probe_full_*.json")) +
+        glob.glob(str(HIST_DIR / "*" / "*" / "*_probe_full_*.json"))
+    )
+    for fpath in probe_files:
         try:
             with open(fpath, "r", encoding="utf-8") as f:
                 data = json.load(f)

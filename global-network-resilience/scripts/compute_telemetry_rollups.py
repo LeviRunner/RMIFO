@@ -18,7 +18,8 @@ def db_connect(base_dir: Path):
     )
 
 def save_rollup_history(base_dir: Path, conn, run_at: datetime) -> Path:
-    hist_dir = base_dir / "data" / "local" / "history"
+    hist_dir = (base_dir / "data" / "local" / "history"
+                / run_at.strftime("%m") / run_at.strftime("%d"))
     hist_dir.mkdir(parents=True, exist_ok=True)
     date_str = run_at.strftime("%Y-%m-%d")
     ts_str   = run_at.strftime("%H%M%S")

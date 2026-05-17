@@ -472,7 +472,8 @@ def upsert_reference(conn) -> None:
 # ---------------------------------------------------------------------------
 
 def save_history(base_dir: Path, measured_at: datetime, summary: dict, tag: str = "probe") -> Path:
-    hist_dir = base_dir / "data" / "local" / "history"
+    hist_dir = (base_dir / "data" / "local" / "history"
+                / measured_at.strftime("%m") / measured_at.strftime("%d"))
     hist_dir.mkdir(parents=True, exist_ok=True)
     date_str = measured_at.strftime("%Y-%m-%d")
     ts_str   = measured_at.strftime("%H%M%S")

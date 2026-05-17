@@ -900,10 +900,12 @@ function loadRealHistoryAvg(string $cableId, int $hours, string $workspaceRoot):
 
     $cutoff = time() - ($hours * 3600);
 
-    // Collect probe_full and checkpoint files (not rollup — those are pre-aggregated across all cables)
+    // Collect probe_full e checkpoint — raiz (legado) + MM/DD/ subdiretórios
     $files = array_merge(
-        glob($histDir . '/*_probe_full_*.json') ?: [],
-        glob($histDir . '/*_checkpoint_*.json') ?: []
+        glob($histDir . '/*_probe_full_*.json')        ?: [],
+        glob($histDir . '/*_checkpoint_*.json')        ?: [],
+        glob($histDir . '/*/*/*_probe_full_*.json')    ?: [],
+        glob($histDir . '/*/*/*_checkpoint_*.json')    ?: []
     );
 
     $records = [];
@@ -1329,7 +1331,10 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $tcpProbedIds = [];
                 $histDir = $workspaceRoot . '/data/local/history';
                 if (is_dir($histDir)) {
-                    $probeFiles = glob($histDir . '/*_probe_full_*.json');
+                    $probeFiles = array_merge(
+                        glob($histDir . '/*_probe_full_*.json')       ?: [],
+                        glob($histDir . '/*/*/*_probe_full_*.json')   ?: []
+                    );
                     if ($probeFiles) {
                         rsort($probeFiles);
                         $probeJson = @file_get_contents($probeFiles[0]);

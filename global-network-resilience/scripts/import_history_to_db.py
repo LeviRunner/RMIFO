@@ -57,10 +57,13 @@ def db_connect() -> psycopg2.extensions.connection:
 
 
 def iter_history_files(cutoff: datetime | None) -> list[Path]:
+    # Busca em MM/DD/ subdiretórios e também na raiz (compatibilidade legada)
     patterns = ["*_probe_full_*.json", "*_checkpoint_*.json"]
     files: list[Path] = []
     for pat in patterns:
-        files.extend(HIST_DIR.glob(pat))
+        files.extend(HIST_DIR.glob(pat))           # raiz (legado)
+        files.extend(HIST_DIR.glob(f"*/*/{pat}"))  # MM/DD/
+    files = list(set(files))
     files.sort()
 
     if cutoff is None:
