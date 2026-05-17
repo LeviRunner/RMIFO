@@ -57,6 +57,72 @@ set_error_handler(static function (int $severity, string $message, string $file,
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Janela de 1 minuto por IP (hash SHA-256). Limites:
+//   - probe: 5 req/min  (evita uso como port scanner)
+//   - demais: 60 req/min (uso normal da API)
+function checkRateLimit(PDO $pdo, string $action): void
+{
+    $rawIp  = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip     = trim(explode(',', $rawIp)[0]);
+    $limit  = ($action === 'probe') ? 5 : 60;
+    $ipHash = hash('sha256', $ip);
+    $window = gmdate('Y-m-d H:i:00+00'); // janela de 1 min (UTC)
+
+    try {
+        $pdo->prepare(
+            "INSERT INTO api_rate_limit (ip_hash, window_start, req_count)
+             VALUES (:h, :w::timestamptz, 1)
+             ON CONFLICT (ip_hash, window_start) DO UPDATE
+             SET req_count = api_rate_limit.req_count + 1"
+        )->execute([':h' => $ipHash, ':w' => $window]);
+
+        $stmt = $pdo->prepare(
+            "SELECT req_count FROM api_rate_limit
+             WHERE ip_hash = :h AND window_start = :w::timestamptz"
+        );
+        $stmt->execute([':h' => $ipHash, ':w' => $window]);
+        $count = (int) ($stmt->fetchColumn() ?: 0);
+
+        if ($count > $limit) {
+            http_response_code(429);
+            header('Content-Type: application/json; charset=utf-8');
+            header('Retry-After: 60');
+            echo json_encode(['error' => 'Muitas requisições. Aguarde 1 minuto.']);
+            exit;
+        }
+
+        // Limpeza periódica de janelas antigas (1 em 20 chances)
+        if (random_int(1, 20) === 1) {
+            $pdo->prepare(
+                "DELETE FROM api_rate_limit WHERE window_start < NOW() - INTERVAL '10 minutes'"
+            )->execute();
+        }
+    } catch (\Throwable) {
+        // Tabela ainda não criada (primeiro deploy) — ignora silenciosamente
+    }
+}
+
+// ── Validação de IP para probe ────────────────────────────────────────────────
+// Restringe sondas a IPs registrados em endpoint_ip_samples.
+// Impede uso do servidor como scanner de IPs arbitrários.
+function assertProbeIpAllowed(PDO $pdo, string $ip): void
+{
+    if ($ip === '') {
+        return; // IP vazio → probe usará fallback sintético, sem risco
+    }
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+        throw new InvalidArgumentException('Formato de IP inválido.');
+    }
+    $stmt = $pdo->prepare(
+        "SELECT 1 FROM endpoint_ip_samples WHERE ip_start::text = :ip LIMIT 1"
+    );
+    $stmt->execute([':ip' => $ip]);
+    if (!$stmt->fetchColumn()) {
+        throw new InvalidArgumentException('IP não pertence a nenhum endpoint cadastrado.');
+    }
+}
+
 function getDb(string $host, int $port, string $dbname, string $user, string $pass = ''): PDO
 {
     $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
@@ -1129,6 +1195,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
         $req  = array_merge($_GET, $_POST);
         $mode = (string) ($req['mode'] ?? $req['action'] ?? 'all');
+        checkRateLimit($pdo, $mode);
         if ($mode === 'search' && isset($req['mode'])) {
             $mode = (string) $req['mode'];
         }
@@ -1518,6 +1585,11 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $endpointId = trim((string) ($req['endpoint_id'] ?? ''));
                 $targetIp   = trim((string) ($req['ip'] ?? ''));
                 $fullScan   = filter_var($req['full'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                // Restringe IP direto (fornecido pelo usuário) a IPs do banco
+                if ($targetIp !== '') {
+                    assertProbeIpAllowed($pdo, $targetIp);
+                }
 
                 if ($targetIp === '' && $endpointId !== '') {
                     $ipStmt = $pdo->prepare(

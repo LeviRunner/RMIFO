@@ -221,3 +221,12 @@ CREATE INDEX IF NOT EXISTS idx_endpoint_ip_start ON endpoint_ip_samples(endpoint
 -- FROM nodes
 -- GROUP BY country_code
 -- ORDER BY total DESC;
+
+-- Tabela de rate limiting por IP (janela de 1 minuto, hash SHA-256 do IP)
+CREATE TABLE IF NOT EXISTS api_rate_limit (
+    ip_hash    CHAR(64)     NOT NULL,
+    window_start TIMESTAMPTZ NOT NULL,
+    req_count  INTEGER      NOT NULL DEFAULT 1,
+    PRIMARY KEY (ip_hash, window_start)
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_window ON api_rate_limit(window_start);
