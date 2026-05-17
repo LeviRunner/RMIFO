@@ -1,12 +1,40 @@
 <?php
 declare(strict_types=1);
 
+// ── Conexão PostgreSQL ────────────────────────────────────────────────────────
+// Prioridade:
+//   1. DATABASE_URL  (Railway / Heroku / Render — formato postgresql://user:pass@host:port/db)
+//   2. PGHOST + PGPORT + PGDATABASE + PGUSER + PGPASSWORD  (Railway variables explícitas)
+//   3. PG_SOCKET + PG_PORT  (setup local com socket Unix)
 $workspaceRoot = getenv('WORKSPACE_ROOT') ?: '/tmp';
-$pgSocket = getenv('PGHOST')     ?: getenv('PG_SOCKET') ?: 'localhost';
-$pgPort   = (int) (getenv('PGPORT')     ?: getenv('PG_PORT')   ?: 5432);
-$pgDbname = getenv('PGDATABASE') ?: 'global_network_resilience';
-$pgUser   = getenv('PGUSER')     ?: 'postgres';
-$pgPass   = getenv('PGPASSWORD') ?: '';
+
+$_dbUrl = getenv('DATABASE_URL') ?: '';
+if ($_dbUrl !== '') {
+    $_p     = parse_url($_dbUrl);
+    $pgSocket = $_p['host'] ?? 'localhost';
+    $pgPort   = (int) ($_p['port'] ?? 5432);
+    $pgDbname = ltrim($_p['path'] ?? '/railway', '/');
+    $pgUser   = $_p['user']  ?? 'postgres';
+    $pgPass   = $_p['pass']  ?? '';
+} else {
+    $_pghost  = getenv('PGHOST') ?: '';
+    // Usa PGHOST apenas se for hostname TCP (não começa com /)
+    if ($_pghost !== '' && $_pghost[0] !== '/') {
+        $pgSocket = $_pghost;
+        $pgPort   = (int) (getenv('PGPORT') ?: 5432);
+        $pgDbname = getenv('PGDATABASE') ?: 'global_network_resilience';
+        $pgUser   = getenv('PGUSER')     ?: 'postgres';
+        $pgPass   = getenv('PGPASSWORD') ?: '';
+    } else {
+        // Fallback local: socket Unix
+        $pgSocket = getenv('PG_SOCKET') ?: ($workspaceRoot . '/.local/run');
+        $pgPort   = (int) (getenv('PG_PORT') ?: 55432);
+        $pgDbname = 'global_network_resilience';
+        $pgUser   = 'postgres';
+        $pgPass   = '';
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Evita warnings/notices em HTML antes do JSON da API.
 ini_set('display_errors', '0');
