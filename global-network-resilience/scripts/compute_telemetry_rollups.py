@@ -10,6 +10,9 @@ from pathlib import Path
 from datetime import datetime
 
 def db_connect(base_dir: Path):
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        return psycopg2.connect(db_url)
     return psycopg2.connect(
         host=os.getenv("PG_SOCKET", str(base_dir / ".local" / "run")),
         port=int(os.getenv("PG_PORT", "55432")),
