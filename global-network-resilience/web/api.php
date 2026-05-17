@@ -6,7 +6,19 @@ declare(strict_types=1);
 //   1. DATABASE_URL  (Railway / Heroku / Render — formato postgresql://user:pass@host:port/db)
 //   2. PGHOST + PGPORT + PGDATABASE + PGUSER + PGPASSWORD  (Railway variables explícitas)
 //   3. PG_SOCKET + PG_PORT  (setup local com socket Unix)
+// workspaceRoot: used for local data/local/ paths (history, logs)
+// On Railway these paths won't exist — that's fine, it falls back to DB.
 $workspaceRoot = getenv('WORKSPACE_ROOT') ?: '/tmp';
+
+// dataExternal: where static external files live (geojson, csv…)
+// Primary: inside the project dir (works on Railway rootDirectory + locally)
+// Fallback: repo root / data/external (legacy local layout)
+$_projectDir  = dirname(__DIR__); // = global-network-resilience/
+$dataExternal = is_dir($_projectDir . '/data/external')
+    ? $_projectDir . '/data/external'
+    : (is_dir($_projectDir . '/../data/external')
+        ? realpath($_projectDir . '/../data/external')
+        : $workspaceRoot . '/data/external');
 
 $_dbUrl = getenv('DATABASE_URL') ?: '';
 if ($_dbUrl !== '') {
@@ -1413,7 +1425,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 }
 
                 // Read the GeoJSON with actual cable paths (all 710 cables, 1908 segments)
-                $geoPath = $workspaceRoot . '/data/external/submarine_cables.geojson';
+                $geoPath = $dataExternal . '/submarine_cables.geojson';
                 if (!file_exists($geoPath)) {
                     jsonResponse(['error' => 'GeoJSON não encontrado.'], 500);
                 }

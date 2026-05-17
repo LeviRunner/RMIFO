@@ -339,6 +339,6 @@ def import_all(base_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    import_all(
-        Path(os.getenv("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent)))
-    )
+    # data/external/ is now inside global-network-resilience/ (project root = parent of scripts/)
+    _default_base = str(Path(__file__).resolve().parent.parent)
+    import_all(Path(os.getenv("WORKSPACE_ROOT", _default_base)))
