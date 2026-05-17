@@ -9,7 +9,6 @@ __pycache__/
 .venv
 .claude
 
-
 # ── Build C (artefatos compilados) ────────────────────────────────────────────
 *.o
 terminal/rmifo
@@ -22,7 +21,7 @@ global-network-resilience/.local/
 # ── Dados de runtime e logs ───────────────────────────────────────────────────
 data/local/
 
-# ── Dados externos volumosos (GeoIP, datasets) ────────────────────────────────
+# ── Dados externos volumosos (GeoIP) ─────────────────────────────────────────
 data/external/geoip_database.csv
 
 # ── OS ────────────────────────────────────────────────────────────────────────
