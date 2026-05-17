@@ -40,6 +40,9 @@
     <li><a href="#" class="nav-link" data-page="risk">Risco de Endpoints</a></li>
     <li><a href="#" class="nav-link" data-page="cuts">Cortes Críticos</a></li>
     <li><a href="#" class="nav-link" data-page="probe">Sonda &amp; Telemetria</a></li>
+    <li class="drawer-divider"></li>
+    <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
+    <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
   </ul>
   <div class="drawer-footer">
     PostgreSQL · porta 55432
@@ -261,6 +264,119 @@
         <div class="error" id="probe-error"></div>
         <div class="fn-result" id="probe-result">Digite o nome de um cabo e selecione o modo de análise.</div>
         <div id="telemetry-result"></div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PÁGINA: SONDA DIÁRIA -->
+  <section class="page" id="page-daily">
+    <div class="page-inner">
+
+      <div class="daily-header">
+        <div>
+          <div class="daily-title">Sonda de Telemetria Diária</div>
+          <div class="daily-subtitle">Verifica latência TCP em todos os 699 cabos submarinos</div>
+        </div>
+        <div class="daily-actions">
+          <label class="daily-opt"><input type="checkbox" id="daily-full-scan" checked> Sonda completa</label>
+          <button class="btn primary" id="btn-daily-start">▶ Iniciar Sonda</button>
+          <span class="daily-status-badge" id="daily-status-badge"></span>
+        </div>
+      </div>
+
+      <!-- Barra de progresso -->
+      <div id="daily-progress-wrap" style="display:none">
+        <div class="daily-progress-outer">
+          <div class="daily-progress-inner" id="daily-progress-inner"></div>
+        </div>
+        <div class="daily-progress-label" id="daily-progress-label">0 / 0 — 0%</div>
+      </div>
+
+      <!-- Animação de pacote + info do cabo atual -->
+      <div id="daily-cable-panel" style="display:none">
+        <div class="pv-wrap">
+          <div class="pv-ep-label" id="pv-ep-a">—</div>
+          <div class="pv-track">
+            <div class="pv-line"></div>
+            <div class="pv-node pv-node-left"></div>
+            <div class="pv-node pv-node-right"></div>
+            <div class="pv-pkt pv-pkt-1"></div>
+            <div class="pv-pkt pv-pkt-2"></div>
+            <div class="pv-pkt pv-pkt-3"></div>
+          </div>
+          <div class="pv-ep-label" id="pv-ep-b">—</div>
+        </div>
+        <div class="pv-metrics">
+          <div class="pv-m"><span class="pv-k">Cabo</span><span class="pv-v" id="pv-cable-name">—</span></div>
+          <div class="pv-m"><span class="pv-k">Latência</span><span class="pv-v accent" id="pv-lat">—</span></div>
+          <div class="pv-m"><span class="pv-k">Protocolo</span><span class="pv-v" id="pv-proto">—</span></div>
+        </div>
+      </div>
+
+      <!-- Cards de estatísticas -->
+      <div class="daily-stats" id="daily-stats">
+        <div class="dstat"><div class="dstat-v" id="dstat-total">—</div><div class="dstat-l">Cabos</div></div>
+        <div class="dstat tcp"><div class="dstat-v" id="dstat-tcp">—</div><div class="dstat-l">TCP Real</div></div>
+        <div class="dstat synth"><div class="dstat-v" id="dstat-synth">—</div><div class="dstat-l">Sintético</div></div>
+        <div class="dstat"><div class="dstat-v" id="dstat-mtr">—</div><div class="dstat-l">MTR</div></div>
+        <div class="dstat warn"><div class="dstat-v" id="dstat-anomalies">—</div><div class="dstat-l">Anomalias</div></div>
+      </div>
+
+      <!-- Tabela live de últimas sondas -->
+      <div id="daily-table-wrap" style="display:none">
+        <div class="subhead">Últimas sondas</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Cabo</th><th>Protocolo</th><th>Latência</th></tr></thead>
+            <tbody id="daily-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="error" id="daily-error"></div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: HISTÓRICO -->
+  <section class="page" id="page-history">
+    <div class="page-inner">
+
+      <div class="hist-toolbar">
+        <select id="hist-date-sel"><option value="">— Selecione uma data —</option></select>
+        <input type="text" id="hist-filter-cable" placeholder="Filtrar por cabo…" autocomplete="off">
+        <select id="hist-filter-proto">
+          <option value="">Todos os protocolos</option>
+          <option value="tcp">TCP Real</option>
+          <option value="heuristic">Sintético</option>
+        </select>
+        <button class="btn primary" id="btn-hist-load">Carregar</button>
+      </div>
+
+      <div class="error" id="hist-error"></div>
+
+      <div class="hist-summary" id="hist-summary" style="display:none">
+        <div class="dstat"><div class="dstat-v" id="h-total">—</div><div class="dstat-l">Cabos</div></div>
+        <div class="dstat tcp"><div class="dstat-v" id="h-tcp">—</div><div class="dstat-l">TCP Real</div></div>
+        <div class="dstat synth"><div class="dstat-v" id="h-synth">—</div><div class="dstat-l">Sintético</div></div>
+        <div class="dstat warn"><div class="dstat-v" id="h-anomalies">—</div><div class="dstat-l">Anomalias</div></div>
+        <div class="dstat"><div class="dstat-v" id="h-completed">—</div><div class="dstat-l">Concluído</div></div>
+      </div>
+
+      <div class="table-wrap" id="hist-table-wrap" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Cabo</th>
+              <th>Protocolo</th>
+              <th>Latência</th>
+              <th>Tipo</th>
+            </tr>
+          </thead>
+          <tbody id="hist-tbody"></tbody>
+        </table>
       </div>
 
     </div>

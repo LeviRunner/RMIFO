@@ -19,7 +19,7 @@ TIMEOUT="${TIMEOUT:-8}"
 TODAY="$(date +%Y-%m-%d)"
 HIST_DIR="${BASE_DIR}/data/local/historico/${TODAY}"
 mkdir -p "${HIST_DIR}"
-LOG_FILE="${HIST_DIR}/run_daily_$(date +%H%M%S).log"
+LOG_FILE="${LOG_FILE:-${HIST_DIR}/run_daily_$(date +%H%M%S).log}"
 
 # Tee: exibe no terminal e salva em arquivo
 exec > >(tee -a "${LOG_FILE}") 2>&1

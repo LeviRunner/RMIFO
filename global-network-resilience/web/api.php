@@ -1611,6 +1611,207 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'history_file' => $historyFile,
                 ]);
 
+            // ── Sonda Diária: iniciar script run_daily ──────────────────────────
+            case 'daily_start': {
+                if (!function_exists('exec')) {
+                    jsonResponse(['status' => 'error', 'message' => 'exec() não disponível neste servidor.'], 503);
+                }
+                $projectDir = dirname(__DIR__);
+                $script = $projectDir . '/scripts/run_daily_telemetry_tasks.sh';
+                if (!file_exists($script)) {
+                    jsonResponse(['status' => 'error', 'message' => 'Script não encontrado.'], 404);
+                }
+                $date = gmdate('Y-m-d');
+                $histDir = $projectDir . '/data/local/historico/' . $date;
+                @mkdir($histDir, 0775, true);
+                $ts = gmdate('His');
+                $logFile = $histDir . '/run_daily_' . $ts . '.log';
+                $runningFile = $histDir . '/.running';
+
+                if (file_exists($runningFile)) {
+                    $info = @json_decode(@file_get_contents($runningFile), true);
+                    $pid  = (string) ($info['pid'] ?? '');
+                    if ($pid !== '' && file_exists('/proc/' . $pid)) {
+                        jsonResponse(['status' => 'already_running', 'log_file' => $info['log_file'] ?? '', 'pid' => $pid]);
+                    }
+                    @unlink($runningFile);
+                }
+
+                $workspaceRoot = dirname($projectDir);
+                $cmd = sprintf(
+                    'WORKSPACE_ROOT=%s FULL_SCAN=%s MTR_CYCLES=%s LOG_FILE=%s nohup bash %s > /dev/null 2>&1 & echo $!',
+                    escapeshellarg($workspaceRoot),
+                    escapeshellarg($req['full_scan'] ?? '0'),
+                    escapeshellarg($req['mtr_cycles'] ?? '5'),
+                    escapeshellarg($logFile),
+                    escapeshellarg($script)
+                );
+                exec($cmd, $out);
+                $pid = trim($out[0] ?? '');
+                if ($pid) {
+                    file_put_contents($runningFile, json_encode([
+                        'pid' => $pid, 'log_file' => $logFile, 'started_at' => gmdate('c'),
+                    ]));
+                }
+                jsonResponse(['status' => 'started', 'log_file' => $logFile, 'pid' => $pid, 'date' => $date]);
+            }
+
+            // ── Sonda Diária: status / progresso ───────────────────────────────
+            case 'daily_status': {
+                $projectDir = dirname(__DIR__);
+                $logFile    = trim((string) ($req['log'] ?? ''));
+                if ($logFile === '') {
+                    // sem log especificado: procura o mais recente do dia
+                    $date = gmdate('Y-m-d');
+                    $logs = glob($projectDir . '/data/local/historico/' . $date . '/run_daily_*.log') ?: [];
+                    if ($logs) { natsort($logs); $logFile = end($logs); }
+                }
+                if ($logFile === '' || !file_exists($logFile)) {
+                    jsonResponse(['status' => 'idle']);
+                }
+                // Segurança: garante que o arquivo está dentro do diretório esperado
+                $realLog  = realpath($logFile);
+                $realBase = realpath($projectDir . '/data/local/historico');
+                if (!$realLog || !$realBase || !str_starts_with($realLog, $realBase)) {
+                    jsonResponse(['status' => 'error', 'message' => 'Arquivo de log inválido.'], 400);
+                }
+
+                $content = (string) (@file_get_contents($realLog) ?: '');
+                $lines   = explode("\n", $content);
+
+                $progress = null;
+                $summary  = null;
+                foreach (array_reverse($lines) as $line) {
+                    if ($progress === null && preg_match(
+                        '/\[\s*(\d+)\/(\d+)\]\s+([\d.]+)%\s+(\S+)\s+proto=(.+?)\s+lat=\s*([\d.]+)ms/',
+                        $line, $m
+                    )) {
+                        $progress = [
+                            'current'    => (int)   $m[1],
+                            'total'      => (int)   $m[2],
+                            'percent'    => (float) $m[3],
+                            'cable'      => $m[4],
+                            'proto'      => $m[5],
+                            'latency_ms' => (float) $m[6],
+                        ];
+                        break;
+                    }
+                }
+
+                if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
+                    $summary = ['inserted' => (int) $m[1]];
+                    if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',   $content, $m2)) $summary['tcp']       = (int) $m2[1];
+                    if (preg_match('/Sintetico\s*:\s*(\d+)/m',      $content, $m2)) $summary['synthetic'] = (int) $m2[1];
+                    if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',   $content, $m2)) $summary['mtr']       = (int) $m2[1];
+                    if (preg_match('/HTTP curl\s*:\s*(\d+)/m',       $content, $m2)) $summary['http']      = (int) $m2[1];
+                    if (preg_match('/(\d+) anomalias/m',             $content, $m2)) $summary['anomalies'] = (int) $m2[1];
+                    if (preg_match('/Concluido em\s*(\S+)/m',        $content, $m2)) $summary['completed_at'] = $m2[1];
+                }
+
+                $date = gmdate('Y-m-d');
+                $runningFile = $projectDir . '/data/local/historico/' . $date . '/.running';
+                $isRunning = false;
+                if (file_exists($runningFile)) {
+                    $info = @json_decode(@file_get_contents($runningFile), true);
+                    $pid  = (string) ($info['pid'] ?? '');
+                    if ($pid !== '' && file_exists('/proc/' . $pid)) { $isRunning = true; }
+                }
+
+                $completed = ($summary !== null && isset($summary['completed_at']));
+                $status = $completed ? 'completed' : ($isRunning ? 'running' : ($progress !== null ? 'running' : 'idle'));
+
+                if ($completed && file_exists($runningFile)) { @unlink($runningFile); }
+
+                jsonResponse([
+                    'status'   => $status,
+                    'progress' => $progress,
+                    'summary'  => $summary,
+                    'log_file' => $logFile,
+                ]);
+            }
+
+            // ── Histórico: listar datas disponíveis ────────────────────────────
+            case 'history_list': {
+                $projectDir  = dirname(__DIR__);
+                $historicDir = $projectDir . '/data/local/historico';
+                $dates = [];
+                if (is_dir($historicDir)) {
+                    foreach (glob($historicDir . '/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]') ?: [] as $dir) {
+                        $date = basename($dir);
+                        $logs = glob($dir . '/run_daily_*.log') ?: [];
+                        if ($logs) {
+                            natsort($logs);
+                            $dates[] = ['date' => $date, 'run_count' => count($logs), 'latest_log' => end($logs)];
+                        }
+                    }
+                }
+                usort($dates, static fn($a, $b) => strcmp($b['date'], $a['date']));
+                jsonResponse(['dates' => $dates]);
+            }
+
+            // ── Histórico: dados de um dia ──────────────────────────────────────
+            case 'history_day': {
+                $projectDir = dirname(__DIR__);
+                $date = preg_replace('/[^0-9\-]/', '', trim((string) ($req['date'] ?? '')));
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                    jsonResponse(['status' => 'error', 'message' => 'Data inválida.'], 400);
+                }
+                $logDir = $projectDir . '/data/local/historico/' . $date;
+                $logs   = glob($logDir . '/run_daily_*.log') ?: [];
+                if (!$logs) {
+                    jsonResponse(['status' => 'error', 'message' => 'Nenhum log encontrado para esta data.'], 404);
+                }
+                natsort($logs);
+                $logFile = end($logs);
+                $content = (string) (@file_get_contents($logFile) ?: '');
+
+                $cables = [];
+                foreach (explode("\n", $content) as $line) {
+                    if (preg_match(
+                        '/\[\s*(\d+)\/(\d+)\]\s+([\d.]+)%\s+(\S+)\s+proto=(.+?)\s+lat=\s*([\d.]+)ms/',
+                        $line, $m
+                    )) {
+                        $cables[] = [
+                            'index'      => (int)   $m[1],
+                            'cable_id'   => $m[4],
+                            'proto'      => $m[5],
+                            'latency_ms' => (float) $m[6],
+                        ];
+                    }
+                }
+
+                $summary = null;
+                if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
+                    $summary = ['inserted' => (int) $m[1]];
+                    if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',   $content, $m2)) $summary['tcp']       = (int) $m2[1];
+                    if (preg_match('/Sintetico\s*:\s*(\d+)/m',      $content, $m2)) $summary['synthetic'] = (int) $m2[1];
+                    if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',   $content, $m2)) $summary['mtr']       = (int) $m2[1];
+                    if (preg_match('/HTTP curl\s*:\s*(\d+)/m',       $content, $m2)) $summary['http']      = (int) $m2[1];
+                    if (preg_match('/(\d+) anomalias/m',             $content, $m2)) $summary['anomalies'] = (int) $m2[1];
+                    if (preg_match('/Concluido em\s*(\S+)/m',        $content, $m2)) $summary['completed_at'] = $m2[1];
+                }
+
+                $filterCable = trim((string) ($req['cable'] ?? ''));
+                $filterProto = trim((string) ($req['proto'] ?? ''));
+                if ($filterCable !== '') {
+                    $cables = array_values(array_filter($cables, fn($c) => stripos($c['cable_id'], $filterCable) !== false));
+                }
+                if ($filterProto !== '') {
+                    $isTcp = $filterProto === 'tcp';
+                    $cables = array_values(array_filter($cables, fn($c) => $isTcp
+                        ? str_contains($c['proto'], 'tcp')
+                        : !str_contains($c['proto'], 'tcp')));
+                }
+
+                jsonResponse([
+                    'date'     => $date,
+                    'total'    => count($cables),
+                    'cables'   => $cables,
+                    'summary'  => $summary,
+                    'log_file' => basename($logFile),
+                ]);
+            }
+
             default:
                 jsonResponse(['error' => 'Modo desconhecido.'], 400);
         }

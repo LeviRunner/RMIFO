@@ -106,13 +106,15 @@ function extractData(payload) {
 const Router = {
   current: 'map',
   titles: {
-    map:    'Mapa Global',
-    search: 'Busca de Cabos',
-    detail: 'Detalhes do Cabo',
-    routes: 'Top 3 Rotas',
-    risk:   'Risco de Endpoints',
-    cuts:   'Cortes Críticos',
-    probe:  'Sonda & Telemetria',
+    map:     'Mapa Global',
+    search:  'Busca de Cabos',
+    detail:  'Detalhes do Cabo',
+    routes:  'Top 3 Rotas',
+    risk:    'Risco de Endpoints',
+    cuts:    'Cortes Críticos',
+    probe:   'Sonda & Telemetria',
+    daily:   'Sonda Diária',
+    history: 'Histórico',
   },
   go(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -186,6 +188,9 @@ const AppState = {
   // Telemetry cache
   lastTelemetryHistory: [],
   lastTelemetryCiLatency: null,
+  // Daily probe
+  probeActiveCable: null,   // cable_id being probed right now
+  globePaths: [],           // reference to last loaded globe path array
 };
 
 // ─── City / capital dataset ───────────────────────────────────────────────────
@@ -330,10 +335,18 @@ const CITY_DATA = [
 // ─── Globe page ───────────────────────────────────────────────────────────────
 
 function pathColor(d) {
+  if (AppState.probeActiveCable && d.cable_id === AppState.probeActiveCable)
+    return 'rgba(255,240,60,1.0)';
   if (!d.is_operational) return 'rgba(255,70,95,0.85)';
   if (d.has_alert)       return 'rgba(255,185,45,0.90)';
   if (d.has_tcp_probe)   return 'rgba(168,113,255,0.88)';
   return 'rgba(45,220,130,0.82)';
+}
+
+function refreshGlobeProbeHighlight() {
+  if (AppState.globe && AppState.globePaths.length) {
+    AppState.globe.pathsData(AppState.globePaths);
+  }
 }
 
 function ptColor(d) {
@@ -492,6 +505,7 @@ function initGlobe() {
     .then(payload => {
       const paths = payload.paths || [];
       const pts   = payload.points || [];
+      AppState.globePaths = paths;
 
       globe
         // ── Flat cable paths on globe surface ──────────────────────────────
@@ -1906,6 +1920,263 @@ function initProbePage() {
   }
 }
 
+// ─── Daily probe page ─────────────────────────────────────────────────────────
+
+function initDailyPage() {
+  const btnStart     = document.getElementById('btn-daily-start');
+  const statusBadge  = document.getElementById('daily-status-badge');
+  const progressWrap = document.getElementById('daily-progress-wrap');
+  const progressBar  = document.getElementById('daily-progress-inner');
+  const progressLbl  = document.getElementById('daily-progress-label');
+  const cablePanel   = document.getElementById('daily-cable-panel');
+  const pvEpA        = document.getElementById('pv-ep-a');
+  const pvEpB        = document.getElementById('pv-ep-b');
+  const pvCable      = document.getElementById('pv-cable-name');
+  const pvLat        = document.getElementById('pv-lat');
+  const pvProto      = document.getElementById('pv-proto');
+  const tableWrap    = document.getElementById('daily-table-wrap');
+  const tbody        = document.getElementById('daily-tbody');
+  const errEl        = document.getElementById('daily-error');
+
+  let pollTimer = null;
+  let currentLog = null;
+  let tableRows = [];
+
+  function setStats(summary, progress) {
+    const total   = summary?.inserted  ?? progress?.total   ?? null;
+    const tcp     = summary?.tcp       ?? null;
+    const synth   = summary?.synthetic ?? null;
+    const mtr     = summary?.mtr       ?? null;
+    const anom    = summary?.anomalies ?? null;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    set('dstat-total',     total);
+    set('dstat-tcp',       tcp);
+    set('dstat-synth',     synth);
+    set('dstat-mtr',       mtr);
+    set('dstat-anomalies', anom);
+  }
+
+  function updateBadge(status) {
+    if (!statusBadge) return;
+    const map = { running: '● Em execução', completed: '✓ Concluído', idle: '', already_running: '● Em execução' };
+    statusBadge.textContent = map[status] || '';
+    statusBadge.className = 'daily-status-badge ' + (status === 'completed' ? 'done' : status === 'running' || status === 'already_running' ? 'running' : '');
+  }
+
+  function updateProgress(p) {
+    if (!p) return;
+    const pct = p.percent || 0;
+    if (progressWrap) progressWrap.style.display = '';
+    if (progressBar)  progressBar.style.width = pct + '%';
+    if (progressLbl)  progressLbl.textContent = `${p.current} / ${p.total} — ${pct.toFixed(1)}%`;
+
+    // packet animation panel
+    if (cablePanel) cablePanel.style.display = '';
+    if (pvCable)  pvCable.textContent  = p.cable || '—';
+    if (pvLat)    pvLat.textContent    = p.latency_ms != null ? p.latency_ms + ' ms' : '—';
+    if (pvProto)  pvProto.textContent  = p.proto ? p.proto.replace(/tcp-\d+pkt-ports\[([^\]]+)\]-p95=[\d.]+ms/, 'TCP [$1]') : '—';
+
+    // endpoint labels from AppState.globePaths if available
+    if (AppState.globePaths.length) {
+      const seg = AppState.globePaths.find(pp => pp.cable_id === p.cable);
+      if (seg) {
+        const fmtCoord = (lat, lng) => `${parseFloat(lat).toFixed(1)}°, ${parseFloat(lng).toFixed(1)}°`;
+        if (pvEpA) pvEpA.textContent = fmtCoord(seg.startLat, seg.startLng);
+        if (pvEpB) pvEpB.textContent = fmtCoord(seg.endLat, seg.endLng);
+      }
+    }
+
+    // highlight cable on globe
+    if (AppState.probeActiveCable !== p.cable) {
+      AppState.probeActiveCable = p.cable;
+      if (Router.current === 'map') refreshGlobeProbeHighlight();
+    }
+
+    // live table (last 15 rows)
+    const proto = p.proto || '—';
+    const isTcp = proto.includes('tcp');
+    tableRows.unshift({ index: p.current, cable: p.cable, proto, lat: p.latency_ms, isTcp });
+    if (tableRows.length > 15) tableRows.pop();
+    if (tableWrap) tableWrap.style.display = '';
+    if (tbody) {
+      tbody.innerHTML = tableRows.map(r => `<tr>
+        <td>${r.index}</td>
+        <td class="mono">${esc(r.cable)}</td>
+        <td><span class="badge ${r.isTcp ? 'yes' : ''}">${esc(r.isTcp ? 'TCP' : 'Sintético')}</span></td>
+        <td class="${r.lat > 200 ? 'danger-text' : 'ok-text'}">${r.lat} ms</td>
+      </tr>`).join('');
+    }
+  }
+
+  async function poll() {
+    if (!currentLog) return;
+    try {
+      const data = await apiFetch({ action: 'daily_status', log: currentLog });
+      updateBadge(data.status);
+      if (data.progress) updateProgress(data.progress);
+      if (data.summary)  setStats(data.summary, data.progress);
+      if (data.status === 'running' || data.status === 'already_running') {
+        pollTimer = setTimeout(poll, 3000);
+      } else if (data.status === 'completed') {
+        // completed — clear probe highlight
+        AppState.probeActiveCable = null;
+        if (AppState.globePaths.length) refreshGlobeProbeHighlight();
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressLbl) progressLbl.textContent = `${data.summary?.inserted ?? '699'} / ${data.summary?.inserted ?? '699'} — 100%`;
+        if (btnStart) { btnStart.disabled = false; btnStart.textContent = '▶ Iniciar Sonda'; }
+      }
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.style.display = ''; }
+      pollTimer = setTimeout(poll, 8000);
+    }
+  }
+
+  if (btnStart) {
+    btnStart.addEventListener('click', async () => {
+      const fullScan = document.getElementById('daily-full-scan')?.checked ? '1' : '0';
+      btnStart.disabled = true;
+      btnStart.textContent = 'Iniciando…';
+      if (errEl) errEl.style.display = 'none';
+      tableRows = [];
+      if (tbody) tbody.innerHTML = '';
+      try {
+        const data = await apiFetch({ action: 'daily_start', full_scan: fullScan, mtr_cycles: fullScan === '1' ? '10' : '3' });
+        if (data.status === 'error') {
+          if (errEl) { errEl.textContent = data.message; errEl.style.display = ''; }
+          btnStart.disabled = false; btnStart.textContent = '▶ Iniciar Sonda';
+          return;
+        }
+        currentLog = data.log_file || null;
+        updateBadge(data.status === 'already_running' ? 'already_running' : 'running');
+        if (progressWrap) progressWrap.style.display = '';
+        if (cablePanel)   cablePanel.style.display   = '';
+        btnStart.textContent = '● Rodando…';
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(poll, 4000);
+      } catch (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = ''; }
+        btnStart.disabled = false; btnStart.textContent = '▶ Iniciar Sonda';
+      }
+    });
+  }
+
+  // Check if already running when page is opened
+  document.querySelector('[data-page="daily"]')?.addEventListener('click', async () => {
+    try {
+      const data = await apiFetch({ action: 'daily_status' });
+      if ((data.status === 'running' || data.status === 'already_running') && data.log_file) {
+        currentLog = data.log_file;
+        updateBadge('running');
+        if (btnStart) { btnStart.disabled = true; btnStart.textContent = '● Rodando…'; }
+        if (progressWrap) progressWrap.style.display = '';
+        if (cablePanel)   cablePanel.style.display   = '';
+        if (data.progress) updateProgress(data.progress);
+        if (data.summary)  setStats(data.summary, data.progress);
+        if (!pollTimer) pollTimer = setTimeout(poll, 3000);
+      } else if (data.status === 'completed') {
+        updateBadge('completed');
+        if (data.summary) setStats(data.summary, null);
+        if (progressBar) progressBar.style.width = '100%';
+      }
+    } catch { /* silent */ }
+  });
+}
+
+// ─── History page ─────────────────────────────────────────────────────────────
+
+function initHistoryPage() {
+  const dateSelect = document.getElementById('hist-date-sel');
+  const filterCable= document.getElementById('hist-filter-cable');
+  const filterProto= document.getElementById('hist-filter-proto');
+  const btnLoad    = document.getElementById('btn-hist-load');
+  const errEl      = document.getElementById('hist-error');
+  const summaryEl  = document.getElementById('hist-summary');
+  const tableWrap  = document.getElementById('hist-table-wrap');
+  const tbody      = document.getElementById('hist-tbody');
+
+  let allCables = [];
+
+  function renderTable(cables) {
+    if (!tbody) return;
+    tbody.innerHTML = cables.map(c => {
+      const isTcp = c.proto.includes('tcp');
+      const latClass = c.latency_ms > 300 ? 'danger-text' : c.latency_ms > 150 ? '' : 'ok-text';
+      return `<tr>
+        <td>${c.index}</td>
+        <td class="mono">${esc(c.cable_id)}</td>
+        <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${esc(c.proto)}</td>
+        <td class="${latClass}">${c.latency_ms} ms</td>
+        <td><span class="badge ${isTcp ? 'yes' : ''}">${isTcp ? 'TCP' : 'Sintético'}</span></td>
+      </tr>`;
+    }).join('');
+    if (tableWrap) tableWrap.style.display = cables.length ? '' : 'none';
+  }
+
+  function applyFilters() {
+    const cq = (filterCable?.value || '').toLowerCase().trim();
+    const pq = filterProto?.value || '';
+    let filtered = allCables;
+    if (cq) filtered = filtered.filter(c => c.cable_id.toLowerCase().includes(cq));
+    if (pq === 'tcp')       filtered = filtered.filter(c =>  c.proto.includes('tcp'));
+    if (pq === 'heuristic') filtered = filtered.filter(c => !c.proto.includes('tcp'));
+    renderTable(filtered);
+  }
+
+  function setSummary(s) {
+    if (!s || !summaryEl) return;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    set('h-total',     s.inserted);
+    set('h-tcp',       s.tcp);
+    set('h-synth',     s.synthetic);
+    set('h-anomalies', s.anomalies);
+    if (s.completed_at) {
+      try {
+        const d = new Date(s.completed_at);
+        set('h-completed', d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }));
+      } catch { set('h-completed', s.completed_at.slice(0,16)); }
+    } else {
+      set('h-completed', '—');
+    }
+    summaryEl.style.display = '';
+  }
+
+  // Load available dates when page opens
+  document.querySelector('[data-page="history"]')?.addEventListener('click', async () => {
+    if (dateSelect && dateSelect.options.length <= 1) {
+      try {
+        const data = await apiFetch({ action: 'history_list' });
+        const dates = data.dates || [];
+        dateSelect.innerHTML = '<option value="">— Selecione uma data —</option>'
+          + dates.map(d => `<option value="${esc(d.date)}">${esc(d.date)} (${d.run_count} execução${d.run_count > 1 ? 'ões' : ''})</option>`).join('');
+      } catch { /* silent */ }
+    }
+  });
+
+  if (filterCable) filterCable.addEventListener('input', applyFilters);
+  if (filterProto) filterProto.addEventListener('change', applyFilters);
+
+  if (btnLoad) {
+    btnLoad.addEventListener('click', async () => {
+      const date = dateSelect?.value || '';
+      if (!date) { if (errEl) { errEl.textContent = 'Selecione uma data.'; errEl.style.display = ''; } return; }
+      if (errEl) errEl.style.display = 'none';
+      if (summaryEl) summaryEl.style.display = 'none';
+      if (tableWrap) tableWrap.style.display = 'none';
+      btnLoad.disabled = true; btnLoad.textContent = 'Carregando…';
+      try {
+        const data = await apiFetch({ action: 'history_day', date });
+        allCables = data.cables || [];
+        setSummary(data.summary);
+        applyFilters();
+      } catch (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = ''; }
+      } finally {
+        btnLoad.disabled = false; btnLoad.textContent = 'Carregar';
+      }
+    });
+  }
+}
+
 // ─── Drawer & modal wire-up ───────────────────────────────────────────────────
 
 function initNavigation() {
@@ -1958,6 +2229,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initRoutesPage();
   initTelemetryPage();
   initProbePage();
+  initDailyPage();
+  initHistoryPage();
 
   // Periodically refresh alert badge
   setInterval(async () => {
