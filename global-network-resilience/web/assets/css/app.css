@@ -690,6 +690,19 @@ select {
   transform: translateY(-2px);
 }
 
+.btn.danger {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(255, 111, 141, 0.4);
+}
+
+.btn.danger:hover {
+  background: #ff3d6a;
+  box-shadow: 0 6px 20px rgba(255, 111, 141, 0.6);
+  transform: translateY(-2px);
+}
+
 .btn-sm {
   padding: 6px 10px;
   font-size: 12px;

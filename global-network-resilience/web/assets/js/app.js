@@ -1924,6 +1924,7 @@ function initProbePage() {
 
 function initDailyPage() {
   const btnStart     = document.getElementById('btn-daily-start');
+  const btnCancel    = document.getElementById('btn-daily-cancel');
   const statusBadge  = document.getElementById('daily-status-badge');
   const progressWrap = document.getElementById('daily-progress-wrap');
   const progressBar  = document.getElementById('daily-progress-inner');
@@ -1938,18 +1939,24 @@ function initDailyPage() {
   const tbody        = document.getElementById('daily-tbody');
   const errEl        = document.getElementById('daily-error');
 
-  let pollTimer = null;
-  let currentLog = null;
-  let tableRows = [];
+  let pollTimer      = null;
+  let currentLog     = null;
+  let tableRows      = [];
+  let probeStartTime = null;
 
-  function setStats(summary, progress) {
-    const total   = summary?.inserted  ?? progress?.total   ?? null;
-    const tcp     = summary?.tcp       ?? null;
-    const synth   = summary?.synthetic ?? null;
-    const mtr     = summary?.mtr       ?? null;
-    const anom    = summary?.anomalies ?? null;
+  function setRunningUI(running) {
+    if (btnStart)  { btnStart.disabled  = running; btnStart.textContent = running ? '● Rodando…' : '▶ Iniciar Sonda'; }
+    if (btnCancel) { btnCancel.style.display = running ? '' : 'none'; }
+  }
+
+  function setStats(summary, progress, live) {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
-    set('dstat-total',     total);
+    const total = summary?.inserted  ?? progress?.total   ?? null;
+    const tcp   = summary?.tcp       ?? live?.tcp         ?? null;
+    const synth = summary?.synthetic ?? live?.synth       ?? null;
+    const mtr   = summary?.mtr       ?? null;
+    const anom  = summary?.anomalies ?? null;
+    set('dstat-total',     progress ? `${progress.current}/${progress.total}` : total);
     set('dstat-tcp',       tcp);
     set('dstat-synth',     synth);
     set('dstat-mtr',       mtr);
@@ -2012,23 +2019,36 @@ function initDailyPage() {
     if (!currentLog) return;
     try {
       const data = await apiFetch({ action: 'daily_status', log: currentLog });
+      const live = { tcp: data.live_tcp || null, synth: data.live_synth || null };
       updateBadge(data.status);
       if (data.progress) updateProgress(data.progress);
-      if (data.summary)  setStats(data.summary, data.progress);
+      if (data.summary)  setStats(data.summary, data.progress, live);
+      else if (data.progress || live.tcp) setStats(null, data.progress, live);
+
       if (data.status === 'starting') {
-        // script iniciou mas ainda não escreveu nenhuma linha de progresso
+        if (progressWrap) progressWrap.style.display = '';
         if (progressLbl) progressLbl.textContent = 'Iniciando script…';
         pollTimer = setTimeout(poll, 4000);
       } else if (data.status === 'running' || data.status === 'already_running') {
         if (!data.progress && progressLbl) progressLbl.textContent = 'Aguardando primeiro cabo…';
         pollTimer = setTimeout(poll, 3000);
+      } else if (data.status === 'idle') {
+        // Rollup phase: script is running but hasn't written progress lines yet
+        const elapsed = probeStartTime ? (Date.now() - probeStartTime) / 1000 : 9999;
+        if (elapsed < 180) {
+          if (progressLbl) progressLbl.textContent = 'Calculando rollups iniciais…';
+          pollTimer = setTimeout(poll, 5000);
+        } else {
+          // Truly idle — reset UI
+          setRunningUI(false);
+        }
       } else if (data.status === 'completed') {
-        // completed — clear probe highlight
         AppState.probeActiveCable = null;
         if (AppState.globePaths.length) refreshGlobeProbeHighlight();
         if (progressBar) progressBar.style.width = '100%';
         if (progressLbl) progressLbl.textContent = `${data.summary?.inserted ?? '699'} / ${data.summary?.inserted ?? '699'} — 100%`;
-        if (btnStart) { btnStart.disabled = false; btnStart.textContent = '▶ Iniciar Sonda'; }
+        setRunningUI(false);
+        probeStartTime = null;
       }
     } catch (err) {
       if (errEl) { errEl.textContent = err.message; errEl.style.display = ''; }
@@ -2039,7 +2059,7 @@ function initDailyPage() {
   if (btnStart) {
     btnStart.addEventListener('click', async () => {
       const fullScan = document.getElementById('daily-full-scan')?.checked ? '1' : '0';
-      btnStart.disabled = true;
+      setRunningUI(true);
       btnStart.textContent = 'Iniciando…';
       if (errEl) errEl.style.display = 'none';
       tableRows = [];
@@ -2048,20 +2068,43 @@ function initDailyPage() {
         const data = await apiFetch({ action: 'daily_start', full_scan: fullScan, mtr_cycles: fullScan === '1' ? '10' : '3' });
         if (data.status === 'error') {
           if (errEl) { errEl.textContent = data.message; errEl.style.display = ''; }
-          btnStart.disabled = false; btnStart.textContent = '▶ Iniciar Sonda';
+          setRunningUI(false);
           return;
         }
-        currentLog = data.log_file || null;
+        currentLog     = data.log_file || null;
+        probeStartTime = Date.now();
         updateBadge(data.status === 'already_running' ? 'already_running' : 'running');
         if (progressWrap) progressWrap.style.display = '';
         if (cablePanel)   cablePanel.style.display   = '';
-        btnStart.textContent = '● Rodando…';
         if (pollTimer) clearTimeout(pollTimer);
         pollTimer = setTimeout(poll, 4000);
       } catch (err) {
         if (errEl) { errEl.textContent = err.message; errEl.style.display = ''; }
-        btnStart.disabled = false; btnStart.textContent = '▶ Iniciar Sonda';
+        setRunningUI(false);
       }
+    });
+  }
+
+  if (btnCancel) {
+    btnCancel.addEventListener('click', async () => {
+      btnCancel.disabled = true;
+      btnCancel.textContent = 'Cancelando…';
+      try {
+        await apiFetch({ action: 'daily_cancel' });
+      } catch { /* best-effort */ }
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+      currentLog     = null;
+      probeStartTime = null;
+      tableRows      = [];
+      AppState.probeActiveCable = null;
+      if (AppState.globePaths.length) refreshGlobeProbeHighlight();
+      setRunningUI(false);
+      updateBadge('idle');
+      if (progressWrap) progressWrap.style.display = 'none';
+      if (cablePanel)   cablePanel.style.display   = 'none';
+      if (tableWrap)    tableWrap.style.display     = 'none';
+      if (tbody) tbody.innerHTML = '';
+      btnCancel.disabled = false;
     });
   }
 
@@ -2069,18 +2112,21 @@ function initDailyPage() {
   document.querySelector('[data-page="daily"]')?.addEventListener('click', async () => {
     try {
       const data = await apiFetch({ action: 'daily_status' });
+      const live = { tcp: data.live_tcp || null, synth: data.live_synth || null };
       if ((data.status === 'running' || data.status === 'already_running') && data.log_file) {
-        currentLog = data.log_file;
+        currentLog     = data.log_file;
+        probeStartTime = probeStartTime ?? Date.now();
         updateBadge('running');
-        if (btnStart) { btnStart.disabled = true; btnStart.textContent = '● Rodando…'; }
+        setRunningUI(true);
         if (progressWrap) progressWrap.style.display = '';
         if (cablePanel)   cablePanel.style.display   = '';
         if (data.progress) updateProgress(data.progress);
-        if (data.summary)  setStats(data.summary, data.progress);
+        if (data.summary)  setStats(data.summary, data.progress, live);
+        else if (live.tcp) setStats(null, data.progress, live);
         if (!pollTimer) pollTimer = setTimeout(poll, 3000);
       } else if (data.status === 'completed') {
         updateBadge('completed');
-        if (data.summary) setStats(data.summary, null);
+        if (data.summary) setStats(data.summary, null, null);
         if (progressBar) progressBar.style.width = '100%';
       }
     } catch { /* silent */ }

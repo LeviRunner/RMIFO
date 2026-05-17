@@ -1190,7 +1190,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
     // ── Endpoints que NÃO precisam de banco (ficheiros locais) ───────────────
     $_reqAll  = array_merge($_GET, $_POST);
     $_modeNow = (string) ($_reqAll['mode'] ?? $_reqAll['action'] ?? '');
-    $_noDbModes = ['daily_start', 'daily_status', 'history_list', 'history_day'];
+    $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel', 'history_list', 'history_day'];
 
     if (in_array($_modeNow, $_noDbModes, true)) {
         try {
@@ -1295,11 +1295,26 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $date    = gmdate('Y-m-d');
                 $runFile = $projHistDir . '/' . $date . '/.running';
                 $isRun   = false;
+                $runPid  = '';
                 if (file_exists($runFile)) {
-                    $info = @json_decode(@file_get_contents($runFile), true);
-                    $pid  = (string) ($info['pid'] ?? '');
-                    if ($pid !== '' && file_exists('/proc/' . $pid)) { $isRun = true; }
+                    $info    = @json_decode(@file_get_contents($runFile), true);
+                    $runPid  = (string) ($info['pid'] ?? '');
+                    $startTs = strtotime((string) ($info['started_at'] ?? '')) ?: 0;
+                    if ($runPid !== '' && file_exists('/proc/' . $runPid)) {
+                        $isRun = true;
+                    } elseif ((time() - $startTs) < 180) {
+                        // PID may have forked; trust the start timestamp for up to 3 min
+                        $isRun = true;
+                    }
                 }
+
+                // Fallback: if log was written very recently, assume still running
+                $lastMod = @filemtime($logFile) ?: 0;
+                if (!$isRun && (time() - $lastMod) < 120) { $isRun = true; }
+
+                // Count live TCP / synthetic lines already in log
+                $liveTcp   = preg_match_all('/proto=tcp-\d+pkt/m',    $content);
+                $liveSynth = preg_match_all('/proto=heuristic\b/m',    $content);
 
                 $completed = isset($summary['completed_at']);
                 $status    = $completed ? 'completed'
@@ -1307,7 +1322,42 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                            : ($progress !== null ? 'running' : 'idle'));
                 if ($completed && file_exists($runFile)) { @unlink($runFile); }
 
-                jsonResponse(['status' => $status, 'progress' => $progress, 'summary' => $summary, 'log_file' => $logFile]);
+                jsonResponse([
+                    'status'     => $status,
+                    'progress'   => $progress,
+                    'summary'    => $summary,
+                    'log_file'   => $logFile,
+                    'live_tcp'   => $liveTcp,
+                    'live_synth' => $liveSynth,
+                ]);
+            }
+
+            // ── daily_cancel ─────────────────────────────────────────────────
+            if ($_modeNow === 'daily_cancel') {
+                $date    = gmdate('Y-m-d');
+                $runFile = $_projectDir . '/data/local/historico/' . $date . '/.running';
+                $killed  = false;
+                $logDeleted = false;
+
+                if (file_exists($runFile)) {
+                    $info = @json_decode(@file_get_contents($runFile), true);
+                    $pid  = (string) ($info['pid'] ?? '');
+                    $log  = (string) ($info['log_file'] ?? '');
+
+                    if ($pid !== '') {
+                        // Kill process group (negative PID kills all children too)
+                        exec('kill -TERM -' . (int) $pid . ' 2>/dev/null; kill -TERM ' . (int) $pid . ' 2>/dev/null');
+                        sleep(1);
+                        exec('kill -KILL -' . (int) $pid . ' 2>/dev/null; kill -KILL ' . (int) $pid . ' 2>/dev/null');
+                        $killed = true;
+                    }
+                    if ($log !== '' && str_starts_with($log, $_projectDir) && file_exists($log)) {
+                        @unlink($log);
+                        $logDeleted = true;
+                    }
+                    @unlink($runFile);
+                }
+                jsonResponse(['status' => 'cancelled', 'killed' => $killed, 'log_deleted' => $logDeleted]);
             }
 
             // ── history_list ─────────────────────────────────────────────────
