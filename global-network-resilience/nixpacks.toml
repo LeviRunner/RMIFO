@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["php82", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql"]
+nixPkgs = ["php82", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql", "postgresql"]
 
 [start]
-cmd = "php -S 0.0.0.0:$PORT -t web/"
+cmd = "bash start.sh"
