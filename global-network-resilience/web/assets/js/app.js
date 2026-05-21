@@ -431,6 +431,72 @@ function selectFromGlobe(d) {
 
 let globeAutoRotateTimer = null;
 
+// ── Star background ───────────────────────────────────────────────────────────
+function initStarBackground() {
+  const canvas = document.getElementById('star-bg');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const STAR_COUNT = 260;
+  let stars = [];
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    stars = Array.from({ length: STAR_COUNT }, () => ({
+      x:     Math.random() * canvas.width,
+      y:     Math.random() * canvas.height,
+      r:     Math.random() * 1.2 + 0.3,
+      base:  Math.random() * 0.55 + 0.25,
+      phase: Math.random() * Math.PI * 2,
+      speed: Math.random() * 0.0008 + 0.0004,
+    }));
+  }
+
+  function draw(ts) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      const alpha = s.base + Math.sin(s.phase + ts * s.speed) * 0.22;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200,190,255,${alpha.toFixed(3)})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(draw);
+}
+
+// ── Dark ocean canvas texture for the globe ───────────────────────────────────
+function makeOceanTexture() {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 1024, 512);
+  g.addColorStop(0,   '#05071a');
+  g.addColorStop(0.5, '#060a1f');
+  g.addColorStop(1,   '#04060f');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 1024, 512);
+  return c.toDataURL();
+}
+
+// ── Welcome card ──────────────────────────────────────────────────────────────
+function initWelcomeCard() {
+  const card = document.getElementById('welcome-card');
+  const btn  = document.getElementById('welcome-dismiss');
+  if (!card) return;
+  if (sessionStorage.getItem('wc_dismissed')) { card.style.display = 'none'; return; }
+  card.classList.add('visible');
+  if (btn) btn.addEventListener('click', () => {
+    card.classList.remove('visible');
+    sessionStorage.setItem('wc_dismissed', '1');
+  });
+}
+
 function initGlobe() {
   const container = document.getElementById('globe-container');
   const globeTip  = document.getElementById('globe-tip');
@@ -440,11 +506,11 @@ function initGlobe() {
     return;
   }
 
-  const globe = Globe()(container)
-    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-    .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
-    .atmosphereColor('rgba(80,140,255,0.4)')
-    .atmosphereAltitude(0.15);
+  const globe = Globe({ rendererConfig: { alpha: true, antialias: true } })(container)
+    .globeImageUrl(makeOceanTexture())
+    .backgroundImageUrl(null)
+    .atmosphereColor('rgba(139,92,246,0.55)')
+    .atmosphereAltitude(0.18);
 
   AppState.globe = globe;
 
@@ -458,10 +524,10 @@ function initGlobe() {
       const countries = topojson.feature(world, world.objects.countries);
       globe
         .polygonsData(countries.features)
-        .polygonCapColor(() => 'rgba(0,0,0,0)')
-        .polygonSideColor(() => 'rgba(0,0,0,0)')
-        .polygonStrokeColor(() => 'rgba(80,60,30,0.55)')
-        .polygonAltitude(0.001);
+        .polygonCapColor(() => 'rgba(26,10,50,0.88)')
+        .polygonSideColor(() => 'rgba(74,30,130,0.25)')
+        .polygonStrokeColor(() => 'rgba(120,60,210,0.55)')
+        .polygonAltitude(0.002);
     })
     .catch(() => {});
 
@@ -2453,6 +2519,8 @@ function initNavigation() {
 document.addEventListener('DOMContentLoaded', async () => {
   initNavigation();
   Router.go('map');
+  initStarBackground();
+  initWelcomeCard();
   initGlobe();
   initGlobePanel();
 

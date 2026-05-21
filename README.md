@@ -21,7 +21,8 @@ RMIFO/
     │   ├── api.php
     │   └── assets/
     │       ├── css/app.css
-    │       └── js/app.js
+    │       ├── js/app.js
+    │       └── svg/                   ← Ícones SVG standalone (clock, check, x-mark, alert, play, dot, table, close)
     │
     ├── terminal/                      ← Aplicação CLI em C
     │   ├── Makefile
@@ -63,11 +64,15 @@ RMIFO/
 
 ### Interface Web — `web/`
 
-#### Mapa Global
-- Globo 3D interativo com todos os 699 cabos submarinos e seus landing points
-- Cores por status: verde (operacional) · amarelo (alerta) · roxo (TCP probe real) · vermelho (inativo)
+#### Mapa Global (Globo 3D)
+- Globo 3D interativo cartográfico com estilo escuro — oceanos `#06091e`, continentes em roxo escuro com bordas violeta
+- Background preto com ~260 estrelas pulsantes animadas via canvas 2D (`requestAnimationFrame`)
+- Atmosfera roxa (`rgba(139,92,246,0.55)`) alinhada à identidade visual do site
+- Cores de cabos por status: verde (operacional) · amarelo (alerta) · roxo (TCP probe real) · vermelho (inativo)
+- Auto-rotação interrompida ao clicar; retoma após 8 s sem seleção ativa
 - Painel lateral ao clicar em endpoint: metadata, botão "Sondar" e "Ver Detalhes"
-- Legenda com indicador de cables com dados TCP reais de probe
+- Zoom adaptativo: labels de tier 1 (capitais) → tier 2 → tier 3 conforme aproximação
+- Card de boas-vindas com `backdrop-filter: blur` descrevendo funcionalidades — dispensável via botão, persistido na sessão
 
 #### Busca de Cabos
 - 9 modos de busca: ID, Nome, Proprietário, Fornecedor, Ano, Status, Landing Point, Endpoint, País
@@ -103,11 +108,24 @@ RMIFO/
 - **Barra de legenda**: Janela · Qualidade · Origem · Amostras — atualiza com dados reais quando disponíveis
 - **Dados Reais (TCP Probe)**: lê arquivos `data/local/history/` e exibe:
   - Média de latência, jitter, perda de pacotes, throughput, disponibilidade, qualidade
-  - Atualiza automaticamente Janela/Qualidade/Origem/Amostras com valores reais
   - Número exato de amostras TCP coletadas
 - **Gráfico com overlay**: série DB/sintética (linha tracejada roxa) + pontos reais TCP (linha sólida verde)
 - **Modo tempo real**: 4 gráficos 2D atualizando a cada 500 ms — Latência (EMA), Jitter, Perda, Interferência
 - **Alertas**: badge no header com contagem de alertas ativos; ticker de alertas na base da tela
+
+#### Sonda Diária
+- Executa varredura progressiva de todos os 699 cabos com pre-flight de 4 verificações (DB, endpoints, geodata, baseline)
+- **Visualização de pacotes em tempo real**: animação dupla-trilha SEND (esquerda→direita) + ACK (direita→esquerda)
+- **Nome real do cabo** exibido em tempo real conforme avança a sonda (lido do `.probe_live.json` via API)
+- **Chip de protocolo** colorido por tipo: TCP/TLS (verde), HTTP (roxo), MTR/UDP (azul), Sintético (âmbar)
+- **Tags de porta** flutuando sobre os pacotes (ex.: `:443 TLS`, `:80 HTTP`, `:22 SSH`)
+- **Contador de pacotes** 0→100 com incremento de 30 ms por cabo
+- **Barra de progresso** global com `%` e número do cabo atual sobre o total
+- Script Python (`ingest_telemetry_samples.py`) grava `.probe_live.json` e `cables_live.jsonl` por cabo em `data/local/historico/YYYY-MM-DD/` — lido em tempo real pelo `api.php`
+
+#### Histórico
+- Selecione data e cabo para visualizar métricas históricas
+- Lê `cables_live.jsonl` do diretório de historico da data selecionada
 
 ---
 
@@ -180,6 +198,7 @@ Janela gráfica nativa (Tkinter + matplotlib), funciona no VS Code e standalone.
 | Dashboard | Python 3.12 · Tkinter · Matplotlib · psycopg2 |
 | Banco | PostgreSQL 16 local (socket Unix, porta 55432) |
 | Histórico TCP | JSON em `data/local/history/` (probe_full + checkpoint) |
+| Live sonda | JSON em `data/local/historico/YYYY-MM-DD/` (`.probe_live.json`, `cables_live.jsonl`) |
 
 ---
 
@@ -271,6 +290,7 @@ Os scripts em `scripts/` produzem e consomem dados em dois destinos:
 | Destino | Formato | Conteúdo |
 |---|---|---|
 | `data/local/history/` | JSON por execução | Registros brutos TCP por cabo (`probe_full`, `checkpoint`) |
+| `data/local/historico/YYYY-MM-DD/` | `.probe_live.json` + `cables_live.jsonl` | Status em tempo real por cabo (lido pelo `api.php`) |
 | PostgreSQL | Tabelas relacionais | Rollups 5 m e 1 h, alertas, amostras de referência |
 
 ```bash
@@ -278,7 +298,7 @@ Os scripts em `scripts/` produzem e consomem dados em dois destinos:
 cd global-network-resilience
 ./scripts/run_daily_telemetry_tasks.sh
 
-# Ingestão de amostras
+# Ingestão de amostras (grava live JSON por cabo)
 python scripts/ingest_telemetry_samples.py
 
 # Rollups
@@ -296,9 +316,10 @@ python scripts/validate_telemetry_baseline.py
 
 ---
 
-## Arquivos de histórico TCP (`data/local/history/`)
+## Arquivos de histórico TCP
 
-Gerados pelos scripts de sonda e ingestão, consumidos pela interface web e pelo dashboard para exibir **médias de dados reais**:
+### Probe histórico — `data/local/history/`
+Gerados pelos scripts de sonda e ingestão, consumidos pela interface web e pelo dashboard:
 
 | Padrão de nome | Conteúdo |
 |---|---|
@@ -321,6 +342,14 @@ Campos por registro:
 }
 ```
 
+### Live sonda — `data/local/historico/YYYY-MM-DD/`
+Gerados pelo `ingest_telemetry_samples.py` após cada cabo processado, lidos em tempo real pelo `api.php`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `.probe_live.json` | Último cabo processado: `cable_id`, `cable_name`, `current`, `total`, `percent`, `proto`, `latency_ms` |
+| `cables_live.jsonl` | Uma linha JSON por cabo concluído (histórico da sessão) |
+
 ---
 
 ## Regras de organização
@@ -328,11 +357,13 @@ Campos por registro:
 | Tipo | Local |
 |---|---|
 | Interface web (HTML, PHP, JS, CSS) | `global-network-resilience/web/` |
+| Ícones SVG | `global-network-resilience/web/assets/svg/` |
 | Fontes C e headers | `global-network-resilience/terminal/` |
 | Dashboard Python | `global-network-resilience/dashboard/` |
 | Schema e seed SQL | `global-network-resilience/db/` |
 | Scripts operacionais | `global-network-resilience/scripts/` |
 | Datasets externos | `data/external/` (gitignored) |
 | Histórico TCP real | `data/local/history/` (gitignored) |
+| Live sonda | `data/local/historico/` (gitignored) |
 | Logs e runtime | `data/local/log/` (gitignored) |
 | PostgreSQL local | `.local/` (gitignored) |

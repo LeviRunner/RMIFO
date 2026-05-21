@@ -184,6 +184,121 @@ ul {
   background: var(--accent);
 }
 
+/* ── Star background canvas ─────────────────────────────────────────────────── */
+#star-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+
+/* ── Welcome card ────────────────────────────────────────────────────────────── */
+#welcome-card {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 2, 10, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#welcome-card.visible {
+  display: flex;
+}
+
+.wc-inner {
+  max-width: 480px;
+  width: 100%;
+  background: rgba(17, 10, 34, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px 30px;
+  box-shadow: 0 0 60px rgba(124, 57, 247, 0.2), var(--shadow);
+  animation: wc-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes wc-in {
+  from { opacity: 0; transform: translateY(22px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.wc-logo {
+  font-family: "Oxanium", "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.wc-title {
+  font-family: "Oxanium", "Space Grotesk", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.25;
+}
+
+.wc-subtitle {
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-bottom: 22px;
+  line-height: 1.55;
+}
+
+.wc-features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.wc-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.wc-features li strong {
+  color: var(--text);
+}
+
+.wc-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.15);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.wc-btn {
+  width: 100%;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 #drawer-overlay {
   display: none;
   position: fixed;
@@ -377,6 +492,11 @@ ul {
   inset: 0;
   width: 100%;
   height: 100%;
+  background: transparent;
+}
+
+#globe-container canvas {
+  background: transparent !important;
 }
 
 .globe-ui {
