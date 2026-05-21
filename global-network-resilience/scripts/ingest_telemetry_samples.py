@@ -486,6 +486,21 @@ def save_history(base_dir: Path, measured_at: datetime, summary: dict, tag: str 
     return path
 
 
+def get_proj_hist_dir(measured_at: datetime) -> Path:
+    """Diretório historico legível pelo PHP (api.php → projHistDir)."""
+    proj_dir = Path(__file__).resolve().parent.parent
+    hist_dir = proj_dir / "data" / "local" / "historico" / measured_at.strftime("%Y-%m-%d")
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    return hist_dir
+
+
+def write_live_status(live_file: Path, status: dict) -> None:
+    """Gravação atômica: escreve em .tmp e renomeia — evita leitura parcial pelo PHP."""
+    tmp = live_file.with_suffix(".tmp")
+    tmp.write_text(json.dumps(status, ensure_ascii=False, default=str), encoding="utf-8")
+    tmp.replace(live_file)
+
+
 def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int, full_scan: bool = False) -> None:
     random.seed(seed)
     measured_at = datetime.now(timezone.utc).replace(second=0, microsecond=0)
@@ -505,7 +520,7 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
         health_map = get_cable_health_map(conn)
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT c.cable_id, c.length_km, c.capacity_gbps,
+                SELECT c.cable_id, c.cable_name, c.length_km, c.capacity_gbps,
                        c.landing_points_count, cm.public_url
                 FROM cables c
                 LEFT JOIN cable_metadata cm ON cm.cable_id = c.cable_id
@@ -514,8 +529,13 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
             """, (limit,))
             cables = cur.fetchall()
 
+    proj_hist_dir  = get_proj_hist_dir(measured_at)
+    live_file      = proj_hist_dir / ".probe_live.json"
+    cables_jsonl   = proj_hist_dir / "cables_live.jsonl"
+
     inserted = 0
-    for cable_id, length_km, capacity_gbps, landing_points_count, public_url in cables:
+    for cable_id, cable_name, length_km, capacity_gbps, landing_points_count, public_url in cables:
+        cable_name = cable_name or cable_id
         baseline = synthetic_from_cable(length_km, capacity_gbps, landing_points_count)
         host = extract_host(public_url)
 
@@ -713,9 +733,41 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
             flush=True,
         )
 
-        # Checkpoint a cada 50 cabos
+        # ── Status ao vivo: escrito após cada cabo (lido pela api.php) ────────
+        live_payload = {
+            "cable_id":   cable_id,
+            "cable_name": cable_name,
+            "current":    inserted,
+            "total":      len(cables),
+            "percent":    round(prog, 1),
+            "proto":      method,
+            "latency_ms": round(latency_ms, 1),
+            "tcp":        stats["tcp"],
+            "synthetic":  stats["synthetic"],
+            "mtr":        stats["mtr"],
+            "http":       stats["http"],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        write_live_status(live_file, live_payload)
+
+        # ── Histórico individual por cabo (JSONL, um registro por linha) ──────
+        cable_hist_record = {
+            "cable_id":   cable_id,
+            "cable_name": cable_name,
+            "measured_at": measured_at.isoformat(),
+            "latency_ms": round(latency_ms, 3),
+            "jitter_ms":  round(jitter_ms, 3),
+            "packet_loss_pct": round(packet_loss_pct, 3),
+            "source":     source,
+            "method":     method,
+            "open_ports": open_ports,
+        }
+        with cables_jsonl.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(cable_hist_record, ensure_ascii=False, default=str) + "\n")
+
+        # ── Checkpoint a cada 50 cabos ────────────────────────────────────────
         if inserted % 50 == 0:
-            cp_at = datetime.now(timezone.utc)
+            cp_at  = datetime.now(timezone.utc)
             recent = probe_records[-50:]
             lats   = [r["latency_ms"]      for r in recent if r["latency_ms"]      is not None]
             jits   = [r["jitter_ms"]       for r in recent if r["jitter_ms"]       is not None]
@@ -730,8 +782,8 @@ def ingest(base_dir: Path, limit: int, seed: int, timeout: int, mtr_cycles: int,
                     "tcp":       stats["tcp"],
                     "http":      stats["http"],
                     "sintetico": stats["synthetic"],
-                    "lat_media_ms":  round(sum(lats)   / len(lats),   2) if lats   else None,
-                    "jit_media_ms":  round(sum(jits)   / len(jits),   2) if jits   else None,
+                    "lat_media_ms":    round(sum(lats)   / len(lats),   2) if lats   else None,
+                    "jit_media_ms":    round(sum(jits)   / len(jits),   2) if jits   else None,
                     "perda_media_pct": round(sum(losses) / len(losses), 3) if losses else None,
                 },
                 "registros": recent,

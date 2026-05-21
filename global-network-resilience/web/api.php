@@ -1396,6 +1396,27 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $lastMod = @filemtime($logFile) ?: 0;
                 if (!$isRun && (time() - $lastMod) < 120) { $isRun = true; }
 
+                // ── Live status gravado pelo script Python após cada cabo ─────
+                // Tem prioridade sobre o parsing do log: mais granular e inclui
+                // cable_name (nome real) em vez de cable_id (slug).
+                $liveFile = $projHistDir . '/' . gmdate('Y-m-d') . '/.probe_live.json';
+                if (file_exists($liveFile)) {
+                    $liveAge  = time() - (@filemtime($liveFile) ?: 0);
+                    $liveData = @json_decode(@file_get_contents($liveFile), true);
+                    // Usa o live status se for recente (< 120 s) e tiver dados de progresso
+                    if ($liveData && isset($liveData['current']) && $liveAge < 120) {
+                        $progress = [
+                            'current'    => (int)   ($liveData['current']    ?? 0),
+                            'total'      => (int)   ($liveData['total']      ?? 699),
+                            'percent'    => (float) ($liveData['percent']    ?? 0),
+                            'cable'      => (string)($liveData['cable_name'] ?? $liveData['cable_id'] ?? ''),
+                            'proto'      => (string)($liveData['proto']      ?? ''),
+                            'latency_ms' => (float) ($liveData['latency_ms'] ?? 0),
+                        ];
+                        if (!$isRun) { $isRun = true; }
+                    }
+                }
+
                 $completed = isset($summary['completed_at'])
                           || str_contains($content, 'Ciclo concluído com sucesso')
                           || str_contains($content, 'Ciclo concluído COM ERROS');
