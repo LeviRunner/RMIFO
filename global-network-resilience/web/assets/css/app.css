@@ -28,6 +28,14 @@
   padding: 0;
 }
 
+/* ── SVG inline icons ───────────────────────────────────────────────────────
+   All SVG icons use width/height:1em so they scale with the parent font-size.
+   vertical-align nudges them to sit on the text baseline.                  */
+svg { display: inline-block; vertical-align: -0.13em; flex-shrink: 0; overflow: visible; }
+.btn svg     { margin-right: 5px; }
+.btn-sm svg  { margin-right: 3px; }
+.daily-status-badge svg { margin-right: 4px; }
+
 html,
 body {
   height: 100%;

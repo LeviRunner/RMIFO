@@ -10,6 +10,16 @@
 
 const API_BASE = 'api.php';
 
+// Inline SVG icon strings — sourced from web/assets/svg/
+const ICONS = {
+  clock: `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><polyline points="8 4.75 8 8 10.25 9.25"/></svg>`,
+  check: `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2.5 8.5 6.5 12.5 13.5 3.5"/></svg>`,
+  xmark: `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg>`,
+  alert: `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5L1.5 13.5h13z"/><line x1="8" y1="6" x2="8" y2="9.5"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none"/></svg>`,
+  play:  `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg>`,
+  dot:   `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="4"/></svg>`,
+};
+
 const ACTION_ALIAS = {
   detail:         'details',
   critical_cuts:  'critical_cables',
@@ -811,7 +821,7 @@ function initDbExplorer() {
     if (sqlEmpty)     sqlEmpty.style.display  = 'none';
     if (sqlTableWrap) sqlTableWrap.style.display = 'none';
     if (sqlResultBar) sqlResultBar.style.display = 'none';
-    if (sqlRun)       { sqlRun.disabled = true; sqlRun.textContent = '⏳ Executando…'; }
+    if (sqlRun)       { sqlRun.disabled = true; sqlRun.innerHTML = ICONS.clock + ' Executando…'; }
 
     try {
       const data = await apiFetch({ action: 'db_query', sql });
@@ -826,7 +836,7 @@ function initDbExplorer() {
     } catch (err) {
       if (sqlError) showError(sqlError, err.message);
     } finally {
-      if (sqlRun) { sqlRun.disabled = false; sqlRun.textContent = '▶ Executar'; }
+      if (sqlRun) { sqlRun.disabled = false; sqlRun.innerHTML = ICONS.play + ' Executar'; }
     }
   }
 
@@ -1929,7 +1939,7 @@ function initDailyPage() {
   }
 
   function setRunningUI(running) {
-    if (btnStart)  { btnStart.disabled  = running; btnStart.textContent = running ? '● Rodando…' : '▶ Iniciar Sonda'; }
+    if (btnStart)  { btnStart.disabled = running; btnStart.innerHTML = running ? ICONS.dot + ' Rodando…' : ICONS.play + ' Iniciar Sonda'; }
     if (btnCancel) { btnCancel.style.display = running ? '' : 'none'; }
   }
 
@@ -1944,7 +1954,7 @@ function initDailyPage() {
     if (!hasPreflight && data.status !== 'completed') return;
     preflightEl.style.display = '';
 
-    const icon = (ok, pending) => ok == null ? '⏳' : ok ? '✔' : '✖';
+    const icon = (ok) => ok == null ? ICONS.clock : ok ? ICONS.check : ICONS.xmark;
     const cls  = (ok)          => ok == null ? '' : ok ? 'pf-ok' : 'pf-fail';
 
     const setCheck = (id, ok, label) => {
@@ -1971,7 +1981,7 @@ function initDailyPage() {
     if (grid && data.probes && data.probes.length) {
       grid.innerHTML = data.probes.map(p => {
         const sc = p.status === 'ok' ? 'pf-probe-ok' : p.status === 'warn' ? 'pf-probe-warn' : 'pf-probe-fail';
-        const ic = p.status === 'ok' ? '✔' : p.status === 'warn' ? '⚠' : '✖';
+        const ic = p.status === 'ok' ? ICONS.check : p.status === 'warn' ? ICONS.alert : ICONS.xmark;
         return `<div class="pf-probe ${sc}">
           <span class="pf-probe-ic">${ic}</span>
           <span class="pf-probe-ip">${esc(p.ip)}</span>
@@ -2024,7 +2034,7 @@ function initDailyPage() {
     if (lbl) lbl.textContent = t ? t.label : '—';
     if (att) att.textContent = t ? `tentativa ${t.attempt}/${t.max}` : '';
     if (doneEl && done.length) {
-      doneEl.innerHTML = done.map(d => `<span class="dtb-ok">✔ ${esc(d)}</span>`).join('');
+      doneEl.innerHTML = done.map(d => `<span class="dtb-ok">${ICONS.check} ${esc(d)}</span>`).join('');
     }
   }
 
@@ -2067,8 +2077,8 @@ function initDailyPage() {
 
   function updateBadge(status) {
     if (!statusBadge) return;
-    const map = { running: '● Em execução', completed: '✓ Concluído', idle: '', already_running: '● Em execução' };
-    statusBadge.textContent = map[status] || '';
+    const map = { running: ICONS.dot + ' Em execução', completed: ICONS.check + ' Concluído', idle: '', already_running: ICONS.dot + ' Em execução' };
+    statusBadge.innerHTML = map[status] || '';
     statusBadge.className = 'daily-status-badge ' + (status === 'completed' ? 'done' : status === 'running' || status === 'already_running' ? 'running' : '');
   }
 
@@ -2204,7 +2214,7 @@ function initDailyPage() {
     btnStart.addEventListener('click', async () => {
       const fullScan = document.getElementById('daily-full-scan')?.checked ? '1' : '0';
       setRunningUI(true);
-      btnStart.textContent = 'Iniciando…';
+      btnStart.innerHTML = ICONS.clock + ' Iniciando…';
       if (errEl) errEl.style.display = 'none';
       tableRows = [];
       if (tbody) tbody.innerHTML = '';
