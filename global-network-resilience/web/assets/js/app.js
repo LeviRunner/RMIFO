@@ -656,8 +656,12 @@ function initDbExplorer() {
       document.querySelectorAll('.db-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       const id = tab.dataset.tab;
-      document.getElementById('db-panel-browser').style.display  = id === 'browser'  ? '' : 'none';
-      document.getElementById('db-panel-terminal').style.display = id === 'terminal' ? '' : 'none';
+      // Left: switch control panels
+      document.getElementById('db-ctrl-browser').style.display    = id === 'browser'  ? '' : 'none';
+      document.getElementById('db-ctrl-terminal').style.display   = id === 'terminal' ? '' : 'none';
+      // Right: switch result panels
+      document.getElementById('db-results-browser').style.display  = id === 'browser'  ? '' : 'none';
+      document.getElementById('db-results-terminal').style.display = id === 'terminal' ? '' : 'none';
     });
   });
 
