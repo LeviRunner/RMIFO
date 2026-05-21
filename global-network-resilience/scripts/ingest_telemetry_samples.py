@@ -792,11 +792,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ingestão de telemetria – mtr / TCP / HTTP / sintético"
     )
-    parser.add_argument("--limit",      type=int,  default=9999, help="Máximo de cabos (default: todos)")
-    parser.add_argument("--seed",       type=int,  default=42,   help="Seed ruído sintético")
-    parser.add_argument("--timeout",    type=int,  default=6,    help="Timeout por sonda (segundos)")
-    parser.add_argument("--mtr-cycles", type=int,  default=3,    help="Ciclos mtr por cabo")
-    parser.add_argument("--full-scan",  action="store_true",      help="Sonda completa: 5 portas, 5 passes jitter, histórico datado")
+    parser.add_argument("--limit",        type=int,  default=9999, help="Máximo de cabos (default: todos)")
+    parser.add_argument("--seed",         type=int,  default=42,   help="Seed ruído sintético")
+    parser.add_argument("--timeout",      type=int,  default=6,    help="Timeout por sonda (segundos)")
+    parser.add_argument("--mtr-cycles",   type=int,  default=3,    help="Ciclos mtr por cabo")
+    parser.add_argument("--full-scan",    action="store_true",      help="Sonda completa: 5 portas, 5 passes jitter, histórico datado")
+    parser.add_argument("--probe-report", type=str,  default="",   help="Caminho para o JSON de pre-flight gerado pelo bash")
     return parser.parse_args()
 
 
