@@ -1261,8 +1261,11 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 if (!file_exists($logFile)) { jsonResponse(['status' => 'starting', 'log_file' => $logFile]); }
 
                 $content = (string) (@file_get_contents($logFile) ?: '');
+                // Strip ANSI color codes before any parsing
+                $content = (string) preg_replace('/\033\[[0-9;]*m/', '', $content);
                 $lines   = explode("\n", $content);
 
+                // ── Progresso de cabos (formato do ingest Python) ────────────
                 $progress = null;
                 foreach (array_reverse($lines) as $line) {
                     if (preg_match(
@@ -1281,6 +1284,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     }
                 }
 
+                // ── Resumo final (Python ingest) ─────────────────────────────
                 $summary = null;
                 if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
                     $summary = ['inserted' => (int) $m[1]];
@@ -1292,6 +1296,85 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     if (preg_match('/Concluido em\s*(\S+)/m',       $content, $m2)) $summary['completed_at'] = $m2[1];
                 }
 
+                // ── Live TCP/Synth durante execução ──────────────────────────
+                $liveTcp   = preg_match_all('/proto=tcp-\d+pkt/m',    $content);
+                $liveSynth = preg_match_all('/proto=heuristic\b/m',    $content);
+
+                // ── PRÉ-FLIGHT: probes ICMP por IP ───────────────────────────
+                $probes = [];
+                preg_match_all(
+                    '/\[[\d:]+\]\s+[✔⚠✖\s]+\s*([\d.]+):\s+perda=(\d+)%\s+RTT=([\d.]+)ms(.*)/',
+                    $content, $probeM, PREG_SET_ORDER
+                );
+                foreach ($probeM as $pm) {
+                    $rest   = (string) $pm[4];
+                    $pstatus = str_contains($rest, 'inacessível') ? 'fail'
+                             : (str_contains($rest, 'degradado')  ? 'warn' : 'ok');
+                    $probes[] = [
+                        'ip'     => $pm[1],
+                        'loss'   => (int)   $pm[2],
+                        'rtt'    => (float) $pm[3],
+                        'status' => $pstatus,
+                    ];
+                }
+
+                // Reachability: "Conectividade: X/Y endpoints OK"
+                $reachable = null;
+                if (preg_match('/Conectividade:\s*(\d+)\/(\d+)\s+endpoints/', $content, $rm)) {
+                    $reachable = ['ok' => (int) $rm[1], 'total' => (int) $rm[2]];
+                }
+
+                // Checks de fase (existência de seção no log)
+                $depsOk = str_contains($content, 'PRÉ-FLIGHT')
+                       && !preg_match('/Dependência ausente|dep_missing/', $content);
+                $dnsOk  = str_contains($content, 'Resolução DNS')
+                       && !str_contains($content, 'dns_total_failure');
+                $httpOk = str_contains($content, 'Verificação HTTP')
+                       && !preg_match('/HTTP 000/', $content);
+
+                // Cabeçalhos de fase "=== ... ===" — último visto é o atual
+                $currentPhase = '';
+                preg_match_all('/\[[\d:]+\] === (.+?) ===/', $content, $phaseM);
+                if (!empty($phaseM[1])) { $currentPhase = trim(end($phaseM[1])); }
+
+                // Tarefa Python atual: última linha "  label (tentativa N/M)..."
+                $currentTask = null;
+                preg_match_all(
+                    '/\[[\d:]+\]\s{2}(.+?) \(tentativa (\d+)\/(\d+)\)/',
+                    $content, $taskM, PREG_SET_ORDER
+                );
+                if (!empty($taskM)) {
+                    $last = end($taskM);
+                    $currentTask = [
+                        'label'   => trim((string) $last[1]),
+                        'attempt' => (int) $last[2],
+                        'max'     => (int) $last[3],
+                    ];
+                }
+
+                // Tarefas Python concluídas com sucesso
+                $taskDone = [];
+                preg_match_all('/✔\s+(.+?)\s+→\s+sucesso/', $content, $tdM);
+                $taskDone = array_map('trim', $tdM[1] ?? []);
+
+                // Sumário final (avisos/erros do bash)
+                $finalSummary = null;
+                if (preg_match('/Endpoints alcançáveis\s*:\s*([\d\/]+)/', $content, $fsm)) {
+                    $finalSummary = ['reachable' => $fsm[1]];
+                    if (preg_match('/Avisos\s*:\s*(\d+)/', $content, $m2)) $finalSummary['warnings'] = (int) $m2[1];
+                    if (preg_match('/Erros\s*:\s*(\d+)/',  $content, $m2)) $finalSummary['errors']   = (int) $m2[1];
+                }
+
+                // Listas de avisos e erros (linhas com "• ")
+                $warnList = [];
+                preg_match_all('/⚠\s+•\s+(.+)/', $content, $wm);
+                $warnList = array_map('trim', $wm[1] ?? []);
+
+                $errorList = [];
+                preg_match_all('/✖\s+•\s+(.+)/', $content, $em);
+                $errorList = array_map('trim', $em[1] ?? []);
+
+                // ── Status do ciclo ──────────────────────────────────────────
                 $date    = gmdate('Y-m-d');
                 $runFile = $projHistDir . '/' . $date . '/.running';
                 $isRun   = false;
@@ -1303,32 +1386,42 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     if ($runPid !== '' && file_exists('/proc/' . $runPid)) {
                         $isRun = true;
                     } elseif ((time() - $startTs) < 180) {
-                        // PID may have forked; trust the start timestamp for up to 3 min
                         $isRun = true;
                     }
                 }
 
-                // Fallback: if log was written very recently, assume still running
                 $lastMod = @filemtime($logFile) ?: 0;
                 if (!$isRun && (time() - $lastMod) < 120) { $isRun = true; }
 
-                // Count live TCP / synthetic lines already in log
-                $liveTcp   = preg_match_all('/proto=tcp-\d+pkt/m',    $content);
-                $liveSynth = preg_match_all('/proto=heuristic\b/m',    $content);
-
-                $completed = isset($summary['completed_at']);
+                $completed = isset($summary['completed_at'])
+                          || str_contains($content, 'Ciclo concluído com sucesso')
+                          || str_contains($content, 'Ciclo concluído COM ERROS');
                 $status    = $completed ? 'completed'
                            : ($isRun    ? 'running'
                            : ($progress !== null ? 'running' : 'idle'));
                 if ($completed && file_exists($runFile)) { @unlink($runFile); }
 
                 jsonResponse([
-                    'status'     => $status,
-                    'progress'   => $progress,
-                    'summary'    => $summary,
-                    'log_file'   => $logFile,
-                    'live_tcp'   => $liveTcp,
-                    'live_synth' => $liveSynth,
+                    'status'        => $status,
+                    'progress'      => $progress,
+                    'summary'       => $summary,
+                    'log_file'      => $logFile,
+                    'live_tcp'      => $liveTcp,
+                    'live_synth'    => $liveSynth,
+                    // PRÉ-FLIGHT
+                    'probes'        => $probes,
+                    'reachable'     => $reachable,
+                    'deps_ok'       => $depsOk,
+                    'dns_ok'        => $dnsOk,
+                    'http_ok'       => $httpOk,
+                    // Pipeline
+                    'current_phase' => $currentPhase,
+                    'current_task'  => $currentTask,
+                    'task_done'     => $taskDone,
+                    // Sumário bash
+                    'final_summary' => $finalSummary,
+                    'warn_list'     => $warnList,
+                    'error_list'    => $errorList,
                 ]);
             }
 

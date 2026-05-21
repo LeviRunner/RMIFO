@@ -395,10 +395,11 @@
   <section class="page" id="page-daily">
     <div class="page-inner">
 
+      <!-- Header -->
       <div class="daily-header">
         <div>
-          <div class="daily-title">Sonda de Telemetria Diária</div>
-          <div class="daily-subtitle">Verifica latência TCP em todos os 699 cabos submarinos</div>
+          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v2</span></div>
+          <div class="daily-subtitle">Verificação ICMP real + latência TCP em 699 cabos submarinos</div>
         </div>
         <div class="daily-actions">
           <label class="daily-opt"><input type="checkbox" id="daily-full-scan" checked> Sonda completa</label>
@@ -408,7 +409,40 @@
         </div>
       </div>
 
-      <!-- Barra de progresso -->
+      <!-- Barra de fases do ciclo -->
+      <div class="daily-phase-bar" id="daily-phase-bar" style="display:none">
+        <div class="dpb-step" id="dpb-preflight">PRÉ-FLIGHT</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-icmp">ICMP</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-dns">DNS</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-http">HTTP</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-pipeline">Pipeline</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-done">Sumário</div>
+      </div>
+
+      <!-- PRÉ-FLIGHT: resultado dos probes ICMP + checks de serviços -->
+      <div class="daily-preflight" id="daily-preflight" style="display:none">
+        <div class="pf-row">
+          <div class="pf-check" id="pf-deps"><span class="pf-icon">⏳</span> Dependências</div>
+          <div class="pf-check" id="pf-dns"><span class="pf-icon">⏳</span> DNS</div>
+          <div class="pf-check" id="pf-http"><span class="pf-icon">⏳</span> HTTP</div>
+          <div class="pf-check pf-reach" id="pf-reach"><span class="pf-icon">⏳</span> <span id="pf-reach-label">Rede —</span></div>
+        </div>
+        <div class="pf-probes" id="pf-probes"></div>
+      </div>
+
+      <!-- Task Python atual (tentativa N/M) -->
+      <div class="daily-task-bar" id="daily-task-bar" style="display:none">
+        <span class="dtb-label" id="dtb-label">—</span>
+        <span class="dtb-attempt" id="dtb-attempt"></span>
+        <div class="dtb-done" id="dtb-done"></div>
+      </div>
+
+      <!-- Barra de progresso de cabos -->
       <div id="daily-progress-wrap" style="display:none">
         <div class="daily-progress-outer">
           <div class="daily-progress-inner" id="daily-progress-inner"></div>
@@ -444,6 +478,18 @@
         <div class="dstat synth"><div class="dstat-v" id="dstat-synth">—</div><div class="dstat-l">Sintético</div></div>
         <div class="dstat"><div class="dstat-v" id="dstat-mtr">—</div><div class="dstat-l">MTR</div></div>
         <div class="dstat warn"><div class="dstat-v" id="dstat-anomalies">—</div><div class="dstat-l">Anomalias</div></div>
+      </div>
+
+      <!-- Avisos e erros acumulados pelo bash -->
+      <div class="daily-alerts" id="daily-alerts" style="display:none">
+        <div class="da-block da-warn-block" id="da-warn-block" style="display:none">
+          <div class="da-block-title">⚠ Avisos</div>
+          <ul class="da-list" id="da-warn-list"></ul>
+        </div>
+        <div class="da-block da-error-block" id="da-error-block" style="display:none">
+          <div class="da-block-title">✖ Erros</div>
+          <ul class="da-list" id="da-error-list"></ul>
+        </div>
       </div>
 
       <!-- Tabela live de últimas sondas -->

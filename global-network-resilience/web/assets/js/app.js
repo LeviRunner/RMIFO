@@ -1890,6 +1890,10 @@ function initDailyPage() {
   const tableWrap    = document.getElementById('daily-table-wrap');
   const tbody        = document.getElementById('daily-tbody');
   const errEl        = document.getElementById('daily-error');
+  const phaseBar     = document.getElementById('daily-phase-bar');
+  const preflightEl  = document.getElementById('daily-preflight');
+  const taskBar      = document.getElementById('daily-task-bar');
+  const alertsEl     = document.getElementById('daily-alerts');
 
   let pollTimer      = null;
   let currentLog     = null;
@@ -1899,6 +1903,124 @@ function initDailyPage() {
   function setRunningUI(running) {
     if (btnStart)  { btnStart.disabled  = running; btnStart.textContent = running ? '● Rodando…' : '▶ Iniciar Sonda'; }
     if (btnCancel) { btnCancel.style.display = running ? '' : 'none'; }
+  }
+
+  // ── PRÉ-FLIGHT panel ─────────────────────────────────────────────────────
+  function updatePreflight(data) {
+    if (!preflightEl) return;
+    const phase = (data.current_phase || '').toLowerCase();
+    const hasPreflight = phase.includes('pré-flight') || phase.includes('conectividade')
+                      || phase.includes('dns') || phase.includes('http')
+                      || (data.probes && data.probes.length > 0)
+                      || data.reachable != null;
+    if (!hasPreflight && data.status !== 'completed') return;
+    preflightEl.style.display = '';
+
+    const icon = (ok, pending) => ok == null ? '⏳' : ok ? '✔' : '✖';
+    const cls  = (ok)          => ok == null ? '' : ok ? 'pf-ok' : 'pf-fail';
+
+    const setCheck = (id, ok, label) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.className = 'pf-check ' + cls(ok);
+      el.innerHTML = `<span class="pf-icon">${icon(ok)}</span> ${label}`;
+    };
+
+    const depsOk = data.deps_ok ?? null;
+    const dnsOk  = data.dns_ok  ?? null;
+    const httpOk = data.http_ok ?? null;
+    setCheck('pf-deps', depsOk, 'Dependências');
+    setCheck('pf-dns',  dnsOk,  'DNS');
+    setCheck('pf-http', httpOk, 'HTTP');
+
+    const r = data.reachable;
+    const reachOk = r ? (r.ok >= 2 ? true : r.ok > 0 ? null : false) : null;
+    const reachLbl = r ? `Rede ${r.ok}/${r.total}` : 'Rede —';
+    setCheck('pf-reach', reachOk, reachLbl);
+
+    // Probe ICMP grid
+    const grid = document.getElementById('pf-probes');
+    if (grid && data.probes && data.probes.length) {
+      grid.innerHTML = data.probes.map(p => {
+        const sc = p.status === 'ok' ? 'pf-probe-ok' : p.status === 'warn' ? 'pf-probe-warn' : 'pf-probe-fail';
+        const ic = p.status === 'ok' ? '✔' : p.status === 'warn' ? '⚠' : '✖';
+        return `<div class="pf-probe ${sc}">
+          <span class="pf-probe-ic">${ic}</span>
+          <span class="pf-probe-ip">${esc(p.ip)}</span>
+          <span class="pf-probe-loss">perda ${p.loss}%</span>
+          <span class="pf-probe-rtt">${p.rtt} ms</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // ── Phase bar ─────────────────────────────────────────────────────────────
+  function updatePhaseBar(data) {
+    if (!phaseBar) return;
+    const phase = (data.current_phase || '').toLowerCase();
+    if (!phase && data.status === 'idle') return;
+    phaseBar.style.display = '';
+
+    const map = {
+      'dpb-preflight': ['pré-flight', 'verificando dependências'],
+      'dpb-icmp':      ['conectividade', '1/5'],
+      'dpb-dns':       ['dns', '2/5'],
+      'dpb-http':      ['http', '3/5'],
+      'dpb-pipeline':  ['pipeline', '4/5'],
+      'dpb-done':      ['sumário', '5/5'],
+    };
+    Object.entries(map).forEach(([id, keywords]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const active  = keywords.some(k => phase.includes(k));
+      const done    = data.status === 'completed'
+                   || (id === 'dpb-preflight' && ['icmp','dns','http','pipeline','sumário'].some(k => phase.includes(k)))
+                   || (id === 'dpb-icmp'      && ['dns','http','pipeline','sumário'].some(k => phase.includes(k)))
+                   || (id === 'dpb-dns'       && ['http','pipeline','sumário'].some(k => phase.includes(k)))
+                   || (id === 'dpb-http'      && ['pipeline','sumário','relatório'].some(k => phase.includes(k)))
+                   || (id === 'dpb-pipeline'  && ['sumário','5/5'].some(k => phase.includes(k)));
+      el.className = 'dpb-step' + (done ? ' dpb-done' : active ? ' dpb-active' : '');
+    });
+  }
+
+  // ── Task bar (Pipeline Python) ────────────────────────────────────────────
+  function updateTaskBar(data) {
+    if (!taskBar) return;
+    const t = data.current_task;
+    const done = data.task_done || [];
+    if (!t && !done.length) { taskBar.style.display = 'none'; return; }
+    taskBar.style.display = '';
+    const lbl = document.getElementById('dtb-label');
+    const att = document.getElementById('dtb-attempt');
+    const doneEl = document.getElementById('dtb-done');
+    if (lbl) lbl.textContent = t ? t.label : '—';
+    if (att) att.textContent = t ? `tentativa ${t.attempt}/${t.max}` : '';
+    if (doneEl && done.length) {
+      doneEl.innerHTML = done.map(d => `<span class="dtb-ok">✔ ${esc(d)}</span>`).join('');
+    }
+  }
+
+  // ── Warnings / Errors panel ───────────────────────────────────────────────
+  function updateAlerts(data) {
+    if (!alertsEl) return;
+    const warns  = data.warn_list  || [];
+    const errors = data.error_list || [];
+    if (!warns.length && !errors.length) { alertsEl.style.display = 'none'; return; }
+    alertsEl.style.display = '';
+
+    const wrapW = document.getElementById('da-warn-block');
+    const wrapE = document.getElementById('da-error-block');
+    const listW = document.getElementById('da-warn-list');
+    const listE = document.getElementById('da-error-list');
+
+    if (wrapW && listW) {
+      wrapW.style.display = warns.length ? '' : 'none';
+      listW.innerHTML = warns.map(w => `<li>${esc(w)}</li>`).join('');
+    }
+    if (wrapE && listE) {
+      wrapE.style.display = errors.length ? '' : 'none';
+      listE.innerHTML = errors.map(e => `<li>${esc(e)}</li>`).join('');
+    }
   }
 
   function setStats(summary, progress, live) {
@@ -1972,26 +2094,30 @@ function initDailyPage() {
     try {
       const data = await apiFetch({ action: 'daily_status', log: currentLog });
       const live = { tcp: data.live_tcp || null, synth: data.live_synth || null };
+
       updateBadge(data.status);
+      updatePreflight(data);
+      updatePhaseBar(data);
+      updateTaskBar(data);
+      updateAlerts(data);
+
       if (data.progress) updateProgress(data.progress);
       if (data.summary)  setStats(data.summary, data.progress, live);
       else if (data.progress || live.tcp) setStats(null, data.progress, live);
 
       if (data.status === 'starting') {
-        if (progressWrap) progressWrap.style.display = '';
-        if (progressLbl) progressLbl.textContent = 'Iniciando script…';
+        if (phaseBar) phaseBar.style.display = '';
+        if (progressLbl) progressLbl.textContent = 'Iniciando pré-flight…';
         pollTimer = setTimeout(poll, 4000);
       } else if (data.status === 'running' || data.status === 'already_running') {
-        if (!data.progress && progressLbl) progressLbl.textContent = 'Aguardando primeiro cabo…';
+        if (!data.progress && progressLbl) progressLbl.textContent = 'Pré-flight em andamento…';
         pollTimer = setTimeout(poll, 3000);
       } else if (data.status === 'idle') {
-        // Rollup phase: script is running but hasn't written progress lines yet
         const elapsed = probeStartTime ? (Date.now() - probeStartTime) / 1000 : 9999;
         if (elapsed < 180) {
           if (progressLbl) progressLbl.textContent = 'Calculando rollups iniciais…';
           pollTimer = setTimeout(poll, 5000);
         } else {
-          // Truly idle — reset UI
           setRunningUI(false);
         }
       } else if (data.status === 'completed') {
