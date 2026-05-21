@@ -107,7 +107,7 @@ const Router = {
   current: 'map',
   titles: {
     map:     'Mapa Global',
-    search:  'Busca de Cabos',
+    search:  'Explorador de Banco de Dados',
     detail:  'Detalhes do Cabo',
     routes:  'Top 3 Rotas',
     risk:    'Risco de Endpoints',
@@ -604,300 +604,248 @@ function initGlobePanel() {
   }
 }
 
-// ─── Search page ──────────────────────────────────────────────────────────────
+// ─── DB Explorer (substitui Search page) ─────────────────────────────────────
 
-const modes = {
-  cable_id:    { placeholder: 'ex: 2africa',    type: 'text',   api: 'all' },
-  name:        { placeholder: 'ex: Africa',      type: 'text',   api: 'name' },
-  owners:      { placeholder: 'ex: AT&T',        type: 'text',   api: 'owners' },
-  year:        { placeholder: 'ex: 2024',        type: 'number', api: 'year' },
-  operational: { placeholder: '',               type: 'bool',   api: 'operational' },
-  landing:     { placeholder: 'ex: 4',           type: 'number', api: 'landing' },
-  suppliers:   { placeholder: 'ex: ASN',         type: 'text',   api: 'suppliers' },
-  endpoint:    { placeholder: 'ex: Marseille',   type: 'text',   api: 'endpoint' },
-  country:     { placeholder: 'ex: Brazil',      type: 'text',   api: 'country' },
-};
+function initSearchPage() {  // kept as alias — delegates to initDbExplorer
+  initDbExplorer();
+}
 
-function initSearchPage() {
-  const searchInput   = document.getElementById('query-input');
-  const boolInput     = document.getElementById('bool-input');
-  const searchBtn     = document.getElementById('search-btn');
-  const clearBtn      = document.getElementById('clear-btn');
-  const resultCount   = document.getElementById('result-count');
-  const searchError   = document.getElementById('search-error');
-  const searchHead    = document.getElementById('search-head');
-  const searchBody    = document.getElementById('search-body');
-  const tableWrap     = document.getElementById('search-table-wrap');
-  const searchEmpty   = document.getElementById('search-empty');
-  const binaryBox     = document.getElementById('binary-box');
-  const binaryLog     = document.getElementById('binary-log');
-  const binaryProgress= document.getElementById('binary-progress');
-  const binaryStep    = document.getElementById('binary-step');
-  const binaryPlay    = document.getElementById('binary-play');
-  const binaryPrev    = document.getElementById('binary-prev');
-  const binaryNext    = document.getElementById('binary-next');
-  const binaryReset   = document.getElementById('binary-reset');
+function initDbExplorer() {
+  // ── state ──────────────────────────────────────────────────────────────────
+  let currentTable  = 'cables';
+  let currentPage   = 1;
+  let currentTotal  = 0;
+  let currentLimit  = 25;
+  let currentSort   = { col: '', dir: 'ASC' };
+  let currentFilter = { col: '', op: 'ilike', val: '' };
 
-  function getQuery() {
-    const mode = AppState.search.mode;
-    if (modes[mode] && modes[mode].type === 'bool') {
-      return boolInput ? boolInput.value : 'true';
-    }
-    return searchInput ? searchInput.value.trim() : '';
-  }
+  // ── element refs ───────────────────────────────────────────────────────────
+  const tableList    = document.getElementById('db-table-list');
+  const currentLabel = document.getElementById('db-current-table');
+  const filterCol    = document.getElementById('db-filter-col');
+  const filterOp     = document.getElementById('db-filter-op');
+  const filterVal    = document.getElementById('db-filter-val');
+  const filterBtn    = document.getElementById('db-filter-btn');
+  const filterClear  = document.getElementById('db-filter-clear');
+  const resultInfo   = document.getElementById('db-result-info');
+  const pageLabel    = document.getElementById('db-page-label');
+  const prevBtn      = document.getElementById('db-prev-page');
+  const nextBtn      = document.getElementById('db-next-page');
+  const thead        = document.getElementById('db-thead');
+  const tbody        = document.getElementById('db-tbody');
+  const tableWrap    = document.getElementById('db-table-wrap');
+  const emptyEl      = document.getElementById('db-empty');
+  const errorEl      = document.getElementById('db-error');
 
-  function updateModeUI() {
-    const mode = AppState.search.mode;
-    const cfg  = modes[mode] || modes.cable_id;
-    if (searchInput) {
-      searchInput.placeholder = cfg.placeholder;
-      searchInput.type        = cfg.type === 'number' ? 'number' : 'text';
-      searchInput.style.display = cfg.type === 'bool' ? 'none' : '';
-    }
-    if (boolInput)   boolInput.style.display   = cfg.type === 'bool' ? '' : 'none';
-    if (binaryBox)   binaryBox.style.display   = mode === 'cable_id' ? '' : 'none';
+  // Terminal refs
+  const sqlInput     = document.getElementById('db-sql-input');
+  const sqlRun       = document.getElementById('db-sql-run');
+  const sqlClear     = document.getElementById('db-sql-clear');
+  const sqlError     = document.getElementById('db-sql-error');
+  const sqlEmpty     = document.getElementById('db-sql-empty');
+  const sqlResultBar = document.getElementById('db-sql-result-bar');
+  const sqlResultInf = document.getElementById('db-sql-result-info');
+  const sqlTime      = document.getElementById('db-sql-time');
+  const sqlThead     = document.getElementById('db-sql-thead');
+  const sqlTbody     = document.getElementById('db-sql-tbody');
+  const sqlTableWrap = document.getElementById('db-sql-table-wrap');
 
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === mode);
-    });
-  }
-
-  function resetBinary() {
-    const s = AppState.search;
-    if (s.binaryTimer) { clearInterval(s.binaryTimer); s.binaryTimer = null; }
-    if (binaryPlay)    binaryPlay.textContent = 'Reproduzir';
-    if (binaryStep)    binaryStep.textContent  = '–';
-    if (binaryLog)     binaryLog.innerHTML     = '';
-    if (binaryProgress) binaryProgress.style.width = '0%';
-    s.binarySteps = [];
-    s.binaryIndex = 0;
-  }
-
-  function resetSurface() {
-    clearEl(searchError);
-    resetBinary();
-    if (searchEmpty) searchEmpty.style.display = '';
-    if (tableWrap)   tableWrap.style.display   = 'none';
-    if (resultCount) resultCount.textContent    = 'Selecione uma busca.';
-    if (searchHead)  searchHead.innerHTML       = '';
-    if (searchBody)  searchBody.innerHTML       = '';
-  }
-
-  function renderRows(rows) {
-    const headers = ['ação', '#', 'cable_id', 'nome', 'owners', 'comprimento (km)', 'ano RFS', 'operacional', 'endpoints', 'fornecedores'];
-    if (searchHead) {
-      searchHead.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-    }
-    if (searchBody) {
-      searchBody.innerHTML = rows.map((row, i) => `
-        <tr data-cable-id="${esc(row.cable_id)}">
-          <td><button class="btn-sm detail-action" data-open-detail="${esc(row.cable_id)}">Detalhes</button></td>
-          <td class="mono">${i}</td>
-          <td class="mono">${esc(row.cable_id)}</td>
-          <td>${esc(row.cable_name)}</td>
-          <td>${esc(row.owners)}</td>
-          <td>${esc(row.length_km)}</td>
-          <td>${esc(row.rfs_year)}</td>
-          <td>${fmtBool(row.is_operational)}</td>
-          <td>${esc(row.landing_points_count)}</td>
-          <td>${esc(row.suppliers)}</td>
-        </tr>`).join('');
-    }
-    if (searchEmpty) searchEmpty.style.display = rows.length ? 'none' : '';
-    if (tableWrap)   tableWrap.style.display   = rows.length ? '' : 'none';
-  }
-
-  // Binary search helpers
-  function buildBinarySteps(target) {
-    const rows = AppState.allCables;
-    const normalizedTarget = target.toLowerCase();
-    let lo = 0, hi = rows.length - 1;
-    const steps = [];
-    while (lo <= hi) {
-      const mid     = Math.floor((lo + hi) / 2);
-      const current = String(rows[mid].cable_id).toLowerCase();
-      const cmp     = current.localeCompare(normalizedTarget);
-      steps.push({ lo, hi, mid, current, cmp, found: cmp === 0 });
-      if (cmp === 0) break;
-      if (cmp < 0)  lo = mid + 1;
-      else           hi = mid - 1;
-    }
-    if (!steps.length || !steps[steps.length - 1].found) {
-      steps.push({ lo, hi, mid: -1, current: null, cmp: null, found: false, notFound: true });
-    }
-    return steps;
-  }
-
-  function describeStep(step, index, total) {
-    const n = `Passo ${index + 1}/${total}`;
-    if (step.notFound)  return `${n}: intervalo vazio (lo=${step.lo}, hi=${step.hi}). Não encontrado.`;
-    if (step.found)     return `${n}: midpoint [${step.mid}] = ${step.current}. Encontrado!`;
-    if (step.cmp < 0)   return `${n}: midpoint [${step.mid}] = ${step.current}. Valor menor → direita.`;
-    return `${n}: midpoint [${step.mid}] = ${step.current}. Valor maior → esquerda.`;
-  }
-
-  function applyBinaryStep(index) {
-    AppState.search.binaryIndex = index;
-    const step  = AppState.search.binarySteps[index];
-    const total = AppState.search.binarySteps.length;
-    const rows  = searchBody ? Array.from(searchBody.querySelectorAll('tr')) : [];
-
-    // Map each visible row to its index in the full sorted allCables array
-    rows.forEach(row => {
-      const ri = AppState.allCables.findIndex(c => c.cable_id === row.dataset.cableId);
-      row.classList.remove('bs-eliminated', 'bs-range', 'bs-mid', 'bs-found');
-      if (ri === -1) return;
-      if (step.notFound) { row.classList.add('bs-eliminated'); return; }
-      if (ri < step.lo || ri > step.hi) row.classList.add('bs-eliminated');
-      else if (ri === step.mid)          row.classList.add(step.found ? 'bs-found' : 'bs-mid');
-      else                               row.classList.add('bs-range');
-    });
-
-    if (binaryStep)    binaryStep.textContent     = describeStep(step, index, total);
-    if (binaryProgress) binaryProgress.style.width = `${((index + 1) / total) * 100}%`;
-    if (binaryLog) {
-      binaryLog.innerHTML = AppState.search.binarySteps
-        .slice(0, index + 1)
-        .map((s, i) => `<div>${esc(describeStep(s, i, total))}</div>`)
-        .join('');
-    }
-  }
-
-  function togglePlayback() {
-    const s = AppState.search;
-    if (s.binaryTimer) {
-      clearInterval(s.binaryTimer);
-      s.binaryTimer = null;
-      if (binaryPlay) binaryPlay.textContent = 'Reproduzir';
-      return;
-    }
-    if (binaryPlay) binaryPlay.textContent = 'Pausar';
-    s.binaryTimer = setInterval(() => {
-      if (s.binaryIndex < s.binarySteps.length - 1) {
-        applyBinaryStep(s.binaryIndex + 1);
-      } else {
-        clearInterval(s.binaryTimer);
-        s.binaryTimer = null;
-        if (binaryPlay) binaryPlay.textContent = 'Reproduzir';
-      }
-    }, 850);
-  }
-
-  async function performSearch() {
-    clearEl(searchError);
-    resetBinary();
-    const mode  = AppState.search.mode;
-    const cfg   = modes[mode];
-    const query = getQuery();
-
-    try {
-      if (mode === 'cable_id') {
-        if (!AppState.allCables.length) {
-          const payload = await apiFetch({ action: 'search', mode: 'all', q: '' });
-          AppState.allCables = extractData(payload);
-          populateCableDatalist();
-        }
-        if (!query) {
-          renderRows(AppState.allCables);
-          if (resultCount) resultCount.textContent = `${AppState.allCables.length} cabos — sem filtro.`;
-          return;
-        }
-        // Filter to cables similar to the query (substring match on id or name)
-        const q = query.toLowerCase();
-        const similar = AppState.allCables.filter(c =>
-          String(c.cable_id).toLowerCase().includes(q) ||
-          String(c.cable_name || '').toLowerCase().includes(q)
-        );
-        renderRows(similar);
-
-        // Binary search runs on the full sorted array for visualization
-        AppState.search.binarySteps = buildBinarySteps(query);
-        applyBinaryStep(0);
-        const found = AppState.search.binarySteps[AppState.search.binarySteps.length - 1].found;
-        if (resultCount) {
-          const n = AppState.search.binarySteps.length;
-          const exact = found ? ' · exato encontrado' : ' · exato não encontrado';
-          resultCount.textContent = `${similar.length} resultado(s) semelhantes · busca binária: ${n} passos${exact}.`;
-        }
-        return;
-      }
-
-      if (!query && cfg.type !== 'bool') throw new Error('Digite um valor para buscar.');
-      const payload = await apiFetch({ action: 'search', mode: cfg.api, q: query });
-      const rows    = extractData(payload);
-      renderRows(Array.isArray(rows) ? rows : []);
-      if (resultCount) {
-        const total = payload.total !== undefined ? payload.total : (Array.isArray(rows) ? rows.length : 0);
-        resultCount.textContent = `${total} resultado(s).`;
-      }
-    } catch (err) {
-      showError(searchError, err.message);
-    }
-  }
-
-  // Wire mode buttons
-  document.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      AppState.search.mode = btn.dataset.mode;
-      updateModeUI();
-      resetSurface();
+  // ── tab switching ──────────────────────────────────────────────────────────
+  document.querySelectorAll('.db-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.db-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const id = tab.dataset.tab;
+      document.getElementById('db-panel-browser').style.display  = id === 'browser'  ? '' : 'none';
+      document.getElementById('db-panel-terminal').style.display = id === 'terminal' ? '' : 'none';
     });
   });
 
-  if (searchBtn)  searchBtn.addEventListener('click', performSearch);
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      if (searchInput) searchInput.value = '';
-      if (boolInput)   boolInput.value   = 'true';
-      resetSurface();
-    });
-  }
-  if (searchInput) {
-    searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') performSearch(); });
+  // ── helpers ────────────────────────────────────────────────────────────────
+  function fmtCell(v) {
+    if (v === null || v === undefined) return '<span class="db-null">NULL</span>';
+    const s = String(v);
+    if (s.length > 80) return `<span title="${esc(s)}">${esc(s.slice(0, 80))}…</span>`;
+    return esc(s);
   }
 
-  // Detail action from table
-  if (searchBody) {
-    searchBody.addEventListener('click', e => {
-      const btn = e.target.closest('[data-open-detail]');
-      if (!btn) return;
-      Router.go('detail');
-      const cableId = btn.dataset.openDetail;
-      const picker = document.getElementById('detail-picker');
-      if (picker) picker.value = cableId;
-      loadDetail(cableId);
+  function renderTable(columns, rows, theadEl, tbodyEl, wrapEl, emEl, sortable) {
+    if (!theadEl || !tbodyEl) return;
+    theadEl.innerHTML = `<tr>${columns.map(c => {
+      if (!sortable) return `<th>${esc(c)}</th>`;
+      const isActive = currentSort.col === c;
+      const dir      = isActive && currentSort.dir === 'ASC' ? '↑' : isActive ? '↓' : '';
+      return `<th class="db-th-sort ${isActive ? 'db-th-active' : ''}" data-col="${esc(c)}">${esc(c)} <span class="db-sort-arrow">${dir}</span></th>`;
+    }).join('')}</tr>`;
+    tbodyEl.innerHTML = rows.map(row =>
+      `<tr>${columns.map(c => `<td>${fmtCell(row[c])}</td>`).join('')}</tr>`
+    ).join('');
+    if (wrapEl)  wrapEl.style.display  = rows.length ? '' : 'none';
+    if (emEl)    emEl.style.display    = rows.length ? 'none' : '';
+  }
+
+  function updateFilterCols(cols) {
+    if (!filterCol) return;
+    filterCol.innerHTML = cols.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if (currentFilter.col && cols.includes(currentFilter.col)) filterCol.value = currentFilter.col;
+    else if (cols.length) filterCol.value = cols[0];
+  }
+
+  function updatePagination(total, page, limit) {
+    const pages = Math.max(1, Math.ceil(total / limit));
+    if (pageLabel) pageLabel.textContent = `${page} / ${pages}`;
+    if (prevBtn) prevBtn.disabled = page <= 1;
+    if (nextBtn) nextBtn.disabled = page >= pages;
+    if (resultInfo) resultInfo.textContent = `${total.toLocaleString()} linha(s) · página ${page} de ${pages}`;
+  }
+
+  // ── load table data ────────────────────────────────────────────────────────
+  async function loadTable(table, page, sortCol, sortDir, fCol, fOp, fVal) {
+    if (errorEl) clearEl(errorEl);
+    if (resultInfo) resultInfo.textContent = 'Carregando…';
+
+    try {
+      const params = { action: 'db_browse', table, page, limit: currentLimit };
+      if (sortCol) { params.sort_col = sortCol; params.sort_dir = sortDir; }
+      if (fCol && fVal) { params.filter_col = fCol; params.filter_op = fOp; params.filter_val = fVal; }
+
+      const data = await apiFetch(params);
+      if (data.error) throw new Error(data.error);
+
+      currentTotal = data.total;
+      updateFilterCols(data.columns);
+      renderTable(data.columns, data.rows, thead, tbody, tableWrap, emptyEl, true);
+      updatePagination(data.total, data.page, data.limit);
+      if (currentLabel) currentLabel.textContent = table;
+
+      // Sort click handlers
+      if (thead) {
+        thead.querySelectorAll('.db-th-sort').forEach(th => {
+          th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            const dir = currentSort.col === col && currentSort.dir === 'ASC' ? 'DESC' : 'ASC';
+            currentSort = { col, dir };
+            loadTable(currentTable, currentPage, col, dir, currentFilter.col, currentFilter.op, currentFilter.val);
+          });
+        });
+      }
+
+      // Update sidebar row count badge
+      const badge = document.getElementById(`dbrows-${table}`);
+      if (badge && badge.textContent === '') badge.textContent = data.total.toLocaleString();
+
+    } catch (err) {
+      if (errorEl) showError(errorEl, err.message);
+      if (resultInfo) resultInfo.textContent = 'Erro ao carregar.';
+    }
+  }
+
+  // ── sidebar table selection ────────────────────────────────────────────────
+  if (tableList) {
+    tableList.addEventListener('click', e => {
+      const item = e.target.closest('.db-table-item');
+      if (!item) return;
+      tableList.querySelectorAll('.db-table-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      currentTable  = item.dataset.table;
+      currentPage   = 1;
+      currentSort   = { col: '', dir: 'ASC' };
+      currentFilter = { col: '', op: 'ilike', val: '' };
+      if (filterVal) filterVal.value = '';
+      loadTable(currentTable, 1, '', 'ASC', '', 'ilike', '');
     });
   }
 
-  // Binary controls
-  if (binaryPlay)  binaryPlay.addEventListener('click', togglePlayback);
-  if (binaryPrev) {
-    binaryPrev.addEventListener('click', () => {
-      if (AppState.search.binaryIndex > 0) {
-        if (AppState.search.binaryTimer) togglePlayback();
-        applyBinaryStep(AppState.search.binaryIndex - 1);
+  // ── filter ─────────────────────────────────────────────────────────────────
+  if (filterBtn) {
+    filterBtn.addEventListener('click', () => {
+      currentFilter = {
+        col: filterCol?.value || '',
+        op:  filterOp?.value  || 'ilike',
+        val: filterVal?.value.trim() || '',
+      };
+      currentPage = 1;
+      loadTable(currentTable, 1, currentSort.col, currentSort.dir, currentFilter.col, currentFilter.op, currentFilter.val);
+    });
+  }
+  if (filterClear) {
+    filterClear.addEventListener('click', () => {
+      if (filterVal) filterVal.value = '';
+      currentFilter = { col: '', op: 'ilike', val: '' };
+      currentPage = 1;
+      loadTable(currentTable, 1, currentSort.col, currentSort.dir, '', 'ilike', '');
+    });
+  }
+  if (filterVal) {
+    filterVal.addEventListener('keydown', e => { if (e.key === 'Enter') filterBtn?.click(); });
+  }
+
+  // ── pagination ─────────────────────────────────────────────────────────────
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        loadTable(currentTable, currentPage, currentSort.col, currentSort.dir, currentFilter.col, currentFilter.op, currentFilter.val);
       }
     });
   }
-  if (binaryNext) {
-    binaryNext.addEventListener('click', () => {
-      const s = AppState.search;
-      if (s.binaryIndex < s.binarySteps.length - 1) {
-        if (s.binaryTimer) togglePlayback();
-        applyBinaryStep(s.binaryIndex + 1);
-      }
-    });
-  }
-  if (binaryReset) {
-    binaryReset.addEventListener('click', () => {
-      if (AppState.search.binarySteps.length) {
-        if (AppState.search.binaryTimer) togglePlayback();
-        applyBinaryStep(0);
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      const pages = Math.ceil(currentTotal / currentLimit);
+      if (currentPage < pages) {
+        currentPage++;
+        loadTable(currentTable, currentPage, currentSort.col, currentSort.dir, currentFilter.col, currentFilter.op, currentFilter.val);
       }
     });
   }
 
-  updateModeUI();
+  // ── SQL terminal ───────────────────────────────────────────────────────────
+  async function runSql() {
+    const sql = sqlInput?.value.trim() || '';
+    if (!sql) return;
+    if (sqlError)     clearEl(sqlError);
+    if (sqlEmpty)     sqlEmpty.style.display  = 'none';
+    if (sqlTableWrap) sqlTableWrap.style.display = 'none';
+    if (sqlResultBar) sqlResultBar.style.display = 'none';
+    if (sqlRun)       { sqlRun.disabled = true; sqlRun.textContent = '⏳ Executando…'; }
+
+    try {
+      const data = await apiFetch({ action: 'db_query', sql });
+      if (data.error) throw new Error(data.error);
+
+      if (sqlResultInf) sqlResultInf.textContent = `${data.count} linha(s) retornada(s)${data.limited ? ' · limitado a 200' : ''}`;
+      if (sqlTime)      sqlTime.textContent = `${data.time_ms} ms`;
+      if (sqlResultBar) sqlResultBar.style.display = '';
+
+      renderTable(data.columns, data.rows, sqlThead, sqlTbody, sqlTableWrap, sqlEmpty, false);
+
+    } catch (err) {
+      if (sqlError) showError(sqlError, err.message);
+    } finally {
+      if (sqlRun) { sqlRun.disabled = false; sqlRun.textContent = '▶ Executar'; }
+    }
+  }
+
+  if (sqlRun)   sqlRun.addEventListener('click', runSql);
+  if (sqlClear) sqlClear.addEventListener('click', () => {
+    if (sqlInput)     sqlInput.value = '';
+    if (sqlError)     clearEl(sqlError);
+    if (sqlEmpty)     sqlEmpty.style.display  = 'none';
+    if (sqlTableWrap) sqlTableWrap.style.display = 'none';
+    if (sqlResultBar) sqlResultBar.style.display = 'none';
+  });
+  if (sqlInput) {
+    sqlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runSql(); }
+    });
+  }
+
+  // ── Initial load ───────────────────────────────────────────────────────────
+  // Load when the page becomes visible for the first time
+  document.querySelector('[data-page="search"]')?.addEventListener('click', () => {
+    if (!thead || thead.innerHTML) return; // already loaded
+    loadTable('cables', 1, '', 'ASC', '', 'ilike', '');
+  });
 }
 
 // ─── Detail page ──────────────────────────────────────────────────────────────

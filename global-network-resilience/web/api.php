@@ -1457,6 +1457,152 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         $countryA = trim((string) ($req['countryA'] ?? $req['country_a'] ?? ''));
         $countryB = trim((string) ($req['countryB'] ?? $req['country_b'] ?? ''));
 
+        // ── db_browse: navegador de tabela com paginação e filtros ───────────
+        if ($mode === 'db_browse') {
+            $dbAllowed = [
+                'cables'                   => ['cable_id','cable_name','owners','capacity_gbps','length_km','rfs_year','is_operational','landing_points_count','suppliers'],
+                'cable_metadata'           => ['cable_id','public_url','source_url','notes','is_planned','raw_length','raw_rfs'],
+                'landing_points'           => ['endpoint_id','endpoint_name','city_name','country_name','country_code','latitude','longitude','geo_source'],
+                'cable_landing_points'     => ['cable_id','endpoint_id','endpoint_order','is_tbd'],
+                'nodes'                    => ['node_id','node_name','latitude','longitude','country_code','asn'],
+                'cable_telemetry_samples'  => ['sample_id','cable_id','measured_at','latency_ms','jitter_ms','packet_loss_pct','throughput_mbps','source','method','confidence_score','estimated'],
+                'telemetry_rollup_1h'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','p95_latency_ms','avg_packet_loss_pct','sample_count'],
+                'telemetry_rollup_5m'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','avg_packet_loss_pct','sample_count'],
+                'telemetry_alerts'         => ['alert_id','cable_id','metric','severity','current_value','baseline_value','detected_at','resolved_at','description'],
+                'cable_telemetry_reference'=> ['cable_id','baseline_latency_ms','baseline_jitter_ms','baseline_packet_loss_pct','baseline_throughput_mbps','baseline_availability_pct','updated_at'],
+                'endpoint_ip_samples'      => ['endpoint_id','sample_order','network','ip_start','ip_end','country_name','country_code','region','city','latitude','longitude'],
+            ];
+
+            $table = (string) ($req['table'] ?? 'cables');
+            if (!array_key_exists($table, $dbAllowed)) {
+                jsonResponse(['error' => 'Tabela não permitida.'], 403);
+            }
+            $tableCols = $dbAllowed[$table];
+
+            $page  = max(1, (int) ($req['page'] ?? 1));
+            $limit = min(100, max(10, (int) ($req['limit'] ?? 25)));
+            $offset = ($page - 1) * $limit;
+
+            $sortCol = (string) ($req['sort_col'] ?? $tableCols[0]);
+            $sortDir = strtoupper((string) ($req['sort_dir'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
+            if (!in_array($sortCol, $tableCols, true)) $sortCol = $tableCols[0];
+
+            $filterCol = (string) ($req['filter_col'] ?? '');
+            $filterOp  = (string) ($req['filter_op']  ?? 'ilike');
+            $filterVal = (string) ($req['filter_val'] ?? '');
+            $opMap     = ['ilike' => 'ILIKE', 'eq' => '=', 'gt' => '>', 'lt' => '<', 'gte' => '>=', 'lte' => '<='];
+            if (!in_array($filterCol, $tableCols, true)) $filterCol = '';
+            if (!array_key_exists($filterOp, $opMap))   $filterOp  = 'ilike';
+
+            $where  = '';
+            $params = [];
+            if ($filterCol !== '' && $filterVal !== '') {
+                $op     = $opMap[$filterOp];
+                $where  = "WHERE \"$filterCol\" $op ?";
+                $params = [$filterOp === 'ilike' ? "%{$filterVal}%" : $filterVal];
+            }
+
+            $quotedTable = '"' . $table . '"';
+            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM {$quotedTable} {$where}");
+            $countStmt->execute($params);
+            $total = (int) $countStmt->fetchColumn();
+
+            $dataStmt = $pdo->prepare(
+                "SELECT * FROM {$quotedTable} {$where} ORDER BY \"{$sortCol}\" {$sortDir} LIMIT {$limit} OFFSET {$offset}"
+            );
+            $dataStmt->execute($params);
+            $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            jsonResponse([
+                'table'   => $table,
+                'total'   => $total,
+                'page'    => $page,
+                'limit'   => $limit,
+                'columns' => $tableCols,
+                'rows'    => $rows,
+            ]);
+        }
+
+        // ── db_query: terminal SQL com validação de segurança ────────────────
+        if ($mode === 'db_query') {
+            $rawSql = trim((string) ($req['sql'] ?? ''));
+            if ($rawSql === '') { jsonResponse(['error' => 'Consulta vazia.'], 400); }
+
+            // Remove comentários SQL antes de validar
+            $stripped = preg_replace('/--[^\n]*/m', ' ', $rawSql);
+            $stripped = preg_replace('/\/\*.*?\*\//s', ' ', $stripped);
+            $stripped = trim($stripped);
+
+            // Somente SELECT
+            if (!preg_match('/^SELECT\b/i', $stripped)) {
+                jsonResponse(['error' => 'Apenas comandos SELECT são permitidos nesta simulação.'], 403);
+            }
+
+            // Proíbe múltiplos comandos (ex: SELECT ...; DROP ...)
+            $noSemiRest = rtrim($stripped, "; \t\n\r");
+            if (str_contains($noSemiRest, ';')) {
+                jsonResponse(['error' => 'Múltiplos comandos SQL não são permitidos.'], 403);
+            }
+
+            // Blacklist de palavras e objetos proibidos
+            $blacklist = [
+                'pg_read_file','pg_ls_dir','pg_write_file','pg_read_binary_file',
+                'pg_stat_file','lo_export','lo_import','lo_create','lo_open',
+                'pg_sleep','pg_cancel_backend','pg_terminate_backend',
+                'information_schema','pg_catalog','pg_shadow','pg_authid',
+                'pg_user','pg_roles','pg_hba_file','current_setting','set_config',
+                'copy ','copy\t','\copy','COPY ','RETURNING',
+            ];
+            foreach ($blacklist as $token) {
+                if (stripos($stripped, $token) !== false) {
+                    jsonResponse(['error' => "Acesso negado: termo proibido detectado na consulta."], 403);
+                }
+            }
+
+            // Whitelist: a consulta deve referenciar só tabelas conhecidas do projeto
+            $knownTables = [
+                'cables','cable_metadata','landing_points','cable_landing_points',
+                'nodes','cable_telemetry_samples','telemetry_rollup_1h','telemetry_rollup_5m',
+                'telemetry_alerts','cable_telemetry_reference','endpoint_ip_samples','geoip_mapping',
+            ];
+            $hasKnownTable = false;
+            foreach ($knownTables as $t) {
+                if (preg_match('/\b' . preg_quote($t, '/') . '\b/i', $stripped)) {
+                    $hasKnownTable = true;
+                    break;
+                }
+            }
+            if (!$hasKnownTable) {
+                jsonResponse(['error' => 'A consulta deve referenciar ao menos uma tabela do projeto RMIFO.'], 403);
+            }
+
+            // Injeta LIMIT 200 se não houver LIMIT na consulta
+            $needsLimit = !preg_match('/\bLIMIT\s+\d+/i', $stripped);
+            $finalSql   = rtrim($noSemiRest) . ($needsLimit ? ' LIMIT 200' : '');
+
+            $t0 = microtime(true);
+            try {
+                $pdo->exec('BEGIN READ ONLY');
+                $stmt = $pdo->prepare($finalSql);
+                $stmt->execute();
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $pdo->exec('ROLLBACK');
+            } catch (Throwable $qe) {
+                try { $pdo->exec('ROLLBACK'); } catch (Throwable $ignored) {}
+                jsonResponse(['error' => 'Erro na consulta: ' . $qe->getMessage()], 400);
+            }
+            $elapsed = round((microtime(true) - $t0) * 1000);
+            $columns = !empty($rows) ? array_keys($rows[0]) : [];
+
+            jsonResponse([
+                'count'   => count($rows),
+                'columns' => $columns,
+                'rows'    => $rows,
+                'time_ms' => $elapsed,
+                'limited' => $needsLimit,
+            ]);
+        }
+
         switch ($mode) {
             case 'countries':
                 jsonResponse(['data' => listCountries($pdo)]);

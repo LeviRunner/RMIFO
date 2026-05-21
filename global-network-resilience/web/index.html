@@ -34,7 +34,7 @@
   </div>
   <ul class="drawer-nav">
     <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
-    <li><a href="#" class="nav-link" data-page="search">Busca de Cabos</a></li>
+    <li><a href="#" class="nav-link" data-page="search">Explorador DB</a></li>
     <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
     <li><a href="#" class="nav-link" data-page="routes">Top 3 Rotas</a></li>
     <li><a href="#" class="nav-link" data-page="risk">Risco de Endpoints</a></li>
@@ -82,58 +82,155 @@
 
   <!-- PÁGINA: BUSCA -->
   <section class="page" id="page-search">
-    <div class="page-inner">
+    <div class="page-inner db-explorer-wrap">
 
-      <!-- Barra de busca -->
-      <div class="search-header">
-        <div class="search-bar">
-          <input id="query-input" type="text" placeholder="Buscar..." autocomplete="off">
-          <select id="bool-input" style="display:none">
-            <option value="true">Ativo</option>
-            <option value="false">Inativo</option>
-          </select>
-          <button class="btn primary" id="search-btn">Buscar</button>
-          <button class="btn" id="clear-btn">Limpar</button>
+      <!-- ── Sidebar: lista de tabelas ──────────────────────────────────────── -->
+      <aside class="db-sidebar">
+        <div class="db-sidebar-title">
+          <span class="db-dot"></span>PostgreSQL
         </div>
-        <div class="mode-tabs" id="mode-list">
-          <button class="mode-btn active" data-mode="cable_id">ID <span class="mode-meta">binária</span></button>
-          <button class="mode-btn" data-mode="name">Nome</button>
-          <button class="mode-btn" data-mode="owners">Proprietário</button>
-          <button class="mode-btn" data-mode="suppliers">Fornecedor</button>
-          <button class="mode-btn" data-mode="year">Ano</button>
-          <button class="mode-btn" data-mode="operational">Status</button>
-          <button class="mode-btn" data-mode="landing">Pontos</button>
-          <button class="mode-btn" data-mode="endpoint">Endpoint</button>
-          <button class="mode-btn" data-mode="country">País</button>
-        </div>
-      </div>
+        <div class="db-sidebar-sub">global_network_resilience</div>
+        <ul class="db-table-list" id="db-table-list">
+          <li class="db-table-item active" data-table="cables">
+            <span class="db-table-icon">▤</span>cables
+            <span class="db-table-rows" id="dbrows-cables"></span>
+          </li>
+          <li class="db-table-item" data-table="cable_metadata">
+            <span class="db-table-icon">▤</span>cable_metadata
+            <span class="db-table-rows" id="dbrows-cable_metadata"></span>
+          </li>
+          <li class="db-table-item" data-table="landing_points">
+            <span class="db-table-icon">▤</span>landing_points
+            <span class="db-table-rows" id="dbrows-landing_points"></span>
+          </li>
+          <li class="db-table-item" data-table="cable_landing_points">
+            <span class="db-table-icon">▤</span>cable_landing_points
+            <span class="db-table-rows" id="dbrows-cable_landing_points"></span>
+          </li>
+          <li class="db-table-item" data-table="nodes">
+            <span class="db-table-icon">▤</span>nodes
+            <span class="db-table-rows" id="dbrows-nodes"></span>
+          </li>
+          <li class="db-table-item" data-table="cable_telemetry_samples">
+            <span class="db-table-icon">▤</span>cable_telemetry_samples
+            <span class="db-table-rows" id="dbrows-cable_telemetry_samples"></span>
+          </li>
+          <li class="db-table-item" data-table="telemetry_rollup_1h">
+            <span class="db-table-icon">▤</span>telemetry_rollup_1h
+            <span class="db-table-rows" id="dbrows-telemetry_rollup_1h"></span>
+          </li>
+          <li class="db-table-item" data-table="telemetry_rollup_5m">
+            <span class="db-table-icon">▤</span>telemetry_rollup_5m
+            <span class="db-table-rows" id="dbrows-telemetry_rollup_5m"></span>
+          </li>
+          <li class="db-table-item" data-table="telemetry_alerts">
+            <span class="db-table-icon">▤</span>telemetry_alerts
+            <span class="db-table-rows" id="dbrows-telemetry_alerts"></span>
+          </li>
+          <li class="db-table-item" data-table="cable_telemetry_reference">
+            <span class="db-table-icon">▤</span>cable_telemetry_reference
+            <span class="db-table-rows" id="dbrows-cable_telemetry_reference"></span>
+          </li>
+          <li class="db-table-item" data-table="endpoint_ip_samples">
+            <span class="db-table-icon">▤</span>endpoint_ip_samples
+            <span class="db-table-rows" id="dbrows-endpoint_ip_samples"></span>
+          </li>
+        </ul>
+      </aside>
 
-      <!-- Visualização da busca binária (apenas modo ID) -->
-      <div class="binary-box" id="binary-box" style="display:none">
-        <div class="binary-top">
-          <div class="binary-step" id="binary-step">—</div>
-          <div class="binary-controls">
-            <button class="btn primary" id="binary-play">Reproduzir</button>
-            <button class="btn" id="binary-prev">Anterior</button>
-            <button class="btn" id="binary-next">Próximo</button>
-            <button class="btn" id="binary-reset">Reiniciar</button>
+      <!-- ── Painel principal ───────────────────────────────────────────────── -->
+      <div class="db-main">
+
+        <!-- Abas -->
+        <div class="db-tabs">
+          <button class="db-tab active" data-tab="browser">Navegador</button>
+          <button class="db-tab" data-tab="terminal">Terminal SQL</button>
+        </div>
+
+        <!-- ── Aba: Navegador ──────────────────────────────────────────────── -->
+        <div class="db-panel" id="db-panel-browser">
+          <div class="db-browser-toolbar">
+            <div class="db-breadcrumb">
+              <span class="db-breadcrumb-db">global_network_resilience</span>
+              <span class="db-breadcrumb-sep">›</span>
+              <span class="db-breadcrumb-table" id="db-current-table">cables</span>
+            </div>
+            <div class="db-filter-row">
+              <select id="db-filter-col" class="db-select"></select>
+              <select id="db-filter-op" class="db-select db-select-op">
+                <option value="ilike">contém</option>
+                <option value="eq">= igual</option>
+                <option value="gt">&gt; maior</option>
+                <option value="lt">&lt; menor</option>
+                <option value="gte">&gt;= maior/igual</option>
+                <option value="lte">&lt;= menor/igual</option>
+              </select>
+              <input id="db-filter-val" class="db-filter-input" type="text" placeholder="valor…">
+              <button class="btn primary btn-sm" id="db-filter-btn">Filtrar</button>
+              <button class="btn btn-sm" id="db-filter-clear">✕</button>
+            </div>
+          </div>
+
+          <div class="db-result-bar">
+            <span id="db-result-info">Selecione uma tabela.</span>
+            <div class="db-pagination">
+              <button class="btn btn-sm" id="db-prev-page" disabled>‹</button>
+              <span class="db-page-label" id="db-page-label">—</span>
+              <button class="btn btn-sm" id="db-next-page" disabled>›</button>
+            </div>
+          </div>
+          <div class="error" id="db-error"></div>
+          <div class="empty" id="db-empty" style="display:none">Nenhum resultado para o filtro aplicado.</div>
+          <div class="table-wrap db-table-wrap" id="db-table-wrap" style="display:none">
+            <table class="db-table">
+              <thead id="db-thead"></thead>
+              <tbody id="db-tbody"></tbody>
+            </table>
           </div>
         </div>
-        <div class="progress"><div id="binary-progress"></div></div>
-        <div class="binary-log" id="binary-log"></div>
-      </div>
 
-      <!-- Contagem e erros -->
-      <div class="result-bar"><span id="result-count">Selecione um modo e execute a busca.</span></div>
-      <div class="error" id="search-error"></div>
-      <div class="empty" id="search-empty" style="display:none"></div>
+        <!-- ── Aba: Terminal SQL ───────────────────────────────────────────── -->
+        <div class="db-panel" id="db-panel-terminal" style="display:none">
+          <div class="db-terminal-card">
+            <div class="db-terminal-topbar">
+              <div class="db-terminal-dots">
+                <span></span><span></span><span></span>
+              </div>
+              <span class="db-terminal-title">psql — global_network_resilience</span>
+              <div class="db-terminal-actions">
+                <button class="btn primary btn-sm" id="db-sql-run">▶ Executar</button>
+                <button class="btn btn-sm" id="db-sql-clear">Limpar</button>
+              </div>
+            </div>
+            <div class="db-terminal-prompt-line">
+              <span class="db-prompt-label">global_network_resilience=#</span>
+            </div>
+            <textarea id="db-sql-input" class="db-sql-textarea" spellcheck="false"
+              placeholder="SELECT cable_id, cable_name, length_km&#10;FROM cables&#10;WHERE is_operational = true&#10;ORDER BY length_km DESC&#10;LIMIT 10;"></textarea>
+            <div class="db-terminal-legend">
+              <span class="db-legend-icon">⚠</span>
+              Simulação de banco de dados — somente comandos <strong>SELECT</strong> são aceitos.
+              Tabelas do sistema (pg_catalog, information_schema) não são acessíveis.
+              Os dados exibidos são reais do banco PostgreSQL do projeto RMIFO.
+            </div>
+          </div>
 
-      <!-- Tabela de resultados -->
-      <div class="table-wrap" id="search-table-wrap" style="display:none">
-        <table><thead id="search-head"></thead><tbody id="search-body"></tbody></table>
-      </div>
+          <div class="db-sql-result-bar" id="db-sql-result-bar" style="display:none">
+            <span id="db-sql-result-info"></span>
+            <span class="db-sql-exec-time" id="db-sql-time"></span>
+          </div>
+          <div class="error" id="db-sql-error"></div>
+          <div class="empty" id="db-sql-empty" style="display:none">Consulta retornou 0 linhas.</div>
+          <div class="table-wrap db-table-wrap" id="db-sql-table-wrap" style="display:none">
+            <table class="db-table">
+              <thead id="db-sql-thead"></thead>
+              <tbody id="db-sql-tbody"></tbody>
+            </table>
+          </div>
+        </div>
 
-    </div>
+      </div><!-- /.db-main -->
+    </div><!-- /.db-explorer-wrap -->
   </section>
 
   <!-- PÁGINA: DETALHES -->
