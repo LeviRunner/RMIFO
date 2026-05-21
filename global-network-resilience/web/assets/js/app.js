@@ -437,7 +437,7 @@ function initStarBackground() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  const STAR_COUNT = 260;
+  const STAR_COUNT = 120;
   let stars = [];
 
   function resize() {
