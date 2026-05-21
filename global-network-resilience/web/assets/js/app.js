@@ -2152,8 +2152,9 @@ function initDailyPage() {
         currentLog     = data.log_file || null;
         probeStartTime = Date.now();
         updateBadge(data.status === 'already_running' ? 'already_running' : 'running');
-        if (progressWrap) progressWrap.style.display = '';
-        if (cablePanel)   cablePanel.style.display   = '';
+        // Mostra a barra de fases imediatamente; progresso/cabo aparecem depois
+        if (phaseBar)    phaseBar.style.display    = '';
+        if (preflightEl) preflightEl.style.display = '';
         if (pollTimer) clearTimeout(pollTimer);
         pollTimer = setTimeout(poll, 4000);
       } catch (err) {
@@ -2182,6 +2183,10 @@ function initDailyPage() {
       if (cablePanel)   cablePanel.style.display   = 'none';
       if (tableWrap)    tableWrap.style.display     = 'none';
       if (tbody) tbody.innerHTML = '';
+      if (preflightEl) preflightEl.style.display = 'none';
+      if (phaseBar)    phaseBar.style.display    = 'none';
+      if (taskBar)     taskBar.style.display     = 'none';
+      if (alertsEl)    alertsEl.style.display    = 'none';
       btnCancel.disabled = false;
     });
   }
@@ -2196,14 +2201,26 @@ function initDailyPage() {
         probeStartTime = probeStartTime ?? Date.now();
         updateBadge('running');
         setRunningUI(true);
-        if (progressWrap) progressWrap.style.display = '';
-        if (cablePanel)   cablePanel.style.display   = '';
-        if (data.progress) updateProgress(data.progress);
+        if (phaseBar)    phaseBar.style.display    = '';
+        if (preflightEl) preflightEl.style.display = '';
+        updatePreflight(data);
+        updatePhaseBar(data);
+        updateTaskBar(data);
+        updateAlerts(data);
+        if (data.progress) {
+          if (progressWrap) progressWrap.style.display = '';
+          if (cablePanel)   cablePanel.style.display   = '';
+          updateProgress(data.progress);
+        }
         if (data.summary)  setStats(data.summary, data.progress, live);
         else if (live.tcp) setStats(null, data.progress, live);
         if (!pollTimer) pollTimer = setTimeout(poll, 3000);
       } else if (data.status === 'completed') {
         updateBadge('completed');
+        updatePreflight(data);
+        updatePhaseBar(data);
+        updateTaskBar(data);
+        updateAlerts(data);
         if (data.summary) setStats(data.summary, null, null);
         if (progressBar) progressBar.style.width = '100%';
       }

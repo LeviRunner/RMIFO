@@ -1324,13 +1324,16 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     $reachable = ['ok' => (int) $rm[1], 'total' => (int) $rm[2]];
                 }
 
-                // Checks de fase (existência de seção no log)
+                // Checks de fase: null = seção ainda não apareceu, true/false = resultado
                 $depsOk = str_contains($content, 'PRÉ-FLIGHT')
-                       && !preg_match('/Dependência ausente|dep_missing/', $content);
+                    ? !preg_match('/Dependência ausente|dep_missing/', $content)
+                    : null;
                 $dnsOk  = str_contains($content, 'Resolução DNS')
-                       && !str_contains($content, 'dns_total_failure');
+                    ? !str_contains($content, 'dns_total_failure')
+                    : null;
                 $httpOk = str_contains($content, 'Verificação HTTP')
-                       && !preg_match('/HTTP 000/', $content);
+                    ? !preg_match('/http_fail.*:000|HTTP 000/', $content)
+                    : null;
 
                 // Cabeçalhos de fase "=== ... ===" — último visto é o atual
                 $currentPhase = '';
