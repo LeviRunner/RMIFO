@@ -1887,6 +1887,12 @@ function initDailyPage() {
   const pvCable      = document.getElementById('pv-cable-name');
   const pvLat        = document.getElementById('pv-lat');
   const pvProto      = document.getElementById('pv-proto');
+  const pvProtoChip  = document.getElementById('pv-proto-chip');
+  const pvPktN       = document.getElementById('pv-pkt-n');
+  const pvPorts      = document.getElementById('pv-ports');
+  const pvPtag1      = document.getElementById('pv-ptag-1');
+  const pvPtag2      = document.getElementById('pv-ptag-2');
+  const pvPtag3      = document.getElementById('pv-ptag-3');
   const tableWrap    = document.getElementById('daily-table-wrap');
   const tbody        = document.getElementById('daily-tbody');
   const errEl        = document.getElementById('daily-error');
@@ -1899,6 +1905,28 @@ function initDailyPage() {
   let currentLog     = null;
   let tableRows      = [];
   let probeStartTime = null;
+  let pvLastCable    = null;
+  let pvCounterTimer = null;
+  let pvPacketCount  = 0;
+
+  function parseProto(str) {
+    if (!str) return { label: '—', chipCls: '', ports: [], tags: ['PKT', 'PKT', 'PKT'] };
+    if (str.includes('tcp')) {
+      const m = str.match(/ports\[([^\]]+)\]/);
+      const ports = m ? m[1].split(/[\s,]+/).filter(Boolean) : [];
+      const tagMap = { '80': 'HTTP', '443': 'TLS', '22': 'SSH', '8080': 'ALT', '8443': 'TLS' };
+      const tags = ports.slice(0, 3).map(p => tagMap[p] || `P${p}`);
+      while (tags.length < 3) tags.push('SYN');
+      return { label: 'TCP', chipCls: '', ports, tags };
+    }
+    if (str.includes('mtr') || str.includes('traceroute')) {
+      return { label: 'MTR', chipCls: 'mtr', ports: [], tags: ['UDP', 'TTL', 'HOP'] };
+    }
+    if (str.includes('http')) {
+      return { label: 'HTTP', chipCls: 'http', ports: [], tags: ['HEAD', 'GET', '200'] };
+    }
+    return { label: 'Sint.', chipCls: 'synth', ports: [], tags: ['EST', '≈', 'SIM'] };
+  }
 
   function setRunningUI(running) {
     if (btnStart)  { btnStart.disabled  = running; btnStart.textContent = running ? '● Rodando…' : '▶ Iniciar Sonda'; }
@@ -2053,11 +2081,49 @@ function initDailyPage() {
 
     // packet animation panel
     if (cablePanel) cablePanel.style.display = '';
-    if (pvCable)  pvCable.textContent  = p.cable || '—';
-    if (pvLat)    pvLat.textContent    = p.latency_ms != null ? p.latency_ms + ' ms' : '—';
-    if (pvProto)  pvProto.textContent  = p.proto ? p.proto.replace(/tcp-\d+pkt-ports\[([^\]]+)\]-p95=[\d.]+ms/, 'TCP [$1]') : '—';
+    if (pvLat) pvLat.textContent = p.latency_ms != null ? p.latency_ms + ' ms' : '—';
 
-    // endpoint labels from AppState.globePaths if available
+    const parsed = parseProto(p.proto);
+
+    // hero: cable name with fade transition on change
+    if (pvCable) {
+      if (p.cable && p.cable !== pvLastCable && pvCable.textContent !== '—') {
+        pvCable.style.opacity = '0';
+        setTimeout(() => { pvCable.textContent = p.cable || '—'; pvCable.style.opacity = '1'; }, 220);
+      } else {
+        pvCable.textContent = p.cable || '—';
+      }
+    }
+
+    // proto chip (colored badge)
+    if (pvProtoChip) {
+      pvProtoChip.textContent = parsed.label;
+      pvProtoChip.className = 'pv-proto-chip' + (parsed.chipCls ? ' ' + parsed.chipCls : '');
+    }
+
+    // protocol text and ports
+    if (pvProto) pvProto.textContent = p.proto
+      ? p.proto.replace(/tcp-\d+pkt-ports\[([^\]]+)\]-p95=[\d.]+ms/, 'TCP [$1]')
+      : '—';
+    if (pvPorts) pvPorts.textContent = parsed.ports.length ? parsed.ports.join(', ') : '—';
+
+    // packet tags on animated dots
+    [pvPtag1, pvPtag2, pvPtag3].forEach((el, i) => { if (el) el.textContent = parsed.tags[i] || ''; });
+
+    // packet counter: reset and count 0→100 when cable changes
+    if (p.cable && p.cable !== pvLastCable) {
+      pvLastCable = p.cable;
+      clearInterval(pvCounterTimer);
+      pvPacketCount = 0;
+      if (pvPktN) pvPktN.textContent = '0';
+      pvCounterTimer = setInterval(() => {
+        pvPacketCount = Math.min(100, pvPacketCount + 1);
+        if (pvPktN) pvPktN.textContent = pvPacketCount;
+        if (pvPacketCount >= 100) clearInterval(pvCounterTimer);
+      }, 30);
+    }
+
+    // endpoint coordinates from globe paths
     if (AppState.globePaths.length) {
       const seg = AppState.globePaths.find(pp => pp.cable_id === p.cable);
       if (seg) {
@@ -2172,6 +2238,9 @@ function initDailyPage() {
         await apiFetch({ action: 'daily_cancel' });
       } catch { /* best-effort */ }
       if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+      clearInterval(pvCounterTimer); pvCounterTimer = null;
+      pvLastCable = null; pvPacketCount = 0;
+      if (pvPktN) pvPktN.textContent = '0';
       currentLog     = null;
       probeStartTime = null;
       tableRows      = [];

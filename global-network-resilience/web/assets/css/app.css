@@ -2303,8 +2303,8 @@ tr.bs-found {
   /* ── Sonda Diária / Histórico ──────────────────────────────────────── */
   .daily-stats, .hist-summary { grid-template-columns: repeat(3, 1fr); }
   .daily-header  { flex-direction: column; }
-  .pv-wrap       { flex-direction: column; gap: 8px; }
-  .pv-ep-label   { min-width: 0; }
+  .pv-hero-name  { font-size: 14px; }
+  .pv-metrics    { gap: 14px; }
   .hist-toolbar  { flex-direction: column; }
   .hist-toolbar select,
   .hist-toolbar input  { width: 100%; }
@@ -2355,19 +2355,45 @@ tr.bs-found {
 }
 .daily-progress-label { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
 
-/* Packet animation track */
+/* ── Cable probe hero ─────────────────────────────────────────────────────── */
+.pv-hero {
+  background: rgba(13,148,136,.08); border: 1px solid rgba(13,148,136,.22);
+  border-radius: 10px; padding: 14px 18px; margin-bottom: 10px;
+}
+.pv-hero-sup {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin-bottom: 4px;
+}
+.pv-hero-name {
+  font-size: 18px; font-weight: 700; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 6px; transition: opacity .25s;
+}
+.pv-hero-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pv-proto-chip {
+  display: inline-block; padding: 2px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  background: rgba(13,148,136,.2); color: #0d9488; border: 1px solid rgba(13,148,136,.4);
+}
+.pv-proto-chip.synth { background: rgba(245,158,11,.15); color: #f59e0b; border-color: rgba(245,158,11,.35); }
+.pv-proto-chip.mtr   { background: rgba(59,130,246,.15);  color: #3b82f6; border-color: rgba(59,130,246,.35); }
+.pv-proto-chip.http  { background: rgba(139,92,246,.15);  color: #8b5cf6; border-color: rgba(139,92,246,.35); }
+.pv-ep-pair { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.pv-ep-arr  { color: rgba(255,255,255,.2); }
+
+/* ── Packet animation tracks ─────────────────────────────────────────────── */
 .pv-wrap {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; flex-direction: column; gap: 8px;
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px; padding: 16px 20px; margin-bottom: 12px;
+  border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
 }
-.pv-ep-label {
-  font-size: 11px; color: var(--muted); min-width: 70px; text-align: center;
-  word-break: break-all; flex-shrink: 0;
+.pv-track-section { display: flex; align-items: center; gap: 8px; }
+.pv-tdir {
+  font-size: 8px; text-transform: uppercase; letter-spacing: .06em;
+  color: #0d9488; min-width: 28px; text-align: right; flex-shrink: 0;
 }
-.pv-track {
-  flex: 1; position: relative; height: 32px;
-}
+.pv-tdir-ack { color: rgba(59,130,246,.8); }
+.pv-track { flex: 1; position: relative; height: 32px; }
 .pv-line {
   position: absolute; top: 50%; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, #0d9488 0%, #3b82f6 50%, #0d9488 100%);
@@ -2380,6 +2406,8 @@ tr.bs-found {
 }
 .pv-node-left  { left: 0; }
 .pv-node-right { right: 0; }
+
+/* Outgoing packets */
 .pv-pkt {
   position: absolute; top: 50%; transform: translateY(-50%);
   width: 8px; height: 8px; border-radius: 50%;
@@ -2397,6 +2425,34 @@ tr.bs-found {
   100% { left: calc(100% - 8px); opacity: 0; }
 }
 
+/* Packet protocol label (tag above each packet) */
+.pv-ptag {
+  position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+  font-size: 8px; font-weight: 800; letter-spacing: .05em; color: #fff;
+  white-space: nowrap; pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 8px rgba(13,148,136,.6);
+}
+
+/* ACK return track */
+.pv-line-ack { background: linear-gradient(90deg, #3b82f6 0%, #0d9488 50%, #3b82f6 100%); }
+.pv-node-ack { background: #3b82f6 !important; box-shadow: 0 0 8px #3b82f6 !important; }
+.pv-pkt-back {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #3b82f6; box-shadow: 0 0 8px #3b82f6, 0 0 16px #60a5fa;
+  animation: pkt-back 1.8s linear infinite; opacity: 0;
+}
+.pv-pkt-b1 { animation-delay: 0.4s; }
+.pv-pkt-b2 { animation-delay: 1.3s; }
+
+@keyframes pkt-back {
+  0%   { left: calc(100% - 7px); opacity: 0; }
+  4%   { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: 0%; opacity: 0; }
+}
+
+/* ── Metrics row ──────────────────────────────────────────────────────────── */
 .pv-metrics {
   display: flex; gap: 24px; flex-wrap: wrap;
   padding: 0 4px 12px; margin-bottom: 16px;
@@ -2405,6 +2461,8 @@ tr.bs-found {
 .pv-k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .pv-v { font-size: 15px; font-weight: 600; color: var(--fg); }
 .pv-v.accent { color: var(--accent); }
+.pv-v.mono { font-variant-numeric: tabular-nums; }
+.pv-muted { color: var(--muted); font-weight: 400; }
 
 /* Stats grid */
 .daily-stats {

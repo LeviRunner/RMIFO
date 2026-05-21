@@ -452,22 +452,49 @@
 
       <!-- Animação de pacote + info do cabo atual -->
       <div id="daily-cable-panel" style="display:none">
-        <div class="pv-wrap">
-          <div class="pv-ep-label" id="pv-ep-a">—</div>
-          <div class="pv-track">
-            <div class="pv-line"></div>
-            <div class="pv-node pv-node-left"></div>
-            <div class="pv-node pv-node-right"></div>
-            <div class="pv-pkt pv-pkt-1"></div>
-            <div class="pv-pkt pv-pkt-2"></div>
-            <div class="pv-pkt pv-pkt-3"></div>
+        <!-- Hero: nome do cabo em destaque -->
+        <div class="pv-hero">
+          <div class="pv-hero-sup">Medindo agora</div>
+          <div class="pv-hero-name" id="pv-cable-name">—</div>
+          <div class="pv-hero-row">
+            <span class="pv-proto-chip" id="pv-proto-chip">—</span>
+            <span class="pv-ep-pair">
+              <span id="pv-ep-a">—</span>
+              <span class="pv-ep-arr">→</span>
+              <span id="pv-ep-b">—</span>
+            </span>
           </div>
-          <div class="pv-ep-label" id="pv-ep-b">—</div>
         </div>
+        <!-- Trilha de pacotes: envio + ACK -->
+        <div class="pv-wrap">
+          <div class="pv-track-section">
+            <span class="pv-tdir">SEND</span>
+            <div class="pv-track">
+              <div class="pv-line"></div>
+              <div class="pv-node pv-node-left"></div>
+              <div class="pv-node pv-node-right"></div>
+              <div class="pv-pkt pv-pkt-1"><span class="pv-ptag" id="pv-ptag-1"></span></div>
+              <div class="pv-pkt pv-pkt-2"><span class="pv-ptag" id="pv-ptag-2"></span></div>
+              <div class="pv-pkt pv-pkt-3"><span class="pv-ptag" id="pv-ptag-3"></span></div>
+            </div>
+          </div>
+          <div class="pv-track-section">
+            <span class="pv-tdir pv-tdir-ack">ACK</span>
+            <div class="pv-track">
+              <div class="pv-line pv-line-ack"></div>
+              <div class="pv-node pv-node-left pv-node-ack"></div>
+              <div class="pv-node pv-node-right pv-node-ack"></div>
+              <div class="pv-pkt pv-pkt-back pv-pkt-b1"></div>
+              <div class="pv-pkt pv-pkt-back pv-pkt-b2"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Métricas -->
         <div class="pv-metrics">
-          <div class="pv-m"><span class="pv-k">Cabo</span><span class="pv-v" id="pv-cable-name">—</span></div>
-          <div class="pv-m"><span class="pv-k">Latência</span><span class="pv-v accent" id="pv-lat">—</span></div>
+          <div class="pv-m"><span class="pv-k">Latência RTT</span><span class="pv-v accent" id="pv-lat">—</span></div>
           <div class="pv-m"><span class="pv-k">Protocolo</span><span class="pv-v" id="pv-proto">—</span></div>
+          <div class="pv-m"><span class="pv-k">Pacotes</span><span class="pv-v mono"><span id="pv-pkt-n">0</span><span class="pv-muted">/100</span></span></div>
+          <div class="pv-m"><span class="pv-k">Portas</span><span class="pv-v mono" id="pv-ports">—</span></div>
         </div>
       </div>
 
