@@ -1490,7 +1490,7 @@ function renderSingleProbeResult(payload, setLegend) {
 // ─── Probe page ───────────────────────────────────────────────────────────────
 
 // Real-time 3D probe dashboard launched from globe selection panel
-function startProbeRealtime(d, basePayload) {
+function startProbeRealtime(d, basePayload, containerEl = null, probeInfo = null) {
   const cableName = d.cable_name || d.cable_id || 'Cabo';
   const r = basePayload?.result || basePayload || {};
   const baseLat  = +(r.avg_rtt_ms ?? r.latency_ms ?? 75);
@@ -1498,8 +1498,32 @@ function startProbeRealtime(d, basePayload) {
   const baseLoss = +(r.packet_loss_pct ?? 0.4);
   const baseThru = +(r.throughput_mbps ?? 420);
 
-  ProbeModal.show(`Tempo Real — ${esc(cableName)}`, `
+  // ── Badge for inline mode ─────────────────────────────────────────────────
+  let badgeHtml = '';
+  if (probeInfo) {
+    const pm     = probeInfo.method || 'synthetic_fallback';
+    const isReal = pm !== 'synthetic_fallback';
+    let proto    = 'Sintético';
+    let chipCls  = 'synth';
+    if (pm.includes('tcp'))  { proto = 'TCP SYN-ACK'; chipCls = ''; }
+    else if (pm.includes('icmp')) { proto = 'ICMP Echo'; chipCls = 'mtr'; }
+    else if (pm.includes('http')) { proto = 'HTTP';     chipCls = 'http'; }
+    const portM   = pm.match(/port(\d+)/);
+    const portStr = portM ? ` · porta ${portM[1]}` : '';
+    const steps   = (probeInfo.probe_steps || []).join(' → ').toUpperCase();
+    badgeHtml = `
+      <div class="rt-badge-bar">
+        <span class="probe-badge ${isReal ? 'probe-badge-real' : 'probe-badge-synth'}">
+          ${isReal ? '● MEDIÇÃO REAL' : '◌ ESTIMATIVA SINTÉTICA'}
+        </span>
+        <span class="spr-method-chip proto-chip${chipCls ? ' ' + chipCls : ''}">${proto}${portStr}</span>
+        ${steps ? `<span class="spr-steps">Tentativas: ${steps}</span>` : ''}
+      </div>`;
+  }
+
+  const dashHtml = `
     <div class="rt-dash">
+      ${badgeHtml}
 
       <!-- ── Main area: charts left + rings sidebar right ─────────────── -->
       <div class="rt-main">
@@ -1617,10 +1641,16 @@ function startProbeRealtime(d, basePayload) {
       </div>
 
     </div>
-  `);
+  `;
 
-  const box = document.getElementById('probe-modal-box');
-  box?.classList.add('rt-mode');
+  if (containerEl) {
+    containerEl.innerHTML = dashHtml;
+    containerEl.style.display = '';
+  } else {
+    ProbeModal.show(`Tempo Real — ${esc(cableName)}`, dashHtml);
+    const box = document.getElementById('probe-modal-box');
+    box?.classList.add('rt-mode');
+  }
 
   function initRtCharts() {
 
@@ -1807,11 +1837,14 @@ function startProbeRealtime(d, basePayload) {
     }
 
     // Register stop callback so ProbeModal.hide() cleans up
-    ProbeModal._stopFn = () => { running = false; };
+    if (!containerEl) ProbeModal._stopFn = () => { running = false; };
 
     // ── Stop button ───────────────────────────────────────────────────────
     const stopBtn = document.getElementById('rt-stop');
-    if (stopBtn) stopBtn.addEventListener('click', () => ProbeModal.hide());
+    if (stopBtn) stopBtn.addEventListener('click', () => {
+      running = false;
+      if (!containerEl) ProbeModal.hide();
+    });
 
     setTimeout(simulate, 400);
   }
@@ -1999,7 +2032,8 @@ function initProbePage() {
         });
 
         if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
-        renderSingleProbeResult(result, setLegend);
+        const d2 = { cable_name: cableId, cable_id: cableId };
+        startProbeRealtime(d2, result, telResultEl, result.result || result);
       } catch (err) {
         showError(errEl, err.message);
       } finally {

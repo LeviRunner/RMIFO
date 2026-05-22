@@ -3144,6 +3144,18 @@ tr.bs-found {
 .spr-method-chip { font-size: 0.82rem; font-weight: 600; }
 .spr-steps { font-size: 0.72rem; color: var(--text-muted); }
 
+.rt-badge-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
 .spr-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
