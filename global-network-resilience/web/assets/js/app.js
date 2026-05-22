@@ -1405,6 +1405,88 @@ function renderTelemetryResult(payload) {
 
 function initTelemetryPage() { /* merged into initProbePage */ }
 
+// ─── Single cable probe (realtime mode) ──────────────────────────────────────
+
+function renderSingleProbeResult(payload, setLegend) {
+  const r      = payload.result || {};
+  const method = r.method || 'synthetic_fallback';
+  const isReal = method !== 'synthetic_fallback';
+
+  // Protocol label
+  let proto = 'Sintético';
+  let chipCls = 'synth';
+  if (method.includes('tcp'))  { proto = 'TCP SYN-ACK';  chipCls = ''; }
+  else if (method.includes('icmp')) { proto = 'ICMP Echo'; chipCls = 'mtr'; }
+  else if (method.includes('http')) { proto = 'HTTP';      chipCls = 'http'; }
+
+  const portM  = method.match(/port(\d+)/);
+  const portStr = portM ? ` · porta ${portM[1]}` : '';
+  const steps  = (r.probe_steps || []).join(' → ').toUpperCase();
+
+  const lat  = r.avg_rtt_ms       != null ? r.avg_rtt_ms       : '–';
+  const jit  = r.jitter_ms        != null ? r.jitter_ms        : '–';
+  const loss = r.packet_loss_pct  != null ? r.packet_loss_pct  : '–';
+  const tput = r.throughput_mbps  != null ? Number(r.throughput_mbps).toFixed(1) : '–';
+  const samp = r.samples          != null ? r.samples          : 1;
+
+  // Legend update
+  if (setLegend) {
+    setLegend(
+      new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+      isReal ? '●' : '◌',
+      isReal ? (proto + portStr) : 'heuristic',
+      samp
+    );
+  }
+
+  // Hops
+  const hops = Array.isArray(r.hops) ? r.hops : [];
+  const hopsHtml = hops.length ? `
+    <div class="subhead" style="margin-top:18px;">Rota de Rede (${hops.length} saltos)</div>
+    <div class="spr-hops">
+      ${hops.map((h, i) => `
+        <div class="spr-hop">
+          <span class="spr-hop-n">${i + 1}</span>
+          <span class="spr-hop-ip">${esc(h.ip || h.host || '* * *')}</span>
+          <span class="spr-hop-rtt">${h.rtt_ms != null ? h.rtt_ms + ' ms' : '—'}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  const el = document.getElementById('telemetry-result');
+  if (!el) return;
+
+  el.innerHTML = `
+    <div class="single-probe-result">
+      <div class="spr-header">
+        <span class="probe-badge ${isReal ? 'probe-badge-real' : 'probe-badge-synth'}">
+          ${isReal ? '● MEDIÇÃO REAL' : '◌ ESTIMATIVA SINTÉTICA'}
+        </span>
+        <span class="spr-method-chip proto-chip${chipCls ? ' ' + chipCls : ''}">${proto}${portStr}</span>
+        ${steps ? `<span class="spr-steps">Tentativas: ${steps}</span>` : ''}
+      </div>
+      <div class="spr-metrics">
+        <div class="spr-metric">
+          <div class="spr-val">${lat}</div>
+          <div class="spr-unit">ms · Latência</div>
+        </div>
+        <div class="spr-metric">
+          <div class="spr-val">${jit}</div>
+          <div class="spr-unit">ms · Jitter</div>
+        </div>
+        <div class="spr-metric">
+          <div class="spr-val">${loss}</div>
+          <div class="spr-unit">% · Perda</div>
+        </div>
+        <div class="spr-metric">
+          <div class="spr-val">${tput}</div>
+          <div class="spr-unit">Mbps · Throughput</div>
+        </div>
+      </div>
+      ${r.note ? `<div class="spr-note">${esc(r.note)}</div>` : ''}
+      ${hopsHtml}
+    </div>`;
+}
+
 // ─── Probe page ───────────────────────────────────────────────────────────────
 
 // Real-time 3D probe dashboard launched from globe selection panel
@@ -1827,16 +1909,18 @@ async function loadProbeEndpoints(cableId) {
 }
 
 function initProbePage() {
-  const cableInput  = document.getElementById('probe-cable-input');
-  const cableList   = document.getElementById('probe-cable-list');
-  const modeHistory = document.getElementById('probe-mode-history');
-  const modeRT      = document.getElementById('probe-mode-realtime');
-  const windowWrap  = document.getElementById('probe-window-wrap');
-  const hoursEl     = document.getElementById('telemetry-hours');
-  const btnTel      = document.getElementById('btn-telemetry');
-  const errEl       = document.getElementById('probe-error');
-  const resultEl    = document.getElementById('probe-result');
-  const telResultEl = document.getElementById('telemetry-result');
+  const cableInput    = document.getElementById('probe-cable-input');
+  const cableList     = document.getElementById('probe-cable-list');
+  const modeHistory   = document.getElementById('probe-mode-history');
+  const modeRT        = document.getElementById('probe-mode-realtime');
+  const windowWrap    = document.getElementById('probe-window-wrap');
+  const realtimeWrap  = document.getElementById('probe-realtime-wrap');
+  const btnSingleProbe = document.getElementById('btn-single-probe');
+  const hoursEl       = document.getElementById('telemetry-hours');
+  const btnTel        = document.getElementById('btn-telemetry');
+  const errEl         = document.getElementById('probe-error');
+  const resultEl      = document.getElementById('probe-result');
+  const telResultEl   = document.getElementById('telemetry-result');
 
   function setLegend(janela, qualidade, origem, amostras) {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
@@ -1854,7 +1938,8 @@ function initProbePage() {
 
   function applyMode() {
     const isHistory = modeHistory && modeHistory.checked;
-    if (windowWrap) windowWrap.style.display = isHistory ? '' : 'none';
+    if (windowWrap)   windowWrap.style.display   = isHistory ? '' : 'none';
+    if (realtimeWrap) realtimeWrap.style.display = isHistory ? 'none' : '';
   }
 
   function populateCableList() {
@@ -1884,15 +1969,43 @@ function initProbePage() {
   if (modeRT) {
     modeRT.addEventListener('change', () => {
       applyMode();
-      const cableId = cableInput ? cableInput.value.trim() : '';
-      if (!cableId) {
-        showError(errEl, 'Digite o nome ou ID do cabo primeiro.');
-        if (modeHistory) { modeHistory.checked = true; applyMode(); }
-        return;
-      }
       resetContent('');
-      setLegend('Tempo real · 60 s', '—', cableId, '—');
-      startProbeRealtime({ cable_id: cableId, cable_name: cableId }, {});
+      setLegend('Tempo real', '—', '—', '—');
+    });
+  }
+
+  // ── Sondar Agora (realtime single-cable probe) ─────────────────────────────
+  if (btnSingleProbe) {
+    btnSingleProbe.addEventListener('click', async () => {
+      const cableId = cableInput ? cableInput.value.trim() : '';
+      if (!cableId) { showError(errEl, 'Digite o nome ou ID do cabo primeiro.'); return; }
+
+      btnSingleProbe.disabled    = true;
+      btnSingleProbe.textContent = 'Sondando…';
+      clearEl(errEl);
+      resetContent('');
+
+      try {
+        // Fetch first endpoint to get a usable IP from the DB
+        let endpointId = '';
+        try {
+          const eps   = await apiFetch({ mode: 'cable_endpoints', q: cableId });
+          const first = (eps.endpoints || [])[0];
+          if (first) endpointId = first.endpoint_id;
+        } catch {}
+
+        const result = await apiFetch({
+          mode: 'probe', q: cableId, endpoint_id: endpointId, full: '1',
+        });
+
+        if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
+        renderSingleProbeResult(result, setLegend);
+      } catch (err) {
+        showError(errEl, err.message);
+      } finally {
+        btnSingleProbe.disabled    = false;
+        btnSingleProbe.textContent = 'Sondar Agora';
+      }
     });
   }
 

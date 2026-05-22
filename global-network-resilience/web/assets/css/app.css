@@ -3101,6 +3101,110 @@ tr.bs-found {
   .db-data-panel { max-height: 55vh; }
 }
 
+/* ── Probe realtime wrap ──────────────────────────────────────────────────── */
+.probe-realtime-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Single cable probe result ───────────────────────────────────────────── */
+.single-probe-result { padding: 4px 0; }
+
+.spr-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.probe-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.probe-badge-real {
+  background: rgba(52, 211, 153, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+.probe-badge-synth {
+  background: rgba(148, 163, 184, 0.10);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.spr-method-chip { font-size: 0.82rem; font-weight: 600; }
+.spr-steps { font-size: 0.72rem; color: var(--text-muted); }
+
+.spr-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.spr-metric {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 16px 10px;
+  text-align: center;
+}
+.spr-val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1;
+}
+.spr-unit {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+.spr-note {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.025);
+  border-radius: 8px;
+  border-left: 3px solid rgba(139, 92, 246, 0.4);
+  margin-bottom: 4px;
+}
+
+.spr-hops {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.spr-hop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 10px;
+  background: rgba(255,255,255,0.025);
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+.spr-hop-n   { color: var(--text-muted); width: 18px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.spr-hop-ip  { font-family: monospace; color: var(--text); flex: 1; }
+.spr-hop-rtt { color: var(--accent); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+@media (max-width: 600px) {
+  .spr-metrics { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ── Smartphones pequenos (≤ 400 px) ─────────────────────────────────────── */
 @media (max-width: 400px) {
   .page-inner { padding: 10px 8px 20px; }
