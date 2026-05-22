@@ -1002,17 +1002,17 @@ function stddev(array $values): ?float
 
 function loadRealHistoryAvg(string $cableId, int $hours, string $workspaceRoot): array
 {
-    $histDir = rtrim($workspaceRoot, '/') . '/data/local/history';
+    $histDir = dirname(__DIR__) . '/data/local/historico';
     if (!is_dir($histDir)) return [];
 
     $cutoff = time() - ($hours * 3600);
 
-    // Collect probe_full e checkpoint — raiz (legado) + MM/DD/ subdiretórios
+    // Collect probe_full e checkpoint — raiz (legado) + YYYY-MM-DD/ subdiretórios
     $files = array_merge(
-        glob($histDir . '/*_probe_full_*.json')        ?: [],
-        glob($histDir . '/*_checkpoint_*.json')        ?: [],
-        glob($histDir . '/*/*/*_probe_full_*.json')    ?: [],
-        glob($histDir . '/*/*/*_checkpoint_*.json')    ?: []
+        glob($histDir . '/*_probe_full_*.json')       ?: [],
+        glob($histDir . '/*_checkpoint_*.json')       ?: [],
+        glob($histDir . '/*/*_probe_full_*.json')     ?: [],
+        glob($histDir . '/*/*_checkpoint_*.json')     ?: []
     );
 
     $records = [];
@@ -1188,13 +1188,13 @@ function buildTelemetryPayload(array $details, array $series, bool $fallbackUsed
 if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || isset($_POST['action'])) {
 
     // ── Endpoints que NÃO precisam de banco (ficheiros locais) ───────────────
-    $_reqAll  = array_merge($_GET, $_POST);
-    $_modeNow = (string) ($_reqAll['mode'] ?? $_reqAll['action'] ?? '');
-    $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel', 'history_list', 'history_day'];
+    $_reqAll    = array_merge($_GET, $_POST);
+    $_modeNow   = (string) ($_reqAll['mode'] ?? $_reqAll['action'] ?? '');
+    $_projectDir = dirname(__DIR__);
+    $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel', 'history_list'];
 
     if (in_array($_modeNow, $_noDbModes, true)) {
         try {
-            $_projectDir = dirname(__DIR__);
 
             // ── daily_start ──────────────────────────────────────────────────
             if ($_modeNow === 'daily_start') {
@@ -1559,6 +1559,128 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 jsonResponse(['date' => $date, 'total' => count($cables), 'cables' => $cables, 'summary' => $summary]);
             }
 
+        } catch (Throwable $_e) {
+            jsonResponse(['error' => $_e->getMessage()], 500);
+        }
+    }
+
+    // ── history_day: log sempre + BD opcional ───────────────────────────────
+    if ($_modeNow === 'history_day') {
+        try {
+            $date = preg_replace('/[^0-9\-]/', '', trim((string) ($_reqAll['date'] ?? '')));
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                jsonResponse(['status' => 'error', 'message' => 'Data inválida.'], 400);
+            }
+
+            // 1. Lê arquivo de log (fonte primária — sem BD)
+            $cables  = [];
+            $summary = null;
+            $logDir  = $_projectDir . '/data/local/historico/' . $date;
+            $logs    = glob($logDir . '/run_daily_*.log') ?: [];
+            if ($logs) {
+                natsort($logs);
+                $content = (string) (@file_get_contents(end($logs)) ?: '');
+                foreach (explode("\n", $content) as $line) {
+                    if (preg_match(
+                        '/\[\s*(\d+)\/(\d+)\]\s+([\d.]+)%\s+(\S+)\s+proto=(.+?)\s+lat=\s*([\d.]+)ms/',
+                        $line, $m
+                    )) {
+                        $cables[$m[4]] = [
+                            'index'      => (int)   $m[1],
+                            'cable_id'   => $m[4],
+                            'proto'      => trim($m[5]),
+                            'latency_ms' => (float) $m[6],
+                            'source'     => 'log',
+                        ];
+                    }
+                }
+                if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
+                    $summary = ['inserted' => (int) $m[1]];
+                    if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',  $content, $m2)) $summary['tcp']          = (int) $m2[1];
+                    if (preg_match('/Sintetico\s*:\s*(\d+)/m',     $content, $m2)) $summary['synthetic']    = (int) $m2[1];
+                    if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',  $content, $m2)) $summary['mtr']          = (int) $m2[1];
+                    if (preg_match('/HTTP curl\s*:\s*(\d+)/m',      $content, $m2)) $summary['http']         = (int) $m2[1];
+                    if (preg_match('/(\d+) anomalias/m',            $content, $m2)) $summary['anomalies']    = (int) $m2[1];
+                    if (preg_match('/Concluido em\s*(\S+)/m',       $content, $m2)) $summary['completed_at'] = $m2[1];
+                }
+            }
+
+            // 2. Complementa com cable_telemetry_samples se BD disponível
+            if (extension_loaded('pdo_pgsql')) {
+                try {
+                    $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
+                    $stmt = $pdo2->prepare("
+                        SELECT cable_id,
+                               method                              AS proto,
+                               ROUND(AVG(latency_ms)::numeric, 2) AS latency_ms,
+                               COUNT(*)                            AS samples
+                        FROM cable_telemetry_samples
+                        WHERE measured_at::date = :d
+                        GROUP BY cable_id, method
+                        ORDER BY cable_id
+                    ");
+                    $stmt->execute([':d' => $date]);
+                    $idx = count($cables) + 1;
+                    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                        $cid = $row['cable_id'];
+                        if (!isset($cables[$cid])) {
+                            $cables[$cid] = [
+                                'index'      => $idx++,
+                                'cable_id'   => $cid,
+                                'proto'      => (string) $row['proto'],
+                                'latency_ms' => (float)  $row['latency_ms'],
+                                'samples'    => (int)    $row['samples'],
+                                'source'     => 'db',
+                            ];
+                        }
+                    }
+                } catch (Throwable $_) { /* BD indisponível ou tabela ausente */ }
+            }
+
+            $allCablesArr = array_values($cables);
+
+            // Resumo calculado quando o log não tinha summary (dados só do BD)
+            if (!$summary && $allCablesArr) {
+                $cntTcp   = count(array_filter($allCablesArr, fn($c) => str_contains($c['proto'], 'tcp')));
+                $cntSynth = count(array_filter($allCablesArr, fn($c) => str_contains($c['proto'], 'heuristic') || str_contains($c['proto'], 'synthetic')));
+                $cntMtr   = count(array_filter($allCablesArr, fn($c) => str_contains($c['proto'], 'mtr')));
+                $cntHttp  = count(array_filter($allCablesArr, fn($c) => str_contains($c['proto'], 'http')));
+                $summary  = ['inserted' => count($allCablesArr), 'tcp' => $cntTcp, 'synthetic' => $cntSynth, 'mtr' => $cntMtr, 'http' => $cntHttp, 'anomalies' => 0];
+            }
+
+            // Lista de protocolos únicos — normaliza removendo métricas por cabo
+            // (ex: "tcp-100pkt-ports[80, 443]-p95=45ms" → "tcp-100pkt-ports[80, 443]")
+            $protoCount = [];
+            foreach ($allCablesArr as $c) {
+                $cat = preg_replace('/-p95=[\d.]+ms$/', '', $c['proto']);
+                $protoCount[$cat] = ($protoCount[$cat] ?? 0) + 1;
+            }
+            arsort($protoCount);
+            $protoList = array_keys($protoCount);
+
+            // Filtros opcionais via query string
+            $fCable = trim((string) ($_reqAll['cable'] ?? ''));
+            $fProto = trim((string) ($_reqAll['proto'] ?? ''));
+            if ($fCable !== '') {
+                $allCablesArr = array_values(array_filter($allCablesArr,
+                    fn($c) => stripos($c['cable_id'], $fCable) !== false));
+            }
+            if ($fProto !== '') {
+                $allCablesArr = array_values(array_filter($allCablesArr,
+                    fn($c) => str_contains($c['proto'], $fProto)));
+            }
+
+            if (!$allCablesArr && !$protoList) {
+                jsonResponse(['status' => 'error', 'message' => 'Nenhum dado para ' . $date . '. Execute a Sonda Diária primeiro.'], 404);
+            }
+
+            jsonResponse([
+                'date'       => $date,
+                'total'      => count($allCablesArr),
+                'cables'     => $allCablesArr,
+                'summary'    => $summary,
+                'proto_list' => $protoList,
+            ]);
         } catch (Throwable $_e) {
             jsonResponse(['error' => $_e->getMessage()], 500);
         }
@@ -1976,11 +2098,11 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 } catch (\Throwable) {}
 
                 // Source 2: local JSON history files (fallback / offline)
-                $histDir = rtrim($workspaceRoot, '/') . '/data/local/history';
+                $histDir = dirname(__DIR__) . '/data/local/historico';
                 if (is_dir($histDir)) {
                     $probeFiles = array_merge(
-                        glob($histDir . '/*_probe_full_*.json')       ?: [],
-                        glob($histDir . '/*/*/*_probe_full_*.json')   ?: []
+                        glob($histDir . '/*_probe_full_*.json')     ?: [],
+                        glob($histDir . '/*/*_probe_full_*.json')   ?: []
                     );
                     if ($probeFiles) {
                         rsort($probeFiles);

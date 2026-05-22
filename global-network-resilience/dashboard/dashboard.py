@@ -89,7 +89,7 @@ PLT_GRID  = "#1c1535"
 
 # ── workspace ─────────────────────────────────────────────────────────────────
 WORKSPACE = os.environ.get("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent))
-HIST_DIR  = Path(WORKSPACE) / "data" / "local" / "history"
+HIST_DIR  = Path(__file__).resolve().parent.parent / "data" / "local" / "historico"
 
 # ── database ──────────────────────────────────────────────────────────────────
 def db_connect() -> Optional[object]:
@@ -165,12 +165,12 @@ def _real_history_from_json(cable_id: str, hours: int) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     records: list[dict] = []
 
-    # Busca em MM/DD/ subdiretórios e na raiz (compatibilidade legada)
+    # Busca em YYYY-MM-DD/ subdiretórios e na raiz (compatibilidade legada)
     files = sorted(set(
         glob.glob(str(HIST_DIR / "*_probe_full_*.json")) +
         glob.glob(str(HIST_DIR / "*_checkpoint_*.json")) +
-        glob.glob(str(HIST_DIR / "*" / "*" / "*_probe_full_*.json")) +
-        glob.glob(str(HIST_DIR / "*" / "*" / "*_checkpoint_*.json"))
+        glob.glob(str(HIST_DIR / "*" / "*_probe_full_*.json")) +
+        glob.glob(str(HIST_DIR / "*" / "*_checkpoint_*.json"))
     ))
 
     for fpath in files:
@@ -280,7 +280,7 @@ def tcp_probed_cable_ids(conn=None) -> set[str]:
         return ids
     probe_files = (
         glob.glob(str(HIST_DIR / "*_probe_full_*.json")) +
-        glob.glob(str(HIST_DIR / "*" / "*" / "*_probe_full_*.json"))
+        glob.glob(str(HIST_DIR / "*" / "*_probe_full_*.json"))
     )
     for fpath in probe_files:
         try:

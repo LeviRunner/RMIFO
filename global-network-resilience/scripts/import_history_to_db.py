@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Importa arquivos data/local/history/*_probe_full_*.json e *_checkpoint_*.json
+Importa arquivos data/local/historico/YYYY-MM-DD/*_probe_full_*.json e *_checkpoint_*.json
 para a tabela cable_telemetry_samples no PostgreSQL.
 
 Uso:
@@ -26,8 +26,8 @@ except ImportError:
     print("[import_history] psycopg2 não instalado — execute: pip install psycopg2-binary")
     sys.exit(1)
 
-BASE_DIR  = Path(__file__).resolve().parent.parent.parent   # raiz do repositório
-HIST_DIR  = BASE_DIR / "data" / "local" / "history"
+BASE_DIR  = Path(__file__).resolve().parent.parent           # global-network-resilience/
+HIST_DIR  = BASE_DIR / "data" / "local" / "historico"
 
 UPSERT_SQL = """
 INSERT INTO cable_telemetry_samples (
@@ -62,7 +62,7 @@ def iter_history_files(cutoff: datetime | None) -> list[Path]:
     files: list[Path] = []
     for pat in patterns:
         files.extend(HIST_DIR.glob(pat))           # raiz (legado)
-        files.extend(HIST_DIR.glob(f"*/*/{pat}"))  # MM/DD/
+        files.extend(HIST_DIR.glob(f"*/{pat}"))    # YYYY-MM-DD/
     files = list(set(files))
     files.sort()
 

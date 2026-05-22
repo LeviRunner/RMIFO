@@ -88,7 +88,7 @@ PLT_GRID  = "#1c1535"
 
 # ── workspace ─────────────────────────────────────────────────────────────────
 WORKSPACE = os.environ.get("WORKSPACE_ROOT", str(Path(__file__).resolve().parent.parent.parent))
-HIST_DIR  = Path(WORKSPACE) / "data" / "local" / "history"
+HIST_DIR  = Path(__file__).resolve().parent.parent.parent.parent / "data" / "local" / "historico"
 
 # ── database ──────────────────────────────────────────────────────────────────
 def db_connect() -> Optional[object]:
@@ -125,10 +125,12 @@ def load_real_history_avg(cable_id: str, hours: int) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     records: list[dict] = []
 
-    files = sorted(
+    files = sorted(set(
         glob.glob(str(HIST_DIR / "*_probe_full_*.json")) +
-        glob.glob(str(HIST_DIR / "*_checkpoint_*.json"))
-    )
+        glob.glob(str(HIST_DIR / "*_checkpoint_*.json")) +
+        glob.glob(str(HIST_DIR / "*" / "*_probe_full_*.json")) +
+        glob.glob(str(HIST_DIR / "*" / "*_checkpoint_*.json"))
+    ))
 
     for fpath in files:
         # Quick date filter from filename
@@ -214,7 +216,8 @@ def tcp_probed_cable_ids() -> set[str]:
     ids: set[str] = set()
     if not HIST_DIR.is_dir():
         return ids
-    for fpath in glob.glob(str(HIST_DIR / "*_probe_full_*.json")):
+    for fpath in (glob.glob(str(HIST_DIR / "*_probe_full_*.json")) +
+                  glob.glob(str(HIST_DIR / "*" / "*_probe_full_*.json"))):
         try:
             with open(fpath, "r", encoding="utf-8") as f:
                 data = json.load(f)

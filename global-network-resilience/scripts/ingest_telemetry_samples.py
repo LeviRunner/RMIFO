@@ -35,7 +35,8 @@ from urllib.parse import urlparse
 # ---------------------------------------------------------------------------
 
 def get_log_dir(base_dir: Path) -> Path:
-    log_dir = base_dir / "data" / "local" / "log" / "telemetry"
+    proj_dir = Path(__file__).resolve().parent.parent
+    log_dir = proj_dir / "data" / "local" / "log" / "telemetry"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 
@@ -475,9 +476,7 @@ def upsert_reference(conn) -> None:
 # ---------------------------------------------------------------------------
 
 def save_history(base_dir: Path, measured_at: datetime, summary: dict, tag: str = "probe") -> Path:
-    hist_dir = (base_dir / "data" / "local" / "history"
-                / measured_at.strftime("%m") / measured_at.strftime("%d"))
-    hist_dir.mkdir(parents=True, exist_ok=True)
+    hist_dir = get_proj_hist_dir(measured_at)
     date_str = measured_at.strftime("%Y-%m-%d")
     ts_str   = measured_at.strftime("%H%M%S")
     path = hist_dir / f"{date_str}_{tag}_{ts_str}.json"

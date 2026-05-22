@@ -536,7 +536,7 @@ function initGlobe() {
     .labelsData(CITY_DATA.filter(c => c[3] === 1))
     .labelLat(d => d[0])
     .labelLng(d => d[1])
-    .labelText(d => d[2])
+    .labelText(d => d[2].normalize('NFD').replace(/[̀-ͯ]/g, ''))
     .labelSize(d => d[3] === 1 ? 0.55 : d[3] === 2 ? 0.38 : 0.26)
     .labelColor(d => d[3] === 1 ? 'rgba(255,255,230,0.95)' : d[3] === 2 ? 'rgba(255,255,200,0.80)' : 'rgba(220,220,190,0.65)')
     .labelDotRadius(d => d[3] === 1 ? 0.35 : 0.18)
@@ -2524,28 +2524,96 @@ function initDailyPage() {
 // ─── History page ─────────────────────────────────────────────────────────────
 
 function initHistoryPage() {
-  const dateSelect = document.getElementById('hist-date-sel');
-  const filterCable= document.getElementById('hist-filter-cable');
-  const filterProto= document.getElementById('hist-filter-proto');
-  const btnLoad    = document.getElementById('btn-hist-load');
-  const errEl      = document.getElementById('hist-error');
-  const summaryEl  = document.getElementById('hist-summary');
-  const tableWrap  = document.getElementById('hist-table-wrap');
-  const tbody      = document.getElementById('hist-tbody');
+  const dateSelect  = document.getElementById('hist-date-sel');
+  const filterCable = document.getElementById('hist-filter-cable');
+  const filterProto = document.getElementById('hist-filter-proto');
+  const btnLoad     = document.getElementById('btn-hist-load');
+  const errEl       = document.getElementById('hist-error');
+  const summaryEl   = document.getElementById('hist-summary');
+  const tableWrap   = document.getElementById('hist-table-wrap');
+  const tbody       = document.getElementById('hist-tbody');
 
   let allCables = [];
+
+  // ── Label humanizado para cada valor de proto ─────────────────────────────
+  function protoLabel(p) {
+    if (!p) return 'Todos os protocolos';
+    if (p === 'tcp')                return 'TCP (qualquer porta)';
+    if (p === 'icmp')               return 'ICMP Echo';
+    if (p === 'http')               return 'HTTP / HTTPS';
+    if (p === 'mtr')                return 'MTR Traceroute';
+    if (p === 'heuristic')          return 'Sintético · Heurístico';
+    if (p === 'heuristic-fallback') return 'Sintético · Fallback';
+    if (p === 'synthetic_fallback') return 'Sintético · Fallback';
+    if (p === 'icmp-echo')          return 'ICMP Echo';
+    if (p === 'mtr-traceroute')     return 'MTR Traceroute';
+    if (p === 'tcp-full-scan-port80') return 'TCP · varredura completa';
+    // tcp-100pkt-ports[80, 443]  →  TCP · 100pkt · portas 80, 443
+    const tcpPkt = p.match(/^tcp-(\d+pkt)-ports\[([^\]]+)\]$/);
+    if (tcpPkt) return `TCP · ${tcpPkt[1]} · portas ${tcpPkt[2]}`;
+    if (p.startsWith('tcp-connect-port')) return `TCP · porta ${p.replace('tcp-connect-port', '')}`;
+    if (p.startsWith('tcp-'))       return `TCP · ${p.replace(/^tcp-/, '')}`;
+    if (p.startsWith('http-head-')) return `HTTP · ${p.replace('http-head-', '').toUpperCase()}`;
+    return p;
+  }
+
+  // ── Popula o select de protocolo a partir dos dados reais do dia ──────────
+  function populateProtoFilter(protoList) {
+    if (!filterProto) return;
+    const prev = filterProto.value;
+
+    // Categorias fixas de agrupamento (aparecem primeiro)
+    const cats = [{ val: '', label: 'Todos os protocolos' }];
+    const hasCat = (key) => (protoList || []).some(p => p.includes(key));
+
+    if (hasCat('tcp'))       cats.push({ val: 'tcp',      label: 'TCP (qualquer porta)' });
+    if (hasCat('icmp'))      cats.push({ val: 'icmp',     label: 'ICMP Echo' });
+    if (hasCat('http'))      cats.push({ val: 'http',     label: 'HTTP / HTTPS' });
+    if (hasCat('mtr'))       cats.push({ val: 'mtr',      label: 'MTR Traceroute' });
+    if (hasCat('heuristic') || hasCat('synthetic'))
+                             cats.push({ val: 'heuristic', label: 'Sintético' });
+
+    // Protocolos específicos (p.ex. tcp-connect-port22)
+    const grouped = new Set(cats.map(c => c.val));
+    for (const p of (protoList || [])) {
+      if (!grouped.has(p)) {
+        cats.push({ val: p, label: protoLabel(p) });
+        grouped.add(p);
+      }
+    }
+
+    filterProto.innerHTML = cats.map(c =>
+      `<option value="${esc(c.val)}">${esc(c.label)}</option>`
+    ).join('');
+
+    // Restaura seleção anterior se ainda válida
+    if (prev && [...filterProto.options].some(o => o.value === prev)) {
+      filterProto.value = prev;
+    }
+  }
+
+  // ── Tipo de badge por proto ───────────────────────────────────────────────
+  function protoBadge(proto) {
+    if (proto.includes('tcp'))        return ['TCP',       'yes'];
+    if (proto.includes('icmp'))       return ['ICMP',      'warn'];
+    if (proto.includes('http'))       return ['HTTP',      ''];
+    if (proto.includes('mtr'))        return ['MTR',       ''];
+    if (proto.includes('heuristic') || proto.includes('synthetic')) return ['Sintético', 'no'];
+    return [proto, ''];
+  }
 
   function renderTable(cables) {
     if (!tbody) return;
     tbody.innerHTML = cables.map(c => {
-      const isTcp = c.proto.includes('tcp');
+      const [typeLabel, typeCls] = protoBadge(c.proto || '');
       const latClass = c.latency_ms > 300 ? 'danger-text' : c.latency_ms > 150 ? '' : 'ok-text';
+      const srcIcon  = c.source === 'db' ? ' <span style="font-size:10px;color:var(--text-muted)">BD</span>' : '';
       return `<tr>
         <td>${c.index}</td>
-        <td class="mono">${esc(c.cable_id)}</td>
-        <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${esc(c.proto)}</td>
+        <td class="mono" style="font-size:12px;">${esc(c.cable_id)}${srcIcon}</td>
+        <td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(c.proto)}</td>
         <td class="${latClass}">${c.latency_ms} ms</td>
-        <td><span class="badge ${isTcp ? 'yes' : ''}">${isTcp ? 'TCP' : 'Sintético'}</span></td>
+        <td><span class="badge ${typeCls}">${typeLabel}</span></td>
       </tr>`;
     }).join('');
     if (tableWrap) tableWrap.style.display = cables.length ? '' : 'none';
@@ -2556,23 +2624,24 @@ function initHistoryPage() {
     const pq = filterProto?.value || '';
     let filtered = allCables;
     if (cq) filtered = filtered.filter(c => c.cable_id.toLowerCase().includes(cq));
-    if (pq === 'tcp')       filtered = filtered.filter(c =>  c.proto.includes('tcp'));
-    if (pq === 'heuristic') filtered = filtered.filter(c => !c.proto.includes('tcp'));
+    if (pq) filtered = filtered.filter(c => (c.proto || '').includes(pq));
     renderTable(filtered);
   }
 
   function setSummary(s) {
     if (!s || !summaryEl) return;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
-    set('h-total',     s.inserted);
-    set('h-tcp',       s.tcp);
-    set('h-synth',     s.synthetic);
-    set('h-anomalies', s.anomalies);
+    set('h-total',     s.inserted ?? allCables.length);
+    set('h-tcp',       s.tcp       ?? '—');
+    set('h-synth',     s.synthetic ?? '—');
+    set('h-mtr',       s.mtr       ?? '—');
+    set('h-http',      s.http      ?? '—');
+    set('h-anomalies', s.anomalies ?? 0);
     if (s.completed_at) {
       try {
         const d = new Date(s.completed_at);
-        set('h-completed', d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }));
-      } catch { set('h-completed', s.completed_at.slice(0,16)); }
+        set('h-completed', isNaN(d) ? s.completed_at : d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }));
+      } catch { set('h-completed', String(s.completed_at).slice(0, 16)); }
     } else {
       set('h-completed', '—');
     }
@@ -2584,15 +2653,40 @@ function initHistoryPage() {
     try {
       const data  = await apiFetch({ action: 'history_list' });
       const dates = data.dates || [];
-      if (dates.length === 0) {
+      if (!dates.length) {
         dateSelect.innerHTML = '<option value="">Nenhum histórico encontrado</option>';
-        if (errEl) { errEl.textContent = 'Nenhuma execução encontrada em data/local/historico/. Execute a Sonda Diária primeiro.'; errEl.style.display = ''; }
+        if (errEl) { errEl.textContent = 'Nenhuma execução em data/local/historico/. Execute a Sonda Diária primeiro.'; errEl.style.display = ''; }
         return;
       }
       dateSelect.innerHTML = '<option value="">— Selecione uma data —</option>'
-        + dates.map(d => `<option value="${esc(d.date)}">${esc(d.date)} (${d.run_count} execução${d.run_count > 1 ? 'ões' : ''})</option>`).join('');
+        + dates.map(d => `<option value="${esc(d.date)}">${esc(d.date)} (${d.run_count} exec.)</option>`).join('');
+
+      // Auto-seleciona hoje e carrega protocolos para popular o filtro
+      const today = new Date().toISOString().slice(0, 10);
+      const todayOpt = [...dateSelect.options].find(o => o.value === today);
+      if (todayOpt) {
+        dateSelect.value = today;
+        loadDayData(today, true); // só proto_list, sem mostrar tabela
+      }
     } catch (err) {
       if (errEl) { errEl.textContent = 'Erro ao carregar datas: ' + err.message; errEl.style.display = ''; }
+    }
+  }
+
+  // Carrega dados de um dia; protoOnly=true apenas popula o filtro sem exibir tabela
+  async function loadDayData(date, protoOnly = false) {
+    try {
+      const data = await apiFetch({ action: 'history_day', date });
+      populateProtoFilter(data.proto_list || []);
+      if (!protoOnly) {
+        allCables = data.cables || [];
+        setSummary(data.summary);
+        applyFilters();
+      }
+    } catch {
+      if (!protoOnly && errEl) {
+        // mostra erro apenas quando o usuário pediu explicitamente
+      }
     }
   }
 
@@ -2615,6 +2709,7 @@ function initHistoryPage() {
       try {
         const data = await apiFetch({ action: 'history_day', date });
         allCables = data.cables || [];
+        populateProtoFilter(data.proto_list || []);
         setSummary(data.summary);
         applyFilters();
       } catch (err) {

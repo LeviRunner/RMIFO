@@ -2602,12 +2602,16 @@ tr.bs-found {
 }
 .dstat.tcp   { border-color: rgba(168,113,255,0.30); }
 .dstat.synth { border-color: rgba(45,220,130,0.25); }
+.dstat.mtr   { border-color: rgba(240,178,79,0.30); }
+.dstat.http  { border-color: rgba(45,180,220,0.30); }
 .dstat.warn  { border-color: rgba(255,185,45,0.30); }
 .dstat-v {
   font-size: 26px; font-weight: 700; color: var(--fg); line-height: 1.1; margin-bottom: 4px;
 }
 .dstat.tcp   .dstat-v { color: #a871ff; }
 .dstat.synth .dstat-v { color: #41da8c; }
+.dstat.mtr   .dstat-v { color: #f0b24f; }
+.dstat.http  .dstat-v { color: #2db4dc; }
 .dstat.warn  .dstat-v { color: #ffbe3c; }
 .dstat-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
