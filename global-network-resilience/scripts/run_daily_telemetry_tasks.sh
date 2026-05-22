@@ -11,8 +11,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="${BASE_DIR:-$(dirname "$SCRIPT_DIR")}"
 WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(dirname "$BASE_DIR")}"
-PYTHON_BIN="${WORKSPACE_ROOT}/.venv/bin/python"
-[[ ! -x "${PYTHON_BIN}" ]] && PYTHON_BIN="$(command -v python3 || true)"
+# Railway: BASE_DIR = /app; look for venv there first
+PYTHON_BIN="${BASE_DIR}/.venv/bin/python"
+[[ ! -x "${PYTHON_BIN}" ]] && PYTHON_BIN="${WORKSPACE_ROOT}/.venv/bin/python"
+[[ ! -x "${PYTHON_BIN}" ]] && PYTHON_BIN="$(command -v python3.11 || command -v python3 || command -v python || true)"
 
 # ─── Parâmetros ───────────────────────────────────────────────────────────────
 FULL_SCAN="${FULL_SCAN:-1}"
