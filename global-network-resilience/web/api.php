@@ -1386,15 +1386,23 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     $info    = @json_decode(@file_get_contents($runFile), true);
                     $runPid  = (string) ($info['pid'] ?? '');
                     $startTs = strtotime((string) ($info['started_at'] ?? '')) ?: 0;
-                    if ($runPid !== '' && file_exists('/proc/' . $runPid)) {
-                        $isRun = true;
-                    } elseif ((time() - $startTs) < 180) {
-                        $isRun = true;
+                    if ($runPid !== '') {
+                        // /proc check (Linux); posix_kill fallback (containers sem /proc visível)
+                        $pidAlive = file_exists('/proc/' . $runPid)
+                                 || (function_exists('posix_kill') && @posix_kill((int)$runPid, 0));
+                        if ($pidAlive) {
+                            $isRun = true;
+                        } elseif ((time() - $startTs) < 600) {
+                            // Mantém "running" por até 10 min após o start
+                            // (containers podem ter namespaces de PID isolados)
+                            $isRun = true;
+                        }
                     }
                 }
 
+                // Log modificado nos últimos 5 min → ainda em execução
                 $lastMod = @filemtime($logFile) ?: 0;
-                if (!$isRun && (time() - $lastMod) < 120) { $isRun = true; }
+                if (!$isRun && (time() - $lastMod) < 300) { $isRun = true; }
 
                 // ── Live status gravado pelo script Python após cada cabo ─────
                 // Tem prioridade sobre o parsing do log: mais granular e inclui
@@ -1403,8 +1411,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 if (file_exists($liveFile)) {
                     $liveAge  = time() - (@filemtime($liveFile) ?: 0);
                     $liveData = @json_decode(@file_get_contents($liveFile), true);
-                    // Usa o live status se for recente (< 120 s) e tiver dados de progresso
-                    if ($liveData && isset($liveData['current']) && $liveAge < 120) {
+                    // Live status válido por 5 min (uma entrada por cabo; cabos lentos podem demorar)
+                    if ($liveData && isset($liveData['current']) && $liveAge < 300) {
                         $progress = [
                             'current'    => (int)   ($liveData['current']    ?? 0),
                             'total'      => (int)   ($liveData['total']      ?? 699),

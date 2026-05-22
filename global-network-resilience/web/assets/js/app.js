@@ -2256,9 +2256,10 @@ function initDailyPage() {
         pollTimer = setTimeout(poll, 3000);
       } else if (data.status === 'idle') {
         const elapsed = probeStartTime ? (Date.now() - probeStartTime) / 1000 : 9999;
-        if (elapsed < 180) {
-          if (progressLbl) progressLbl.textContent = 'Calculando rollups iniciais…';
-          pollTimer = setTimeout(poll, 5000);
+        // Mantém polling por até 15 min após start — containers Railway podem demorar na init
+        if (elapsed < 900) {
+          if (progressLbl) progressLbl.textContent = elapsed < 120 ? 'Iniciando sonda…' : 'Processando…';
+          pollTimer = setTimeout(poll, elapsed < 60 ? 3000 : 6000);
         } else {
           setRunningUI(false);
         }

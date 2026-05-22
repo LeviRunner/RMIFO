@@ -1,5 +1,20 @@
 [phases.setup]
-nixPkgs = ["php82", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql", "postgresql"]
+nixPkgs = [
+  "php82",
+  "php82Extensions.pdo_pgsql",
+  "php82Extensions.pgsql",
+  "postgresql",
+  "python311",
+  "python311Packages.psycopg2",
+  "curl",
+  "mtr",
+  "iputils"
+]
+
+[phases.install]
+cmds = [
+  "python3 -m pip install --upgrade pip --quiet || true"
+]
 
 [start]
 cmd = "bash start.sh"
