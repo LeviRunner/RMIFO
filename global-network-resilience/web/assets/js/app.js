@@ -2655,11 +2655,14 @@ function initHistoryPage() {
       const dates = data.dates || [];
       if (!dates.length) {
         dateSelect.innerHTML = '<option value="">Nenhum histórico encontrado</option>';
-        if (errEl) { errEl.textContent = 'Nenhuma execução em data/local/historico/. Execute a Sonda Diária primeiro.'; errEl.style.display = ''; }
+        if (errEl) { errEl.textContent = 'Nenhum histórico encontrado. Execute a Sonda Diária primeiro.'; errEl.style.display = ''; }
         return;
       }
       dateSelect.innerHTML = '<option value="">— Selecione uma data —</option>'
-        + dates.map(d => `<option value="${esc(d.date)}">${esc(d.date)} (${d.run_count} exec.)</option>`).join('');
+        + dates.map(d => {
+            const info = d.run_count > 0 ? `${d.run_count} exec.` : `${d.samples ?? '?'} amostras BD`;
+            return `<option value="${esc(d.date)}">${esc(d.date)} (${info})</option>`;
+          }).join('');
 
       // Auto-seleciona hoje e carrega protocolos para popular o filtro
       const today = new Date().toISOString().slice(0, 10);

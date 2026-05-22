@@ -1191,7 +1191,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
     $_reqAll    = array_merge($_GET, $_POST);
     $_modeNow   = (string) ($_reqAll['mode'] ?? $_reqAll['action'] ?? '');
     $_projectDir = dirname(__DIR__);
-    $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel', 'history_list'];
+    $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel'];
 
     if (in_array($_modeNow, $_noDbModes, true)) {
         try {
@@ -1485,80 +1485,52 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 jsonResponse(['status' => 'cancelled', 'killed' => $killed, 'log_deleted' => $logDeleted]);
             }
 
-            // ── history_list ─────────────────────────────────────────────────
-            if ($_modeNow === 'history_list') {
-                $historicDir = $_projectDir . '/data/local/historico';
-                $dates = [];
-                if (is_dir($historicDir)) {
-                    foreach (glob($historicDir . '/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]') ?: [] as $dir) {
-                        $d    = basename($dir);
-                        $logs = glob($dir . '/run_daily_*.log') ?: [];
-                        if ($logs) {
-                            natsort($logs);
-                            $dates[] = ['date' => $d, 'run_count' => count($logs), 'latest_log' => end($logs)];
+        } catch (Throwable $_e) {
+            jsonResponse(['error' => $_e->getMessage()], 500);
+        }
+    }
+
+    // ── history_list: log sempre + BD opcional ──────────────────────────────
+    if ($_modeNow === 'history_list') {
+        try {
+            $historicDir = $_projectDir . '/data/local/historico';
+            $dates       = [];
+
+            // 1. Datas com log local
+            if (is_dir($historicDir)) {
+                foreach (glob($historicDir . '/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]') ?: [] as $dir) {
+                    $d    = basename($dir);
+                    $logs = glob($dir . '/run_daily_*.log') ?: [];
+                    if ($logs) {
+                        natsort($logs);
+                        $dates[$d] = ['date' => $d, 'run_count' => count($logs), 'source' => 'log'];
+                    }
+                }
+            }
+
+            // 2. Datas do BD (complementa quando não há log local)
+            if (extension_loaded('pdo_pgsql')) {
+                try {
+                    $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
+                    $stmt = $pdo2->query("
+                        SELECT DISTINCT measured_at::date AS d, COUNT(*) AS samples
+                        FROM cable_telemetry_samples
+                        GROUP BY measured_at::date
+                        ORDER BY d DESC
+                    ");
+                    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                        $d = (string) $row['d'];
+                        if (!isset($dates[$d])) {
+                            $dates[$d] = ['date' => $d, 'run_count' => 0, 'samples' => (int) $row['samples'], 'source' => 'db'];
+                        } else {
+                            $dates[$d]['samples'] = (int) $row['samples'];
                         }
                     }
-                }
-                usort($dates, static fn($a, $b) => strcmp($b['date'], $a['date']));
-                jsonResponse(['dates' => $dates]);
+                } catch (Throwable $_) { /* BD indisponível */ }
             }
 
-            // ── history_day ──────────────────────────────────────────────────
-            if ($_modeNow === 'history_day') {
-                $date = preg_replace('/[^0-9\-]/', '', trim((string) ($_reqAll['date'] ?? '')));
-                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-                    jsonResponse(['status' => 'error', 'message' => 'Data inválida.'], 400);
-                }
-                $logDir = $_projectDir . '/data/local/historico/' . $date;
-                $logs   = glob($logDir . '/run_daily_*.log') ?: [];
-                if (!$logs) {
-                    jsonResponse(['status' => 'error', 'message' => 'Nenhum log encontrado para ' . $date . '.'], 404);
-                }
-                natsort($logs);
-                $logFile = end($logs);
-                $content = (string) (@file_get_contents($logFile) ?: '');
-
-                $cables = [];
-                foreach (explode("\n", $content) as $line) {
-                    if (preg_match(
-                        '/\[\s*(\d+)\/(\d+)\]\s+([\d.]+)%\s+(\S+)\s+proto=(.+?)\s+lat=\s*([\d.]+)ms/',
-                        $line, $m
-                    )) {
-                        $cables[] = [
-                            'index'      => (int)   $m[1],
-                            'cable_id'   => $m[4],
-                            'proto'      => $m[5],
-                            'latency_ms' => (float) $m[6],
-                        ];
-                    }
-                }
-
-                $summary = null;
-                if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
-                    $summary = ['inserted' => (int) $m[1]];
-                    if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',  $content, $m2)) $summary['tcp']       = (int) $m2[1];
-                    if (preg_match('/Sintetico\s*:\s*(\d+)/m',     $content, $m2)) $summary['synthetic'] = (int) $m2[1];
-                    if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',  $content, $m2)) $summary['mtr']       = (int) $m2[1];
-                    if (preg_match('/HTTP curl\s*:\s*(\d+)/m',      $content, $m2)) $summary['http']      = (int) $m2[1];
-                    if (preg_match('/(\d+) anomalias/m',            $content, $m2)) $summary['anomalies'] = (int) $m2[1];
-                    if (preg_match('/Concluido em\s*(\S+)/m',       $content, $m2)) $summary['completed_at'] = $m2[1];
-                }
-
-                $filterCable = trim((string) ($_reqAll['cable'] ?? ''));
-                $filterProto = trim((string) ($_reqAll['proto'] ?? ''));
-                if ($filterCable !== '') {
-                    $cables = array_values(array_filter($cables,
-                        fn($c) => stripos($c['cable_id'], $filterCable) !== false));
-                }
-                if ($filterProto === 'tcp') {
-                    $cables = array_values(array_filter($cables, fn($c) =>  str_contains($c['proto'], 'tcp')));
-                } elseif ($filterProto === 'heuristic') {
-                    $cables = array_values(array_filter($cables, fn($c) => !str_contains($c['proto'], 'tcp')));
-                }
-
-                jsonResponse(['date' => $date, 'total' => count($cables), 'cables' => $cables, 'summary' => $summary]);
-            }
-
+            usort($dates, static fn($a, $b) => strcmp($b['date'], $a['date']));
+            jsonResponse(['dates' => array_values($dates)]);
         } catch (Throwable $_e) {
             jsonResponse(['error' => $_e->getMessage()], 500);
         }
@@ -1713,8 +1685,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 'cable_landing_points'     => ['cable_id','endpoint_id','endpoint_order','is_tbd'],
                 'nodes'                    => ['node_id','node_name','latitude','longitude','country_code','asn'],
                 'cable_telemetry_samples'  => ['sample_id','cable_id','measured_at','latency_ms','jitter_ms','packet_loss_pct','throughput_mbps','source','method','confidence_score','estimated'],
-                'telemetry_rollup_1h'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','p95_latency_ms','avg_packet_loss_pct','sample_count'],
-                'telemetry_rollup_5m'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','avg_packet_loss_pct','sample_count'],
+                'telemetry_rollup_1h'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','p95_latency_ms','avg_packet_loss_pct','avg_throughput_mbps','confidence_avg','sample_count'],
+                'telemetry_rollup_5m'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','avg_packet_loss_pct','avg_throughput_mbps','sample_count'],
                 'telemetry_alerts'         => ['alert_id','cable_id','metric','severity','current_value','baseline_value','detected_at','resolved_at','description'],
                 'cable_telemetry_reference'=> ['cable_id','baseline_latency_ms','baseline_jitter_ms','baseline_packet_loss_pct','baseline_throughput_mbps','baseline_availability_pct','updated_at'],
                 'endpoint_ip_samples'      => ['endpoint_id','sample_order','network','ip_start','ip_end','country_name','country_code','region','city','latitude','longitude'],
@@ -1809,7 +1781,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             // Whitelist: a consulta deve referenciar só tabelas conhecidas do projeto
             $knownTables = [
                 'cables','cable_metadata','landing_points','cable_landing_points',
-                'nodes','cable_telemetry_samples','telemetry_rollup_1h','telemetry_rollup_5m',
+                'nodes','cable_telemetry_samples','cable_telemetry_hops',
+                'telemetry_rollup_1h','telemetry_rollup_5m',
                 'telemetry_alerts','cable_telemetry_reference','endpoint_ip_samples','geoip_mapping',
             ];
             $hasKnownTable = false;

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Script para processar rollups de telemetria (5m e 1h).
-Consolida dados brutos em buckets temporais para acelerar consultas históricas.
+Gera snapshot de rollup de telemetria e salva em historico/.
+
+Após a migration 001, telemetry_rollup_1h e telemetry_rollup_5m são
+VIEWs computadas de cable_telemetry_samples — não há INSERTs.
+Este script apenas lê as views e persiste o snapshot em JSON.
 """
 import json
 import os
@@ -28,11 +31,10 @@ def save_rollup_history(base_dir: Path, conn, run_at: datetime) -> Path:
     ts_str   = run_at.strftime("%H%M%S")
 
     with conn.cursor() as cur:
-        # Top 20 cabos por latência nas últimas 1h
         cur.execute("""
             SELECT r.cable_id, c.cable_name,
                    r.avg_latency_ms, r.avg_jitter_ms, r.avg_packet_loss_pct,
-                   r.avg_throughput_mbps, r.sample_count, r.bucket
+                   r.sample_count, r.bucket
             FROM telemetry_rollup_1h r
             JOIN cables c ON c.cable_id = r.cable_id
             WHERE r.bucket >= NOW() - INTERVAL '2 hours'
@@ -42,12 +44,11 @@ def save_rollup_history(base_dir: Path, conn, run_at: datetime) -> Path:
         top_lat = [
             {"cable_id": row[0], "cable_name": row[1],
              "avg_latency_ms": row[2], "avg_jitter_ms": row[3],
-             "avg_packet_loss_pct": row[4], "avg_throughput_mbps": row[5],
-             "sample_count": row[6], "bucket": str(row[7])}
+             "avg_packet_loss_pct": row[4],
+             "sample_count": row[5], "bucket": str(row[6])}
             for row in cur.fetchall()
         ]
 
-        # Estatísticas globais
         cur.execute("""
             SELECT COUNT(DISTINCT cable_id), AVG(avg_latency_ms),
                    AVG(avg_jitter_ms), AVG(avg_packet_loss_pct),
@@ -64,7 +65,6 @@ def save_rollup_history(base_dir: Path, conn, run_at: datetime) -> Path:
             "amostras_totais":   row[4],
         }
 
-        # Contagem de rollups gerados
         cur.execute("SELECT COUNT(*) FROM telemetry_rollup_5m WHERE bucket >= NOW() - INTERVAL '1 hour'")
         n5m = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM telemetry_rollup_1h WHERE bucket >= NOW() - INTERVAL '2 hours'")
@@ -87,65 +87,11 @@ def save_rollup_history(base_dir: Path, conn, run_at: datetime) -> Path:
 def run_rollups(base_dir: Path):
     conn = db_connect(base_dir)
     try:
-        with conn.cursor() as cur:
-            # Rollup 5 minutos ( buckets de 300 segundos )
-            cur.execute("""
-                INSERT INTO telemetry_rollup_5m (cable_id, bucket, avg_latency_ms, avg_jitter_ms, max_latency_ms, avg_packet_loss_pct, sample_count)
-                SELECT 
-                    cable_id,
-                    to_timestamp(floor(extract(epoch from measured_at) / 300) * 300) AT TIME ZONE 'UTC' as bucket,
-                    AVG(latency_ms),
-                    AVG(jitter_ms),
-                    MAX(latency_ms),
-                    AVG(packet_loss_pct),
-                    COUNT(*)
-                FROM cable_telemetry_samples
-                WHERE measured_at >= NOW() - INTERVAL '3 days'
-                GROUP BY 1, 2
-                ON CONFLICT (cable_id, bucket) DO UPDATE SET
-                    avg_latency_ms = EXCLUDED.avg_latency_ms,
-                    avg_jitter_ms = EXCLUDED.avg_jitter_ms,
-                    sample_count = EXCLUDED.sample_count;
-            """)
-            
-            # Rollup 1 hora (buckets de 3600 segundos)
-            cur.execute("""
-                INSERT INTO telemetry_rollup_1h (
-                    cable_id, bucket, avg_latency_ms, avg_jitter_ms, max_latency_ms, 
-                    p95_latency_ms, avg_packet_loss_pct, avg_throughput_mbps, 
-                    sample_count, confidence_avg
-                )
-                SELECT 
-                    cable_id,
-                    date_trunc('hour', measured_at) as bucket,
-                    AVG(latency_ms),
-                    AVG(jitter_ms),
-                    MAX(latency_ms),
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms),
-                    AVG(packet_loss_pct),
-                    AVG(throughput_mbps),
-                    COUNT(*),
-                    AVG(confidence_score)
-                FROM cable_telemetry_samples
-                WHERE measured_at >= NOW() - INTERVAL '14 days'
-                GROUP BY 1, 2
-                ON CONFLICT (cable_id, bucket) DO UPDATE SET
-                    avg_latency_ms = EXCLUDED.avg_latency_ms,
-                    avg_jitter_ms = EXCLUDED.avg_jitter_ms,
-                    p95_latency_ms = EXCLUDED.p95_latency_ms,
-                    avg_throughput_mbps = EXCLUDED.avg_throughput_mbps,
-                    sample_count = EXCLUDED.sample_count;
-            """)
-            conn.commit()
-            run_at = datetime.now()
-            print(f"[{run_at}] Rollups processados com sucesso.")
-
+        run_at   = datetime.now()
         hist_path = save_rollup_history(base_dir, conn, run_at)
-        print(f"  Historico rollup: {hist_path}")
-
+        print(f"[{run_at}] Snapshot de rollup gerado: {hist_path}")
     except Exception as e:
-        print(f"Erro no Rollup: {e}")
-        conn.rollback()
+        print(f"Erro no rollup: {e}")
     finally:
         conn.close()
 

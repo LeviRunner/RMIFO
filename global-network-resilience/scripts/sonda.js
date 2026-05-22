@@ -195,49 +195,6 @@ async function ensureSchema(db) {
     } catch (e) { warn('Schema:', e.message); }
 }
 
-// ── Rollups ───────────────────────────────────────────────────────────────────
-async function computeRollups(db) {
-    try {
-        await db.query(`
-            INSERT INTO telemetry_rollup_5m
-                (cable_id, bucket, avg_latency_ms, avg_jitter_ms, max_latency_ms, avg_packet_loss_pct, sample_count)
-            SELECT cable_id,
-                to_timestamp(floor(extract(epoch from measured_at)/300)*300) AT TIME ZONE 'UTC',
-                AVG(latency_ms), AVG(jitter_ms), MAX(latency_ms), AVG(packet_loss_pct), COUNT(*)
-            FROM cable_telemetry_samples
-            WHERE measured_at >= NOW() - INTERVAL '3 days'
-            GROUP BY 1, 2
-            ON CONFLICT (cable_id, bucket) DO UPDATE SET
-                avg_latency_ms      = EXCLUDED.avg_latency_ms,
-                avg_jitter_ms       = EXCLUDED.avg_jitter_ms,
-                max_latency_ms      = EXCLUDED.max_latency_ms,
-                avg_packet_loss_pct = EXCLUDED.avg_packet_loss_pct,
-                sample_count        = EXCLUDED.sample_count
-        `);
-        await db.query(`
-            INSERT INTO telemetry_rollup_1h
-                (cable_id, bucket, avg_latency_ms, avg_jitter_ms, max_latency_ms,
-                 p95_latency_ms, avg_packet_loss_pct, avg_throughput_mbps, sample_count, confidence_avg)
-            SELECT cable_id, date_trunc('hour', measured_at),
-                AVG(latency_ms), AVG(jitter_ms), MAX(latency_ms),
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms),
-                AVG(packet_loss_pct), AVG(throughput_mbps), COUNT(*), AVG(confidence_score)
-            FROM cable_telemetry_samples
-            WHERE measured_at >= NOW() - INTERVAL '14 days'
-            GROUP BY 1, 2
-            ON CONFLICT (cable_id, bucket) DO UPDATE SET
-                avg_latency_ms      = EXCLUDED.avg_latency_ms,
-                avg_jitter_ms       = EXCLUDED.avg_jitter_ms,
-                max_latency_ms      = EXCLUDED.max_latency_ms,
-                p95_latency_ms      = EXCLUDED.p95_latency_ms,
-                avg_packet_loss_pct = EXCLUDED.avg_packet_loss_pct,
-                avg_throughput_mbps = EXCLUDED.avg_throughput_mbps,
-                sample_count        = EXCLUDED.sample_count,
-                confidence_avg      = EXCLUDED.confidence_avg
-        `);
-        ok('Rollups 5m e 1h atualizados.');
-    } catch (e) { warn('Rollups (tabelas ainda não existem?):', e.message); }
-}
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
@@ -260,12 +217,7 @@ async function main() {
         warn('DATABASE_URL não definido — sonda sem persistência.');
     }
 
-    // Pre-ingest rollups + schema
-    if (db) {
-        log('Rollups pré-ingestão...');
-        await computeRollups(db);
-        await ensureSchema(db);
-    }
+    if (db) await ensureSchema(db);
 
     // Cable list from DB
     let cables = [];
@@ -443,11 +395,8 @@ async function main() {
         );
     }
 
-    // Post-ingest rollups + baseline
+    // Post-ingest baseline
     if (db) {
-        log('Rollups pós-ingestão...');
-        await computeRollups(db);
-
         try {
             await db.query(`
                 INSERT INTO cable_telemetry_reference (
