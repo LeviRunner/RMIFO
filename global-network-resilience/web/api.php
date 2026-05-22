@@ -20,23 +20,29 @@ $dataExternal = is_dir($_projectDir . '/data/external')
         ? realpath($_projectDir . '/../data/external')
         : $workspaceRoot . '/data/external');
 
+$pgSsl = false;   // true → adiciona sslmode=require no DSN
+
 $_dbUrl = getenv('DATABASE_URL') ?: '';
 if ($_dbUrl !== '') {
-    $_p     = parse_url($_dbUrl);
+    $_p       = parse_url($_dbUrl);
     $pgSocket = $_p['host'] ?? 'localhost';
     $pgPort   = (int) ($_p['port'] ?? 5432);
     $pgDbname = ltrim($_p['path'] ?? '/railway', '/');
-    $pgUser   = $_p['user']  ?? 'postgres';
-    $pgPass   = $_p['pass']  ?? '';
+    $pgUser   = urldecode($_p['user'] ?? 'postgres');
+    $pgPass   = urldecode($_p['pass'] ?? '');
+    // URL pública do Railway usa TCP proxy (porta ≠ 5432) → requer SSL
+    $pgSsl    = ($pgPort !== 5432 && $pgPort !== 55432);
 } else {
-    $_pghost  = getenv('PGHOST') ?: '';
-    // Usa PGHOST apenas se for hostname TCP (não começa com /)
+    $_pghost = getenv('PGHOST') ?: '';
     if ($_pghost !== '' && $_pghost[0] !== '/') {
+        // Variáveis PG* individuais (Railway: referência ${{ Postgres.PGHOST }} etc.)
         $pgSocket = $_pghost;
         $pgPort   = (int) (getenv('PGPORT') ?: 5432);
-        $pgDbname = getenv('PGDATABASE') ?: 'global_network_resilience';
-        $pgUser   = getenv('PGUSER')     ?: 'postgres';
-        $pgPass   = getenv('PGPASSWORD') ?: '';
+        $pgDbname = getenv('PGDATABASE') ?: getenv('POSTGRES_DB') ?: 'railway';
+        $pgUser   = getenv('PGUSER')     ?: getenv('POSTGRES_USER')     ?: 'postgres';
+        $pgPass   = getenv('PGPASSWORD') ?: getenv('POSTGRES_PASSWORD') ?: '';
+        // Domínio privado Railway (.railway.internal) não precisa de SSL
+        $pgSsl    = !str_ends_with($pgSocket, '.railway.internal') && !str_ends_with($pgSocket, '.local');
     } else {
         // Fallback local: socket Unix
         $pgSocket = getenv('PG_SOCKET') ?: ($workspaceRoot . '/.local/run');
@@ -44,6 +50,7 @@ if ($_dbUrl !== '') {
         $pgDbname = 'global_network_resilience';
         $pgUser   = 'postgres';
         $pgPass   = '';
+        $pgSsl    = false;
     }
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,9 +130,12 @@ function assertProbeIpAllowed(PDO $pdo, string $ip): void
     }
 }
 
-function getDb(string $host, int $port, string $dbname, string $user, string $pass = ''): PDO
+function getDb(string $host, int $port, string $dbname, string $user, string $pass = '', bool $ssl = false): PDO
 {
     $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
+    if ($ssl) {
+        $dsn .= ';sslmode=require';
+    }
     return new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -1511,7 +1521,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             // 2. Datas do BD (complementa quando não há log local)
             if (extension_loaded('pdo_pgsql')) {
                 try {
-                    $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
+                    $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
                     $stmt = $pdo2->query("
                         SELECT DISTINCT measured_at::date AS d, COUNT(*) AS samples
                         FROM cable_telemetry_samples
@@ -1580,7 +1590,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             // 2. Complementa com cable_telemetry_samples se BD disponível
             if (extension_loaded('pdo_pgsql')) {
                 try {
-                    $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
+                    $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
                     $stmt = $pdo2->prepare("
                         SELECT cable_id,
                                method                              AS proto,
@@ -1664,7 +1674,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             throw new RuntimeException('Extensão pdo_pgsql não está carregada.');
         }
 
-        $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass);
+        $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
         $req  = array_merge($_GET, $_POST);
         $mode = (string) ($req['mode'] ?? $req['action'] ?? 'all');
         checkRateLimit($pdo, $mode);
