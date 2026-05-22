@@ -4,7 +4,7 @@ nixPkgs = [
   "php82Extensions.pdo_pgsql",
   "php82Extensions.pgsql",
   "postgresql",
-  "python311",
+  "nodejs_20",
   "curl",
   "mtr",
   "iputils"
@@ -12,8 +12,7 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
-  "python3 -m venv .venv",
-  ".venv/bin/pip install --no-cache-dir -r scripts/requirements.txt"
+  "npm install --omit=dev"
 ]
 
 [start]

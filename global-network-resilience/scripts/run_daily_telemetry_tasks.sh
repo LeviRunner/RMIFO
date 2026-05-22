@@ -11,10 +11,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="${BASE_DIR:-$(dirname "$SCRIPT_DIR")}"
 WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(dirname "$BASE_DIR")}"
-# Railway: BASE_DIR = /app; look for venv there first
-PYTHON_BIN="${BASE_DIR}/.venv/bin/python"
-[[ ! -x "${PYTHON_BIN}" ]] && PYTHON_BIN="${WORKSPACE_ROOT}/.venv/bin/python"
-[[ ! -x "${PYTHON_BIN}" ]] && PYTHON_BIN="$(command -v python3.11 || command -v python3 || command -v python || true)"
+# Node.js binary — installed via nixpacks nodejs_20
+NODE_BIN="$(command -v node || true)"
 
 # ─── Parâmetros ───────────────────────────────────────────────────────────────
 FULL_SCAN="${FULL_SCAN:-1}"
@@ -81,19 +79,18 @@ check_dep_opt() {
     ok "  $cmd → $(command -v "$cmd")"
 }
 
-# Todos são opcionais exceto Python — Python é obrigatório.
-# mtr, ping, curl têm fallback no script Python (TCP/HTTP sintético).
+# mtr, ping, curl são opcionais — Node.js usa TCP/HTTP como fallback
 check_dep_opt ping "iputils-ping"
 check_dep_opt mtr  "mtr"
 check_dep_opt curl "curl"
 
-if [[ -z "${PYTHON_BIN}" ]] || [[ ! -x "${PYTHON_BIN}" ]]; then
-    fail "Python3 não encontrado. Defina PYTHON_BIN ou instale python3."
-    ERRORS+=("dep_missing:python3")
+if [[ -z "${NODE_BIN}" ]]; then
+    fail "Node.js não encontrado. Adicione 'nodejs_20' ao nixpkgs."
+    ERRORS+=("dep_missing:node")
 fi
 
 if [[ ${#ERRORS[@]} -gt 0 ]]; then
-    fail "Abortando: dependência crítica ausente — Python3 é obrigatório."
+    fail "Abortando: dependência crítica ausente — Node.js é obrigatório."
     exit 2
 fi
 ok "Dependências críticas OK — prosseguindo."
@@ -239,20 +236,20 @@ log "=== Gerando relatório de probe ==="
 
 ok "Relatório salvo: ${PROBE_REPORT}"
 
-# ─── 5. Pipeline Python com retry e validação de exit code ────────────────────
+# ─── 5. Pipeline Node.js com retry ────────────────────────────────────────────
 log ""
-log "=== [4/5] Pipeline Python ==="
+log "=== [4/5] Pipeline Node.js ==="
 
 export TELEMETRY_PROBE_REPORT="${PROBE_REPORT}"
 export TELEMETRY_REACHABLE_COUNT="${REACHABLE_COUNT}"
 
-run_python() {
+run_node() {
     local label="$1"; shift
     local attempt=0 exit_code=0
 
     while [[ "${attempt}" -le "${RETRY_ATTEMPTS}" ]]; do
         log "  ${label} (tentativa $((attempt + 1))/$((RETRY_ATTEMPTS + 1)))..."
-        "${PYTHON_BIN}" "$@"
+        "${NODE_BIN}" "$@"
         exit_code=$?
         if [[ "${exit_code}" -eq 0 ]]; then
             ok "  ${label} → sucesso"
@@ -264,34 +261,23 @@ run_python() {
     done
 
     fail "  ${label} → falhou após $((RETRY_ATTEMPTS + 1)) tentativa(s)"
-    ERRORS+=("python_fail:${label}:exit=${exit_code}")
+    ERRORS+=("node_fail:${label}:exit=${exit_code}")
     return 1
 }
 
-run_python "rollups pré-ingestão" \
-    "${BASE_DIR}/scripts/compute_telemetry_rollups.py" || true
-
 if [[ "${FULL_SCAN}" = "1" ]]; then
-    run_python "ingestão sonda completa" \
-        "${BASE_DIR}/scripts/ingest_telemetry_samples.py" \
+    run_node "sonda completa" \
+        "${BASE_DIR}/scripts/sonda.js" \
         --full-scan \
         --mtr-cycles "${MTR_CYCLES}" \
         --timeout "${TIMEOUT}" \
         --probe-report "${PROBE_REPORT}" || true
 else
-    run_python "ingestão padrão" \
-        "${BASE_DIR}/scripts/ingest_telemetry_samples.py" \
+    run_node "sonda padrão" \
+        "${BASE_DIR}/scripts/sonda.js" \
         --mtr-cycles 3 \
         --timeout "${TIMEOUT}" \
         --probe-report "${PROBE_REPORT}" || true
-fi
-
-run_python "rollups pós-ingestão" \
-    "${BASE_DIR}/scripts/compute_telemetry_rollups.py" || true
-
-if [[ -f "${BASE_DIR}/scripts/validate_telemetry_baseline.py" ]]; then
-    run_python "validação de baseline" \
-        "${BASE_DIR}/scripts/validate_telemetry_baseline.py" || true
 fi
 
 # ─── 6. Sumário final ────────────────────────────────────────────────────────
