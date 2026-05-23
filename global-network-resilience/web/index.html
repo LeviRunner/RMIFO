@@ -244,6 +244,7 @@
         <span class="leg-item"><span class="leg-dot probe"></span>Telemetria TCP verificada</span>
         <span class="leg-item"><span class="leg-dot warn"></span>Com alerta</span>
         <span class="leg-item"><span class="leg-dot off"></span>Inativo</span>
+        <span class="leg-item"><span class="leg-dot switch"></span>Comutador de rota</span>
       </div>
       <div class="globe-tip" id="globe-tip">
         Clique em um cabo ou ponto para selecionar
@@ -318,6 +319,14 @@
             <li class="db-table-item" data-table="endpoint_ip_samples">
               <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>endpoint_ip_samples
               <span class="db-table-rows" id="dbrows-endpoint_ip_samples"></span>
+            </li>
+            <li class="db-table-item" data-table="cable_telemetry_hops">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cable_telemetry_hops
+              <span class="db-table-rows" id="dbrows-cable_telemetry_hops"></span>
+            </li>
+            <li class="db-table-item" data-table="hop_switch_geolocations">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/><ellipse cx="8" cy="8" rx="3" ry="5.5"/></svg></span>hop_switch_geolocations
+              <span class="db-table-rows" id="dbrows-hop_switch_geolocations"></span>
             </li>
           </ul>
         </div>
@@ -632,6 +641,8 @@
           <div class="pv-m"><span class="pv-k">Protocolo</span><span class="pv-v" id="pv-proto">—</span></div>
           <div class="pv-m"><span class="pv-k">Pacotes</span><span class="pv-v mono"><span id="pv-pkt-n">0</span><span class="pv-muted">/100</span></span></div>
           <div class="pv-m"><span class="pv-k">Portas</span><span class="pv-v mono" id="pv-ports">—</span></div>
+          <div class="pv-m"><span class="pv-k">Saltos (hops)</span><span class="pv-v mono pv-hop-accent" id="pv-hop-n">—</span></div>
+          <div class="pv-m"><span class="pv-k">Comutadores geo</span><span class="pv-v mono" id="pv-switch-n">—</span></div>
         </div>
       </div>
 
@@ -641,6 +652,7 @@
         <div class="dstat tcp"><div class="dstat-v" id="dstat-tcp">—</div><div class="dstat-l">TCP Real</div></div>
         <div class="dstat synth"><div class="dstat-v" id="dstat-synth">—</div><div class="dstat-l">Sintético</div></div>
         <div class="dstat"><div class="dstat-v" id="dstat-mtr">—</div><div class="dstat-l">MTR</div></div>
+        <div class="dstat hop"><div class="dstat-v" id="dstat-switches">—</div><div class="dstat-l">Comutadores</div></div>
         <div class="dstat warn"><div class="dstat-v" id="dstat-anomalies">—</div><div class="dstat-l">Anomalias</div></div>
       </div>
 
@@ -661,7 +673,7 @@
         <div class="subhead">Últimas sondas</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>Cabo</th><th>Protocolo</th><th>Latência</th></tr></thead>
+            <thead><tr><th>#</th><th>Cabo</th><th>Protocolo</th><th>Latência</th><th>Hops</th></tr></thead>
             <tbody id="daily-tbody"></tbody>
           </table>
         </div>

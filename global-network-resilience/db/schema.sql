@@ -143,6 +143,25 @@ CREATE INDEX IF NOT EXISTS idx_hops_sample    ON cable_telemetry_hops(sample_id)
 CREATE INDEX IF NOT EXISTS idx_hops_cable_hop ON cable_telemetry_hops(cable_id, hop_number);
 CREATE INDEX IF NOT EXISTS idx_hops_ip        ON cable_telemetry_hops(hop_ip);
 
+-- Geolocalização de comutadores/roteadores descobertos via MTR
+CREATE TABLE IF NOT EXISTS hop_switch_geolocations (
+    id           BIGSERIAL PRIMARY KEY,
+    hop_ip       INET        NOT NULL UNIQUE,
+    lat          DOUBLE PRECISION,
+    lng          DOUBLE PRECISION,
+    city         VARCHAR(120),
+    region       VARCHAR(120),
+    country      VARCHAR(80),
+    country_code CHAR(2),
+    isp          VARCHAR(200),
+    org          VARCHAR(200),
+    as_number    VARCHAR(30),
+    as_name      VARCHAR(200),
+    queried_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_hop_geo_ip     ON hop_switch_geolocations(hop_ip);
+CREATE INDEX IF NOT EXISTS idx_hop_geo_coords ON hop_switch_geolocations(lat, lng) WHERE lat IS NOT NULL;
+
 -- Baseline de referência por cabo (calibração 7 dias)
 CREATE TABLE IF NOT EXISTS cable_telemetry_reference (
     cable_id                  VARCHAR(255) PRIMARY KEY REFERENCES cables(cable_id) ON DELETE CASCADE,

@@ -132,6 +132,38 @@ function httpProbe(url, ms) {
     });
 }
 
+// ── IP helpers ────────────────────────────────────────────────────────────────
+function isPrivateIp(ip) {
+    if (!ip || ip === '???' || ip === '*') return true;
+    return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|::1|fd[0-9a-f]{2}:|fc[0-9a-f]{2}:)/i.test(ip);
+}
+
+// ── Geolocalização de IPs via ip-api.com/batch ─────────────────────────────
+async function geoLookupBatch(ips) {
+    if (!ips || !ips.length) return [];
+    return new Promise(res => {
+        const body = JSON.stringify(ips.map(ip => ({
+            query: ip,
+            fields: 'status,query,lat,lon,city,regionName,country,countryCode,isp,org,as,asname',
+        })));
+        const options = {
+            hostname: 'ip-api.com',
+            path:     '/batch',
+            method:   'POST',
+            headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        };
+        const req = http.request(options, resp => {
+            let data = '';
+            resp.on('data', d => { data += d; });
+            resp.on('end', () => { try { res(JSON.parse(data)); } catch { res([]); } });
+        });
+        req.on('error', () => res([]));
+        req.setTimeout(18000, () => { req.destroy(); res([]); });
+        req.write(body);
+        req.end();
+    });
+}
+
 // ── MTR probe ─────────────────────────────────────────────────────────────────
 function mtrProbe(host, cycles, timeoutS) {
     return new Promise(res => {
@@ -163,6 +195,26 @@ function mtrProbe(host, cycles, timeoutS) {
 
 // ── DB schema ─────────────────────────────────────────────────────────────────
 async function ensureSchema(db) {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS hop_switch_geolocations (
+                id           BIGSERIAL PRIMARY KEY,
+                hop_ip       INET        NOT NULL UNIQUE,
+                lat          DOUBLE PRECISION,
+                lng          DOUBLE PRECISION,
+                city         VARCHAR(120),
+                region       VARCHAR(120),
+                country      VARCHAR(80),
+                country_code CHAR(2),
+                isp          VARCHAR(200),
+                org          VARCHAR(200),
+                as_number    VARCHAR(30),
+                as_name      VARCHAR(200),
+                queried_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_hop_geo_ip ON hop_switch_geolocations(hop_ip)`);
+    } catch (e) { warn('Schema hop_geo:', e.message); }
     try {
         await db.query(`
             CREATE TABLE IF NOT EXISTS cable_telemetry_samples (
@@ -241,6 +293,19 @@ async function main() {
         warn('Nenhum cabo para sondar — encerrando.');
         if (db) await db.end().catch(() => {});
         return;
+    }
+
+    // Session-level switch geo tracking
+    const geoSessionCache = new Set(); // IPs already looked up this session
+    let switchCount = 0;               // unique switches geolocated this session
+
+    // Pre-load IPs already in DB so we don't re-query
+    if (db) {
+        try {
+            const existing = await db.query('SELECT hop_ip::text FROM hop_switch_geolocations');
+            existing.rows.forEach(r => geoSessionCache.add(r.hop_ip));
+            log(`${geoSessionCache.size} switches já geolocalizados no banco.`);
+        } catch {}
     }
 
     // Main probe loop
@@ -381,20 +446,54 @@ async function main() {
             } catch (e) { warn(`DB insert ${cableId}: ${e.message}`); }
         }
 
+        // Geo lookup for new hop IPs (MTR only)
+        let hopCount = 0;
+        let hopsPreview = [];
+        if (mr && mr.hubs && mr.hubs.length) {
+            const newIps = mr.hubs
+                .map(h => h.host)
+                .filter(ip => ip && !isPrivateIp(ip) && !geoSessionCache.has(ip));
+            hopCount     = mr.hubs.length;
+            hopsPreview  = mr.hubs.slice(0, 3).map(h => h.host || '*');
+
+            if (newIps.length && db) {
+                try {
+                    const results = await geoLookupBatch(newIps.slice(0, 20));
+                    const geoQ    = db.query.bind(db);
+                    for (const r of results) {
+                        if (r.status !== 'success' || !r.lat) continue;
+                        await geoQ(`
+                            INSERT INTO hop_switch_geolocations
+                                (hop_ip, lat, lng, city, region, country, country_code, isp, org, as_number, as_name)
+                            VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                            ON CONFLICT (hop_ip) DO NOTHING
+                        `, [r.query, r.lat, r.lon, r.city, r.regionName, r.country,
+                            r.countryCode, r.isp, r.org, r.as, r.asname])
+                        .catch(() => {});
+                        geoSessionCache.add(r.query);
+                        switchCount++;
+                    }
+                } catch {}
+            }
+        }
+
         // Live status (read by api.php → displayed in real-time)
         writeLive({
-            cable_id:   cableId,
-            cable_name: cableName,
-            current:    inserted,
+            cable_id:     cableId,
+            cable_name:   cableName,
+            current:      inserted,
             total,
-            percent:    prog,
-            proto:      meth,
-            latency_ms: r1(latMs),
-            tcp:        stats.tcp,
-            synthetic:  stats.synth,
-            mtr:        stats.mtr,
-            http:       stats.http,
-            updated_at: new Date().toISOString(),
+            percent:      prog,
+            proto:        meth,
+            latency_ms:   r1(latMs),
+            tcp:          stats.tcp,
+            synthetic:    stats.synth,
+            mtr:          stats.mtr,
+            http:         stats.http,
+            hop_count:    hopCount,
+            switch_count: switchCount,
+            hops_preview: hopsPreview,
+            updated_at:   new Date().toISOString(),
         });
 
         // Per-cable JSONL history

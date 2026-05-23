@@ -744,6 +744,24 @@ function initGlobe() {
       .catch(err => {
         if (globeTip) globeTip.textContent = `Erro ao carregar dados: ${err.message}`;
       });
+
+    // ── Comutadores geolocalizados (switch hop layer) ─────────────────────
+    apiFetch({ action: 'hop_geo_points' })
+      .then(fc => {
+        if (!fc.features || !fc.features.length) return;
+        map.addSource('switch-hops', { type: 'geojson', data: fc });
+        map.addLayer({
+          id: 'switch-hops-layer', type: 'circle', source: 'switch-hops',
+          paint: {
+            'circle-radius':       ['interpolate', ['linear'], ['zoom'], 1, 2.5, 4, 4.5, 8, 8],
+            'circle-color':        ['interpolate', ['linear'], ['get', 'cable_count'], 1, '#f59e0b', 5, '#ef4444', 10, '#dc2626'],
+            'circle-opacity':      0.82,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': 'rgba(255,255,255,0.25)',
+          },
+        });
+      })
+      .catch(() => {});
   }); // end map.on('load')
 
   // ── Hover tip com throttle RAF — evita queryRenderedFeatures a 60fps ─────
@@ -753,7 +771,7 @@ function initGlobe() {
     hoverRAF = requestAnimationFrame(() => {
       hoverRAF = null;
       if (!globeTip) return;
-      const feats = map.queryRenderedFeatures(e.point, { layers: ['cables-layer', 'points-layer'] });
+      const feats = map.queryRenderedFeatures(e.point, { layers: ['cables-layer', 'points-layer', 'switch-hops-layer'] });
       if (!feats.length) {
         globeTip.textContent = 'Clique em um cabo ou ponto para selecionar';
         map.getCanvas().style.cursor = '';
@@ -762,7 +780,10 @@ function initGlobe() {
       map.getCanvas().style.cursor = 'pointer';
       const f = feats[0];
       const p = f.properties;
-      if (f.layer.id === 'cables-layer') {
+      if (f.layer.id === 'switch-hops-layer') {
+        const loc = p.city && p.country ? `${p.city}, ${p.country}` : p.country || p.ip;
+        globeTip.textContent = `⚡ ${p.ip}  ·  ${loc}  ·  ${p.isp || p.org || p.as_name || 'AS?'}  ·  ${p.cable_count} cabo(s)`;
+      } else if (f.layer.id === 'cables-layer') {
         const co = f.geometry.coordinates;
         globeTip.textContent = `${p.cable_name}  ·  ${co[0][1].toFixed(1)}°, ${co[0][0].toFixed(1)}° → ${co[co.length-1][1].toFixed(1)}°, ${co[co.length-1][0].toFixed(1)}°`;
       } else {
@@ -775,6 +796,31 @@ function initGlobe() {
   map.on('mouseleave', () => {
     if (globeTip) globeTip.textContent = 'Clique em um cabo ou ponto para selecionar';
     map.getCanvas().style.cursor = '';
+  });
+
+  // Click: switch/hop geolocations
+  map.on('click', 'switch-hops-layer', e => {
+    const p      = e.features[0].properties;
+    const coords = e.features[0].geometry.coordinates;
+    const panel  = document.getElementById('selection-panel');
+    const titleEl = document.getElementById('sel-title');
+    const bodyEl  = document.getElementById('sel-body');
+    if (!panel || !titleEl || !bodyEl) return;
+    titleEl.textContent = p.ip || 'Comutador';
+    const loc = [p.city, p.region, p.country].filter(Boolean).join(', ') || '—';
+    bodyEl.innerHTML = `
+      <p><span class="badge yes">Comutador de Rota</span></p>
+      <table class="sel-table">
+        <tr><th>IP</th><td class="mono">${esc(p.ip)}</td></tr>
+        <tr><th>Localização</th><td>${esc(loc)}</td></tr>
+        <tr><th>ISP</th><td>${esc(p.isp || '—')}</td></tr>
+        <tr><th>Organização</th><td>${esc(p.org || '—')}</td></tr>
+        <tr><th>ASN</th><td class="mono">${esc(p.as_number || '—')}</td></tr>
+        <tr><th>AS Nome</th><td>${esc(p.as_name || '—')}</td></tr>
+        <tr><th>Cabos</th><td>${esc(String(p.cable_count || '—'))}</td></tr>
+        <tr><th>Coords</th><td class="mono">${coords[1].toFixed(4)}°, ${coords[0].toFixed(4)}°</td></tr>
+      </table>`;
+    panel.classList.add('open');
   });
 
   // Click: cables
@@ -2515,6 +2561,16 @@ function initDailyPage() {
     // packet tags on animated dots
     [pvPtag1, pvPtag2, pvPtag3].forEach((el, i) => { if (el) el.textContent = parsed.tags[i] || ''; });
 
+    // hop / switch counters
+    const pvHopN    = document.getElementById('pv-hop-n');
+    const pvSwitchN = document.getElementById('pv-switch-n');
+    if (pvHopN)    pvHopN.textContent    = p.hop_count    > 0 ? p.hop_count    : '—';
+    if (pvSwitchN) pvSwitchN.textContent = p.switch_count > 0 ? p.switch_count : '—';
+
+    // update dstat-switches card
+    const dstatSw = document.getElementById('dstat-switches');
+    if (dstatSw && p.switch_count > 0) dstatSw.textContent = p.switch_count;
+
     // packet counter: reset and count 0→100 when cable changes
     if (p.cable && p.cable !== pvLastCable) {
       pvLastCable = p.cable;
@@ -2547,7 +2603,7 @@ function initDailyPage() {
     // live table (last 15 rows)
     const proto = p.proto || '—';
     const isTcp = proto.includes('tcp');
-    tableRows.unshift({ index: p.current, cable: p.cable, proto, lat: p.latency_ms, isTcp });
+    tableRows.unshift({ index: p.current, cable: p.cable, proto, lat: p.latency_ms, isTcp, hops: p.hop_count || 0 });
     if (tableRows.length > 15) tableRows.pop();
     if (tableWrap) tableWrap.style.display = '';
     if (tbody) {
@@ -2557,6 +2613,7 @@ function initDailyPage() {
         <td class="mono">${esc(r.cable)}</td>
         <td><span class="badge ${r.isTcp ? 'yes' : ''}">${esc(r.isTcp ? 'TCP' : 'Sintético')}</span></td>
         <td class="${r.lat > 200 ? 'danger-text' : 'ok-text'}">${r.lat} ms</td>
+        <td class="mono">${r.hops > 0 ? r.hops : '—'}</td>
       </tr>`).join('');
     }
   }

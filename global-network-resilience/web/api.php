@@ -1239,6 +1239,45 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         jsonResponse($out);
     }
 
+    // ── hop_geo_points: GeoJSON de comutadores geolocalizados ────────────────
+    if ($_modeNow === 'hop_geo_points') {
+        try {
+            $pdoGeo  = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+            $rows    = $pdoGeo->query("
+                SELECT hg.hop_ip::text AS ip, hg.lat, hg.lng,
+                       hg.city, hg.region, hg.country, hg.country_code,
+                       hg.isp, hg.org, hg.as_number, hg.as_name,
+                       COUNT(DISTINCT cth.cable_id)::int AS cable_count
+                FROM hop_switch_geolocations hg
+                LEFT JOIN cable_telemetry_hops cth ON cth.hop_ip = hg.hop_ip
+                WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
+                GROUP BY hg.hop_ip, hg.lat, hg.lng, hg.city, hg.region,
+                         hg.country, hg.country_code, hg.isp, hg.org, hg.as_number, hg.as_name
+                ORDER BY cable_count DESC
+            ")->fetchAll();
+
+            $features = array_map(fn($r) => [
+                'type'       => 'Feature',
+                'geometry'   => ['type' => 'Point', 'coordinates' => [(float)$r['lng'], (float)$r['lat']]],
+                'properties' => [
+                    'ip'           => $r['ip'],
+                    'city'         => $r['city'],
+                    'region'       => $r['region'],
+                    'country'      => $r['country'],
+                    'country_code' => $r['country_code'],
+                    'isp'          => $r['isp'],
+                    'org'          => $r['org'],
+                    'as_number'    => $r['as_number'],
+                    'as_name'      => $r['as_name'],
+                    'cable_count'  => (int)$r['cable_count'],
+                ],
+            ], $rows);
+            jsonResponse(['type' => 'FeatureCollection', 'features' => $features]);
+        } catch (Throwable) {
+            jsonResponse(['type' => 'FeatureCollection', 'features' => []]);
+        }
+    }
+
     // ── hop_trace: executa MTR e retorna análise salto a salto ──────────────
     if ($_modeNow === 'hop_trace') {
         $cableId    = trim((string) ($_reqAll['cable_id'] ?? ''));
@@ -1643,12 +1682,15 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     // Live status válido por 5 min (uma entrada por cabo; cabos lentos podem demorar)
                     if ($liveData && isset($liveData['current']) && $liveAge < 300) {
                         $progress = [
-                            'current'    => (int)   ($liveData['current']    ?? 0),
-                            'total'      => (int)   ($liveData['total']      ?? 699),
-                            'percent'    => (float) ($liveData['percent']    ?? 0),
-                            'cable'      => (string)($liveData['cable_name'] ?? $liveData['cable_id'] ?? ''),
-                            'proto'      => (string)($liveData['proto']      ?? ''),
-                            'latency_ms' => (float) ($liveData['latency_ms'] ?? 0),
+                            'current'      => (int)   ($liveData['current']      ?? 0),
+                            'total'        => (int)   ($liveData['total']        ?? 699),
+                            'percent'      => (float) ($liveData['percent']      ?? 0),
+                            'cable'        => (string)($liveData['cable_name']   ?? $liveData['cable_id'] ?? ''),
+                            'proto'        => (string)($liveData['proto']        ?? ''),
+                            'latency_ms'   => (float) ($liveData['latency_ms']   ?? 0),
+                            'hop_count'    => (int)   ($liveData['hop_count']    ?? 0),
+                            'switch_count' => (int)   ($liveData['switch_count'] ?? 0),
+                            'hops_preview' => (array) ($liveData['hops_preview'] ?? []),
                         ];
                         if (!$isRun) { $isRun = true; }
                     }
@@ -1919,6 +1961,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 'telemetry_alerts'         => ['alert_id','cable_id','metric','severity','current_value','baseline_value','detected_at','resolved_at','description'],
                 'cable_telemetry_reference'=> ['cable_id','baseline_latency_ms','baseline_jitter_ms','baseline_packet_loss_pct','baseline_throughput_mbps','baseline_availability_pct','updated_at'],
                 'endpoint_ip_samples'      => ['endpoint_id','sample_order','country_name','country_code','region','city','latitude','longitude'],
+                'cable_telemetry_hops'     => ['hop_id','sample_id','cable_id','hop_number','hop_ip','rtt_avg_ms','rtt_best_ms','rtt_worst_ms','rtt_stdev_ms','loss_pct','recorded_at'],
+                'hop_switch_geolocations'  => ['id','hop_ip','lat','lng','city','region','country','country_code','isp','org','as_number','as_name','queried_at'],
             ];
 
             $table = (string) ($req['table'] ?? 'cables');

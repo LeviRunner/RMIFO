@@ -716,6 +716,13 @@ ul {
   background: var(--accent);
   box-shadow: 0 0 7px rgba(168, 113, 255, 0.75);
 }
+.leg-dot.switch {
+  background: #f59e0b;
+  box-shadow: 0 0 7px rgba(245, 158, 11, 0.65);
+}
+
+/* hop accent in daily probe metrics */
+.pv-hop-accent { color: #f59e0b; }
 
 .globe-tip {
   font-size: 12px;
@@ -2771,9 +2778,11 @@ tr.bs-found {
 .dstat.tcp   { border-color: rgba(168,113,255,0.30); }
 .dstat.synth { border-color: rgba(45,220,130,0.25); }
 .dstat.mtr   { border-color: rgba(240,178,79,0.30); }
+.dstat.hop   { border-color: rgba(245,158,11,0.30); }
 .dstat.tcp:hover   { border-color: rgba(168,113,255,0.55); }
 .dstat.synth:hover { border-color: rgba(45,220,130,0.50); }
 .dstat.mtr:hover   { border-color: rgba(240,178,79,0.55); }
+.dstat.hop:hover   { border-color: rgba(245,158,11,0.60); }
 .dstat.warn:hover  { border-color: rgba(255,185,45,0.55); }
 .dstat.http  { border-color: rgba(45,180,220,0.30); }
 .dstat.warn  { border-color: rgba(255,185,45,0.30); }
@@ -2785,6 +2794,7 @@ tr.bs-found {
 .dstat.mtr   .dstat-v { color: #f0b24f; }
 .dstat.http  .dstat-v { color: #2db4dc; }
 .dstat.warn  .dstat-v { color: #ffbe3c; }
+.dstat.hop   .dstat-v { color: #f59e0b; }
 .dstat-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
 /* ══════════════════════════════════════════════════════════════════════════
