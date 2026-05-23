@@ -79,9 +79,15 @@ function checkRateLimit(PDO $pdo, string $action): void
 {
     $rawIp  = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     $ip     = trim(explode(',', $rawIp)[0]);
-    $limit  = ($action === 'probe') ? 5 : 60;
-    $ipHash = hash('sha256', $ip);
-    $window = gmdate('Y-m-d H:i:00+00'); // janela de 1 min (UTC)
+    // daily_start: 1 req/10min; probe: 5 req/min; demais: 60 req/min
+    $limit  = match($action) {
+        'daily_start' => 1,
+        'probe'       => 5,
+        default       => 60,
+    };
+    $windowMins = ($action === 'daily_start') ? 10 : 1;
+    $ipHash = hash('sha256', $ip . $action); // hash separado por ação
+    $window = gmdate('Y-m-d H:') . str_pad((int)(gmdate('i') / $windowMins) * $windowMins, 2, '0', STR_PAD_LEFT) . ':00+00';
 
     try {
         $pdo->prepare(
@@ -165,12 +171,21 @@ function cableColumns(string $alias = 'c'): string
     ]);
 }
 
+function securityHeaders(): void
+{
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+}
+
 function jsonResponse(array $payload, int $status = 200): never
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
-    header('X-Content-Type-Options: nosniff');
     header('Cache-Control: no-store');
+    securityHeaders();
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -1744,7 +1759,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 'telemetry_rollup_5m'      => ['cable_id','bucket','avg_latency_ms','avg_jitter_ms','max_latency_ms','avg_packet_loss_pct','avg_throughput_mbps','sample_count'],
                 'telemetry_alerts'         => ['alert_id','cable_id','metric','severity','current_value','baseline_value','detected_at','resolved_at','description'],
                 'cable_telemetry_reference'=> ['cable_id','baseline_latency_ms','baseline_jitter_ms','baseline_packet_loss_pct','baseline_throughput_mbps','baseline_availability_pct','updated_at'],
-                'endpoint_ip_samples'      => ['endpoint_id','sample_order','network','ip_start','ip_end','country_name','country_code','region','city','latitude','longitude'],
+                'endpoint_ip_samples'      => ['endpoint_id','sample_order','country_name','country_code','region','city','latitude','longitude'],
             ];
 
             $table = (string) ($req['table'] ?? 'cables');
@@ -1838,7 +1853,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 'cables','cable_metadata','landing_points','cable_landing_points',
                 'nodes','cable_telemetry_samples','cable_telemetry_hops',
                 'telemetry_rollup_1h','telemetry_rollup_5m',
-                'telemetry_alerts','cable_telemetry_reference','endpoint_ip_samples','geoip_mapping',
+                'telemetry_alerts','cable_telemetry_reference',
+                // endpoint_ip_samples e geoip_mapping removidos do terminal (expõem IPs brutos)
             ];
             $hasKnownTable = false;
             foreach ($knownTables as $t) {
