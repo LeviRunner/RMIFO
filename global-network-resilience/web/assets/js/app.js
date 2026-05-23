@@ -566,6 +566,10 @@ function initWelcomeCard() {
   if (!card) return;
   if (sessionStorage.getItem('wc_dismissed')) { card.style.display = 'none'; return; }
   card.classList.add('visible');
+  // animate stats counters
+  card.querySelectorAll('[data-target]').forEach(el => {
+    rmifoCount(el, parseInt(el.dataset.target, 10), 900);
+  });
   if (btn) btn.addEventListener('click', () => {
     card.classList.remove('visible');
     sessionStorage.setItem('wc_dismissed', '1');
