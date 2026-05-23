@@ -578,6 +578,7 @@ function initWelcomeCard() {
 // ── MapLibre GL dark globe style (vector tiles + custom theme) ────────────────
 const MAPLIBRE_STYLE = {
   version: 8,
+  projection: { type: 'globe' },
   glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
     world: {
@@ -610,11 +611,10 @@ function initGlobe() {
   const map = new maplibregl.Map({
     container:          'globe-container',
     style:              MAPLIBRE_STYLE,
-    center:             [0, 20],
-    zoom:               1.5,
-    minZoom:            0.8,
+    center:             [10, 20],
+    zoom:               1.2,
+    minZoom:            0.5,
     maxZoom:            14,
-    projection:         { type: 'globe' },
     attributionControl: false,
     antialias:          true
   });
@@ -624,13 +624,16 @@ function initGlobe() {
   // ── Tudo que precisa do mapa carregado: fog + labels + dados ─────────────
   map.on('load', () => {
 
-    // Atmosfera roxa
+    // Projeção globo — forçar via API após load garante aplicação
+    map.setProjection({ type: 'globe' });
+
+    // Atmosfera roxa visível ao redor do globo
     map.setFog({
-      'color':          'rgba(18, 8, 40, 0.7)',
-      'high-color':     '#08060f',
-      'horizon-blend':  0.06,
-      'space-color':    '#08060f',
-      'star-intensity': 0.18
+      'color':          'rgba(20, 10, 50, 0.85)',
+      'high-color':     '#04020a',
+      'horizon-blend':  0.08,
+      'space-color':    '#04020a',
+      'star-intensity': 0.35
     });
 
     // Labels de cidade (symbol layer)

@@ -644,11 +644,10 @@ ul {
   background: #08060f;
 }
 
-/* MapLibre GL overrides — keep within our dark theme */
-#globe-container .maplibregl-canvas-container,
-#globe-container .maplibregl-canvas {
-  width: 100% !important;
-  height: 100% !important;
+/* MapLibre GL canvas — let MapLibre manage its own canvas sizing */
+#globe-container .maplibregl-canvas-container {
+  width: 100%;
+  height: 100%;
 }
 
 #globe-container .maplibregl-ctrl-bottom-left,
