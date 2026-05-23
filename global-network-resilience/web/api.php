@@ -1208,28 +1208,39 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
 
     // ── debug_env: diagnóstico de variáveis de ambiente (remover após uso) ───
     if ($_modeNow === 'debug_env') {
-        $envKeys = ['DATABASE_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','POSTGRES_DB','POSTGRES_USER','POSTGRES_PASSWORD','PG_SOCKET'];
+        $envKeys = ['DATABASE_URL','DATABASE_PUBLIC_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','POSTGRES_DB','POSTGRES_USER','POSTGRES_PASSWORD','PG_SOCKET','RAILWAY_ENVIRONMENT','RAILWAY_SERVICE_NAME'];
         $out = ['resolved_host' => $pgSocket, 'resolved_port' => $pgPort, 'resolved_db' => $pgDbname, 'resolved_ssl' => $pgSsl];
         foreach ($envKeys as $k) {
             $fromGetenv = getenv($k);
             $fromEnv    = $_ENV[$k]    ?? null;
             $fromServer = $_SERVER[$k] ?? null;
+            $sensitive  = str_contains(strtoupper($k), 'PASS') || str_contains(strtoupper($k), 'URL');
             $val = $fromGetenv !== false ? $fromGetenv : ($fromEnv ?? $fromServer);
-            if ($k === 'DATABASE_URL' || $k === 'PGPASSWORD' || $k === 'POSTGRES_PASSWORD') {
-                $out[$k] = $val ? 'SET(len=' . strlen((string)$val) . ')' : 'NOT SET';
-            } else {
-                $out[$k] = $val ?: 'NOT SET';
+            $display = $val ? ($sensitive ? 'SET(len=' . strlen((string)$val) . ')' : $val) : 'NOT SET';
+            $out[$k] = $display . ' [getenv=' . ($fromGetenv !== false ? ($sensitive ? 'SET' : $fromGetenv) : 'false') . ' _ENV=' . ($fromEnv !== null ? ($sensitive ? 'SET' : $fromEnv) : 'null') . ' _SERVER=' . ($fromServer !== null ? ($sensitive ? 'SET' : $fromServer) : 'null') . ']';
+        }
+        // Mostra todas as vars de ambiente — primeiros 60 para não explodir
+        $procAllVars = [];
+        if (is_readable('/proc/self/environ')) {
+            foreach (explode("\0", file_get_contents('/proc/self/environ')) as $e) {
+                if (str_contains($e, '=')) {
+                    [$k2, $v2] = explode('=', $e, 2);
+                    $procAllVars[$k2] = (str_contains(strtoupper($k2), 'PASS') || str_contains(strtoupper($k2), 'URL') || str_contains(strtoupper($k2), 'SECRET'))
+                        ? 'SET(len=' . strlen($v2) . ')' : $v2;
+                }
             }
         }
-        // Mostra todas as vars de ambiente que contêm "PG" ou "DATABASE" ou "POSTGRES"
-        $all = array_merge(getenv() ?: [], $_ENV ?: []);
+        // vars de ambiente que contêm "PG" ou "DATABASE" ou "POSTGRES" ou "RAILWAY"
         $dbVars = [];
-        foreach ($all as $k => $v) {
-            if (preg_match('/PG|DATABASE|POSTGRES/i', $k)) {
-                $dbVars[$k] = (str_contains(strtoupper($k), 'PASS') || str_contains(strtoupper($k), 'URL')) ? 'SET(len=' . strlen($v) . ')' : $v;
-            }
+        foreach ($procAllVars as $k => $v) {
+            if (preg_match('/PG|DATABASE|POSTGRES|RAILWAY/i', $k)) $dbVars[$k] = $v;
         }
-        $out['all_db_vars_found'] = $dbVars ?: 'NONE';
+        $out['proc_db_railway_vars'] = $dbVars ?: 'NONE FOUND IN /proc/self/environ';
+        $out['proc_all_keys']        = array_keys($procAllVars) ?: 'NOT READABLE';
+        // Diagnóstico PHP
+        $out['php_variables_order'] = ini_get('variables_order');
+        $out['php_sapi']            = PHP_SAPI;
+        $out['getenv_all_count']    = count(getenv() ?: []);
         jsonResponse($out);
     }
     $_projectDir = dirname(__DIR__);
