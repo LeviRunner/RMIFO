@@ -31,7 +31,9 @@ function _env(string $key, string $default = ''): string {
     return $default;
 }
 
+// DATABASE_URL > DATABASE_PUBLIC_URL > PGHOST vars > local socket
 $_dbUrl = _env('DATABASE_URL');
+if ($_dbUrl === '') $_dbUrl = _env('DATABASE_PUBLIC_URL');
 if ($_dbUrl !== '') {
     $_p       = parse_url($_dbUrl);
     $pgSocket = $_p['host'] ?? 'localhost';
