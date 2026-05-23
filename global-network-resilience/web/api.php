@@ -1200,6 +1200,26 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
     // ── Endpoints que NÃO precisam de banco (ficheiros locais) ───────────────
     $_reqAll    = array_merge($_GET, $_POST);
     $_modeNow   = (string) ($_reqAll['mode'] ?? $_reqAll['action'] ?? '');
+
+    // ── debug_env: diagnóstico de variáveis de ambiente (remover após uso) ───
+    if ($_modeNow === 'debug_env') {
+        jsonResponse([
+            'DATABASE_URL_set'  => !empty(getenv('DATABASE_URL')),
+            'DATABASE_URL_host' => parse_url(getenv('DATABASE_URL') ?: '', PHP_URL_HOST) ?: null,
+            'DATABASE_URL_port' => parse_url(getenv('DATABASE_URL') ?: '', PHP_URL_PORT) ?: null,
+            'PGHOST'            => getenv('PGHOST') ?: null,
+            'PGPORT'            => getenv('PGPORT') ?: null,
+            'PGDATABASE'        => getenv('PGDATABASE') ?: null,
+            'PGUSER'            => getenv('PGUSER') ?: null,
+            'PGPASSWORD_set'    => !empty(getenv('PGPASSWORD')),
+            'POSTGRES_DB'       => getenv('POSTGRES_DB') ?: null,
+            'PG_SOCKET'         => getenv('PG_SOCKET') ?: null,
+            'resolved_host'     => $pgSocket,
+            'resolved_port'     => $pgPort,
+            'resolved_db'       => $pgDbname,
+            'resolved_ssl'      => $pgSsl,
+        ]);
+    }
     $_projectDir = dirname(__DIR__);
     $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel'];
 
