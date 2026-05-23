@@ -20,9 +20,18 @@ $dataExternal = is_dir($_projectDir . '/data/external')
         ? realpath($_projectDir . '/../data/external')
         : $workspaceRoot . '/data/external');
 
-$pgSsl = false;   // true → adiciona sslmode=require no DSN
+$pgSsl = false;
 
-$_dbUrl = getenv('DATABASE_URL') ?: '';
+// Lê variável de ambiente de todas as fontes possíveis
+function _env(string $key, string $default = ''): string {
+    $v = getenv($key);
+    if ($v !== false && $v !== '') return $v;
+    if (isset($_ENV[$key])    && $_ENV[$key]    !== '') return $_ENV[$key];
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') return (string)$_SERVER[$key];
+    return $default;
+}
+
+$_dbUrl = _env('DATABASE_URL');
 if ($_dbUrl !== '') {
     $_p       = parse_url($_dbUrl);
     $pgSocket = $_p['host'] ?? 'localhost';
@@ -30,23 +39,19 @@ if ($_dbUrl !== '') {
     $pgDbname = ltrim($_p['path'] ?? '/railway', '/');
     $pgUser   = urldecode($_p['user'] ?? 'postgres');
     $pgPass   = urldecode($_p['pass'] ?? '');
-    // URL pública do Railway usa TCP proxy (porta ≠ 5432) → requer SSL
     $pgSsl    = ($pgPort !== 5432 && $pgPort !== 55432);
 } else {
-    $_pghost = getenv('PGHOST') ?: '';
+    $_pghost = _env('PGHOST');
     if ($_pghost !== '' && $_pghost[0] !== '/') {
-        // Variáveis PG* individuais (Railway: referência ${{ Postgres.PGHOST }} etc.)
         $pgSocket = $_pghost;
-        $pgPort   = (int) (getenv('PGPORT') ?: 5432);
-        $pgDbname = getenv('PGDATABASE') ?: getenv('POSTGRES_DB') ?: 'railway';
-        $pgUser   = getenv('PGUSER')     ?: getenv('POSTGRES_USER')     ?: 'postgres';
-        $pgPass   = getenv('PGPASSWORD') ?: getenv('POSTGRES_PASSWORD') ?: '';
-        // Domínio privado Railway (.railway.internal) não precisa de SSL
+        $pgPort   = (int) (_env('PGPORT', '5432'));
+        $pgDbname = _env('PGDATABASE') ?: _env('POSTGRES_DB', 'railway');
+        $pgUser   = _env('PGUSER')     ?: _env('POSTGRES_USER', 'postgres');
+        $pgPass   = _env('PGPASSWORD') ?: _env('POSTGRES_PASSWORD', '');
         $pgSsl    = !str_ends_with($pgSocket, '.railway.internal') && !str_ends_with($pgSocket, '.local');
     } else {
-        // Fallback local: socket Unix
-        $pgSocket = getenv('PG_SOCKET') ?: ($workspaceRoot . '/.local/run');
-        $pgPort   = (int) (getenv('PG_PORT') ?: 55432);
+        $pgSocket = _env('PG_SOCKET') ?: ($workspaceRoot . '/.local/run');
+        $pgPort   = (int) (_env('PG_PORT', '55432'));
         $pgDbname = 'global_network_resilience';
         $pgUser   = 'postgres';
         $pgPass   = '';
@@ -1203,22 +1208,29 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
 
     // ── debug_env: diagnóstico de variáveis de ambiente (remover após uso) ───
     if ($_modeNow === 'debug_env') {
-        jsonResponse([
-            'DATABASE_URL_set'  => !empty(getenv('DATABASE_URL')),
-            'DATABASE_URL_host' => parse_url(getenv('DATABASE_URL') ?: '', PHP_URL_HOST) ?: null,
-            'DATABASE_URL_port' => parse_url(getenv('DATABASE_URL') ?: '', PHP_URL_PORT) ?: null,
-            'PGHOST'            => getenv('PGHOST') ?: null,
-            'PGPORT'            => getenv('PGPORT') ?: null,
-            'PGDATABASE'        => getenv('PGDATABASE') ?: null,
-            'PGUSER'            => getenv('PGUSER') ?: null,
-            'PGPASSWORD_set'    => !empty(getenv('PGPASSWORD')),
-            'POSTGRES_DB'       => getenv('POSTGRES_DB') ?: null,
-            'PG_SOCKET'         => getenv('PG_SOCKET') ?: null,
-            'resolved_host'     => $pgSocket,
-            'resolved_port'     => $pgPort,
-            'resolved_db'       => $pgDbname,
-            'resolved_ssl'      => $pgSsl,
-        ]);
+        $envKeys = ['DATABASE_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','POSTGRES_DB','POSTGRES_USER','POSTGRES_PASSWORD','PG_SOCKET'];
+        $out = ['resolved_host' => $pgSocket, 'resolved_port' => $pgPort, 'resolved_db' => $pgDbname, 'resolved_ssl' => $pgSsl];
+        foreach ($envKeys as $k) {
+            $fromGetenv = getenv($k);
+            $fromEnv    = $_ENV[$k]    ?? null;
+            $fromServer = $_SERVER[$k] ?? null;
+            $val = $fromGetenv !== false ? $fromGetenv : ($fromEnv ?? $fromServer);
+            if ($k === 'DATABASE_URL' || $k === 'PGPASSWORD' || $k === 'POSTGRES_PASSWORD') {
+                $out[$k] = $val ? 'SET(len=' . strlen((string)$val) . ')' : 'NOT SET';
+            } else {
+                $out[$k] = $val ?: 'NOT SET';
+            }
+        }
+        // Mostra todas as vars de ambiente que contêm "PG" ou "DATABASE" ou "POSTGRES"
+        $all = array_merge(getenv() ?: [], $_ENV ?: []);
+        $dbVars = [];
+        foreach ($all as $k => $v) {
+            if (preg_match('/PG|DATABASE|POSTGRES/i', $k)) {
+                $dbVars[$k] = (str_contains(strtoupper($k), 'PASS') || str_contains(strtoupper($k), 'URL')) ? 'SET(len=' . strlen($v) . ')' : $v;
+            }
+        }
+        $out['all_db_vars_found'] = $dbVars ?: 'NONE';
+        jsonResponse($out);
     }
     $_projectDir = dirname(__DIR__);
     $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel'];
