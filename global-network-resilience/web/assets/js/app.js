@@ -1,7 +1,7 @@
 /* ============================================================
    Global Network Resilience — SPA app.js
    Architecture: 6 pages (map, search, detail, routes, telemetry, probe)
-   Backend: api.php  |  Globe: globe.gl (loaded before this file)
+   Backend: api.php  |  Map: MapLibre GL 4 (globe projection, WebGL)
    ============================================================ */
 
 'use strict';
@@ -241,8 +241,8 @@ const ProbeModal = {
 const AppState = {
   allCables: [],           // [{cable_id, cable_name, ...}]
   countries: [],           // ['Brazil', 'France', ...]
-  globe: null,             // globe.gl instance
-  globeSelection: null,    // currently selected arc or point on globe
+  map: null,               // MapLibre GL instance
+  globeSelection: null,    // currently selected feature on map
   // Search page
   search: {
     mode: 'cable_id',
@@ -409,9 +409,21 @@ function pathColor(d) {
 }
 
 function refreshGlobeProbeHighlight() {
-  if (AppState.globe && AppState.globePaths.length) {
-    AppState.globe.pathsData(AppState.globePaths);
+  if (!AppState.map || !AppState.map.getSource('cables')) return;
+  // Repaint cables by updating the paint expression (probe cable turns yellow)
+  AppState.map.setPaintProperty('cables-layer', 'line-color', buildCableColorExpr());
+}
+
+function buildCableColorExpr() {
+  // MapLibre paint expression: probe cable = yellow, else use precomputed 'color' property
+  if (AppState.probeActiveCable) {
+    return [
+      'case',
+      ['==', ['get', 'cable_id'], AppState.probeActiveCable], '#fff03c',
+      ['get', 'color']
+    ];
   }
+  return ['get', 'color'];
 }
 
 function ptColor(d) {
@@ -428,10 +440,8 @@ function statusLabel(isOp, hasAlert) {
 }
 
 function stopGlobeRotation() {
-  if (AppState.globe) {
-    AppState.globe.controls().autoRotate = false;
-    if (globeAutoRotateTimer) { clearTimeout(globeAutoRotateTimer); globeAutoRotateTimer = null; }
-  }
+  // MapLibre GL handles interaction natively — nothing to pause
+  if (globeAutoRotateTimer) { clearTimeout(globeAutoRotateTimer); globeAutoRotateTimer = null; }
 }
 
 function selectFromGlobe(d) {
@@ -536,28 +546,6 @@ function initStarBackground() {
 }
 
 // ── Dark ocean canvas texture for the globe ───────────────────────────────────
-function makeOceanTexture() {
-  const c = document.createElement('canvas');
-  c.width = 2048; c.height = 1024;
-  const ctx = c.getContext('2d');
-  const radial = ctx.createRadialGradient(1024, 512, 0, 1024, 512, 1200);
-  radial.addColorStop(0,   '#060a20');
-  radial.addColorStop(0.5, '#050818');
-  radial.addColorStop(1,   '#030510');
-  ctx.fillStyle = radial;
-  ctx.fillRect(0, 0, 2048, 1024);
-  ctx.globalAlpha = 0.018;
-  ctx.strokeStyle = '#4a30a0';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < 2048; x += 64) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke();
-  }
-  for (let y = 0; y < 1024; y += 64) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(2048, y); ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  return c.toDataURL();
-}
 
 // ── Welcome / Homepage ────────────────────────────────────────────────────────
 function initWelcomeCard() {
@@ -592,133 +580,285 @@ function initWelcomeCard() {
   });
 }
 
+// ── MapLibre GL dark globe style (vector tiles + custom theme) ────────────────
+const MAPLIBRE_STYLE = {
+  version: 8,
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    world: {
+      type: 'vector',
+      url: 'https://demotiles.maplibre.org/tiles/tiles.json'
+    }
+  },
+  layers: [
+    { id: 'bg',       type: 'background', paint: { 'background-color': '#08060f' } },
+    { id: 'ocean',    type: 'fill',   source: 'world', 'source-layer': 'water',
+      paint: { 'fill-color': '#0d0920' } },
+    { id: 'land',     type: 'fill',   source: 'world', 'source-layer': 'countries',
+      paint: { 'fill-color': '#120d22' } },
+    { id: 'borders',  type: 'line',   source: 'world', 'source-layer': 'countries',
+      paint: { 'line-color': '#433169', 'line-width': 0.5, 'line-opacity': 0.7 } },
+    { id: 'states',   type: 'line',   source: 'world', 'source-layer': 'states',
+      paint: { 'line-color': '#2d1e50', 'line-width': 0.3, 'line-opacity': 0.5 } }
+  ]
+};
+
 function initGlobe() {
   const container = document.getElementById('globe-container');
   const globeTip  = document.getElementById('globe-tip');
   if (!container) return;
-  if (typeof Globe === 'undefined') {
-    container.innerHTML = '<p style="color:#f0b24f;padding:20px;">Globe.gl não carregado.</p>';
+  if (typeof maplibregl === 'undefined') {
+    container.innerHTML = '<p style="color:#f0b24f;padding:20px">MapLibre GL não carregado.</p>';
     return;
   }
 
-  const globe = Globe({ rendererConfig: { alpha: true, antialias: true } })(container)
-    .globeImageUrl(makeOceanTexture())
-    .backgroundImageUrl(null)
-    .atmosphereColor('rgba(139,92,246,0.70)')
-    .atmosphereAltitude(0.25);
-
-  AppState.globe = globe;
-
-  globe.controls().autoRotate      = true;
-  globe.controls().autoRotateSpeed = 0.35;
-  globe.controls().enableDamping   = true;
-  globe.controls().dampingFactor   = 0.07;
-
-  // Country borders — drawn map style
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
-    .then(r => r.json())
-    .then(world => {
-      const countries = topojson.feature(world, world.objects.countries);
-      globe
-        .polygonsData(countries.features)
-        .polygonCapColor(() => 'rgba(26,10,50,0.88)')
-        .polygonSideColor(() => 'rgba(74,30,130,0.25)')
-        .polygonStrokeColor(() => 'rgba(120,60,210,0.55)')
-        .polygonAltitude(0.002);
-    })
-    .catch(() => {});
-
-  // City labels — tier 1 (capitals) visible from the start
-  globe
-    .labelsData(CITY_DATA.filter(c => c[3] === 1))
-    .labelLat(d => d[0])
-    .labelLng(d => d[1])
-    .labelText(d => d[2].normalize('NFD').replace(/[̀-ͯ]/g, ''))
-    .labelSize(d => d[3] === 1 ? 0.55 : d[3] === 2 ? 0.38 : 0.26)
-    .labelColor(d => d[3] === 1 ? 'rgba(255,255,230,0.95)' : d[3] === 2 ? 'rgba(255,255,200,0.80)' : 'rgba(220,220,190,0.65)')
-    .labelDotRadius(d => d[3] === 1 ? 0.35 : 0.18)
-    .labelDotOrientation(() => 'bottom')
-    .labelAltitude(0.006)
-    .labelResolution(2);
-
-  // Zoom-based label filtering
-  let lastLabelTier = 1;
-  globe.controls().addEventListener('change', () => {
-    const dist = globe.camera().position.length();
-    const tier = dist > 320 ? 1 : dist > 180 ? 2 : 3;
-    if (tier !== lastLabelTier) {
-      lastLabelTier = tier;
-      globe.labelsData(CITY_DATA.filter(c => c[3] <= tier));
-    }
+  const map = new maplibregl.Map({
+    container:          'globe-container',
+    style:              MAPLIBRE_STYLE,
+    center:             [0, 20],
+    zoom:               1.5,
+    minZoom:            0.8,
+    maxZoom:            14,
+    projection:         { type: 'globe' },
+    attributionControl: false,
+    antialias:          true
   });
 
-  // Stop on manual drag; restart after 8s if nothing was selected
-  container.addEventListener('mousedown', () => {
-    globe.controls().autoRotate = false;
-    if (globeAutoRotateTimer) clearTimeout(globeAutoRotateTimer);
+  AppState.map = map;
+
+  // Atmosphere that matches the purple theme
+  map.on('style.load', () => {
+    map.setFog({
+      'color':           'rgba(18, 8, 40, 0.7)',
+      'high-color':      '#08060f',
+      'horizon-blend':   0.06,
+      'space-color':     '#08060f',
+      'star-intensity':  0.18
+    });
+  });
+
+  // Auto-rotate via requestAnimationFrame (MapLibre has no built-in rotate)
+  let rotating = true;
+  let rotateRAF = null;
+  let lastTs = 0;
+  function rotateStep(ts) {
+    if (rotating) {
+      const dt = ts - lastTs;
+      lastTs = ts;
+      if (dt < 200) { // skip large gaps (tab was hidden)
+        map.setCenter([
+          (map.getCenter().lng + dt * 0.012) % 360,
+          map.getCenter().lat
+        ]);
+      }
+    }
+    rotateRAF = requestAnimationFrame(rotateStep);
+  }
+  map.once('load', () => { lastTs = performance.now(); rotateRAF = requestAnimationFrame(rotateStep); });
+
+  // Stop rotation on drag; resume after 8s idle
+  map.on('dragstart', () => {
+    rotating = false;
+    stopGlobeRotation();
     globeAutoRotateTimer = setTimeout(() => {
-      if (!AppState.globeSelection) globe.controls().autoRotate = true;
+      if (!AppState.globeSelection) rotating = true;
     }, 8000);
   });
 
-  // Hover tip for paths and points
-  globe
-    .onPathHover(d => {
-      if (!globeTip) return;
-      if (!d) { globeTip.textContent = 'Clique em um cabo ou ponto para selecionar'; return; }
-      const from = `${d.startLat.toFixed(1)}°, ${d.startLng.toFixed(1)}°`;
-      const to   = `${d.endLat.toFixed(1)}°, ${d.endLng.toFixed(1)}°`;
-      globeTip.textContent = `${d.cable_name}  ·  ${from} → ${to}`;
-    })
-    .onPathClick(d => selectFromGlobe(d))
-    .onPointClick(d => selectFromGlobe(d));
+  // City labels via MapLibre symbol layer (added after style loads)
+  map.on('style.load', () => {
+    const labelFeatures = CITY_DATA.map(c => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [c[1], c[0]] },
+      properties: { name: c[2].normalize('NFD').replace(/[̀-ͯ]/g, ''), tier: c[3] }
+    }));
+    map.addSource('city-labels', { type: 'geojson', data: { type: 'FeatureCollection', features: labelFeatures } });
+    map.addLayer({
+      id: 'city-labels',
+      type: 'symbol',
+      source: 'city-labels',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-size': ['match', ['get', 'tier'], 1, 11, 2, 9, 7],
+        'text-font': ['Open Sans Regular'],
+        'text-anchor': 'top',
+        'text-offset': [0, 0.3],
+        'text-allow-overlap': false,
+        'text-ignore-placement': false,
+        'visibility': 'visible'
+      },
+      paint: {
+        'text-color': ['match', ['get', 'tier'], 1, 'rgba(255,255,230,0.95)', 2, 'rgba(255,255,200,0.80)', 'rgba(220,220,190,0.65)'],
+        'text-halo-color': 'rgba(8,6,15,0.85)',
+        'text-halo-width': 1.2
+      },
+      minzoom: 0
+    });
+    // Show more label tiers as user zooms in
+    map.on('zoom', () => {
+      const z = map.getZoom();
+      const maxTier = z < 2 ? 1 : z < 4 ? 2 : 3;
+      map.setFilter('city-labels', ['<=', ['get', 'tier'], maxTier]);
+    });
+  });
 
-  // Load globe data
-  apiFetch({ action: 'globe_data' })
-    .then(payload => {
-      const paths = payload.paths || [];
-      const pts   = payload.points || [];
-      AppState.globePaths = paths;
+  // Hover tip
+  map.on('mousemove', e => {
+    if (!globeTip) return;
+    const features = map.queryRenderedFeatures(e.point, { layers: ['cables-layer', 'points-layer'] });
+    if (!features.length) {
+      globeTip.textContent = 'Clique em um cabo ou ponto para selecionar';
+      map.getCanvas().style.cursor = '';
+      return;
+    }
+    map.getCanvas().style.cursor = 'pointer';
+    const f = features[0];
+    const p = f.properties;
+    if (f.layer.id === 'cables-layer') {
+      const coords = f.geometry.coordinates;
+      const s = coords[0];
+      const e2 = coords[coords.length - 1];
+      globeTip.textContent = `${p.cable_name}  ·  ${s[1].toFixed(1)}°, ${s[0].toFixed(1)}° → ${e2[1].toFixed(1)}°, ${e2[0].toFixed(1)}°`;
+    } else {
+      const loc = p.city_name && p.country_name ? `${p.city_name}, ${p.country_name}` : p.city_name || '—';
+      globeTip.textContent = `${p.cable_name}  ·  ${loc}`;
+    }
+  });
 
-      globe
-        // ── Flat cable paths on globe surface ──────────────────────────────
-        .pathsData(paths)
-        .pathPoints('points')
-        .pathPointLat(p => p[0])
-        .pathPointLng(p => p[1])
-        .pathPointAlt(() => 0.001)      // slightly above surface to avoid z-fighting
-        .pathColor(pathColor)
-        .pathStroke(0.9)
-        .pathDashLength(1)              // solid line (no dash gap)
-        .pathDashGap(0)
-        .pathDashAnimateTime(0)
-        // ── Landing-point dots ─────────────────────────────────────────────
-        .pointsData(pts)
-        .pointLat('lat')
-        .pointLng('lng')
-        .pointColor(ptColor)
-        .pointAltitude(0.004)
-        .pointRadius(0.22)
-        .pointsMerge(false)
-        .pointLabel(d => {
-          const loc = (d.city_name && d.country_name)
-            ? `<strong>${d.city_name}</strong>, ${d.country_name}`
-            : (d.city_name || `${parseFloat(d.lat).toFixed(2)}°, ${parseFloat(d.lng).toFixed(2)}°`);
-          return `<div style="background:rgba(8,6,15,0.92);border:1px solid rgba(168,113,255,0.45);padding:7px 12px;border-radius:8px;font-size:13px;color:#f4efff;line-height:1.5;">
-            ${loc}<br>
-            <span style="color:#a871ff;font-size:12px;">${d.cable_name}</span>
-            ${d.ip_sample ? `<br><span style="color:#41da8c;font-size:11px;">${d.ip_sample}</span>` : ''}
-          </div>`;
+  map.on('mouseleave', () => {
+    if (globeTip) globeTip.textContent = 'Clique em um cabo ou ponto para selecionar';
+    map.getCanvas().style.cursor = '';
+  });
+
+  // Click: cables
+  map.on('click', 'cables-layer', e => {
+    const p = e.features[0].properties;
+    const coords = e.features[0].geometry.coordinates;
+    const d = {
+      cable_id:       p.cable_id,
+      cable_name:     p.cable_name,
+      is_operational: p.is_operational,
+      has_alert:      p.has_alert,
+      has_tcp_probe:  p.has_tcp_probe,
+      // path-like: expose start/end as points for selectFromGlobe
+      startLat: coords[0][1],  startLng: coords[0][0],
+      endLat:   coords[coords.length-1][1], endLng: coords[coords.length-1][0],
+      points:   coords  // marks this as a path (not a point)
+    };
+    rotating = false;
+    stopGlobeRotation();
+    selectFromGlobe(d);
+  });
+
+  // Click: landing points
+  map.on('click', 'points-layer', e => {
+    const p = e.features[0].properties;
+    const coords = e.features[0].geometry.coordinates;
+    const d = {
+      cable_id:       p.cable_id,
+      cable_name:     p.cable_name,
+      is_operational: p.is_operational,
+      has_alert:      p.has_alert,
+      has_tcp_probe:  p.has_tcp_probe,
+      city_name:      p.city_name,
+      country_name:   p.country_name,
+      ip_sample:      p.ip_sample,
+      lat:            coords[1],
+      lng:            coords[0]
+      // no 'points' → selectFromGlobe treats as a point
+    };
+    rotating = false;
+    stopGlobeRotation();
+    selectFromGlobe(d);
+  });
+
+  // Load cable + landing-point data
+  map.on('load', () => {
+    apiFetch({ action: 'globe_data' })
+      .then(payload => {
+        const paths = payload.paths || [];
+        const pts   = payload.points || [];
+        AppState.globePaths = paths;
+
+        // ── Cables: 1 GeoJSON source → 1 WebGL draw call ─────────────────
+        const cableFeatures = paths.map(p => ({
+          type: 'Feature',
+          properties: {
+            cable_id:       p.cable_id,
+            cable_name:     p.cable_name,
+            color:          pathColor(p),
+            is_operational: p.is_operational,
+            has_alert:      p.has_alert,
+            has_tcp_probe:  p.has_tcp_probe
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: p.points.map(pt => [pt[1], pt[0]]) // [lat,lng] → [lng,lat]
+          }
+        }));
+
+        map.addSource('cables', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: cableFeatures },
+          tolerance: 0.5  // simplify at render time for performance
+        });
+        map.addLayer({
+          id:     'cables-layer',
+          type:   'line',
+          source: 'cables',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint:  {
+            'line-color':   ['get', 'color'],
+            'line-width':   ['interpolate', ['linear'], ['zoom'], 1, 0.8, 5, 1.4, 10, 2.5],
+            'line-opacity': 0.88
+          }
         });
 
-      // Alert badge — count unique cables with active alerts
-      const alertIds  = new Set(paths.filter(p => p.has_alert).map(p => p.cable_id));
-      updateAlertBadge(alertIds.size);
+        // ── Landing points: circle layer, GPU-rendered ────────────────────
+        const pointFeatures = pts.map(p => ({
+          type: 'Feature',
+          properties: {
+            cable_id:       p.cable_id,
+            cable_name:     p.cable_name,
+            color:          ptColor(p),
+            is_operational: p.is_operational,
+            has_alert:      p.has_alert,
+            has_tcp_probe:  p.has_tcp_probe,
+            city_name:      p.city_name    || null,
+            country_name:   p.country_name || null,
+            ip_sample:      p.ip_sample    || null
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(p.lng), parseFloat(p.lat)]
+          }
+        }));
 
-    })
-    .catch(err => {
-      if (globeTip) globeTip.textContent = `Erro ao carregar dados do globo: ${err.message}`;
-    });
+        map.addSource('landing-points', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: pointFeatures }
+        });
+        map.addLayer({
+          id:     'points-layer',
+          type:   'circle',
+          source: 'landing-points',
+          paint:  {
+            'circle-radius':        ['interpolate', ['linear'], ['zoom'], 1, 2.5, 4, 4, 8, 8],
+            'circle-color':         ['get', 'color'],
+            'circle-opacity':       0.92,
+            'circle-stroke-width':  0.8,
+            'circle-stroke-color':  'rgba(255,255,255,0.3)'
+          }
+        });
+
+        // Alert badge
+        const alertIds = new Set(paths.filter(p => p.has_alert).map(p => p.cable_id));
+        updateAlertBadge(alertIds.size);
+      })
+      .catch(err => {
+        if (globeTip) globeTip.textContent = `Erro ao carregar dados: ${err.message}`;
+      });
+  });
 }
 
 function updateAlertBadge(count) {
@@ -738,7 +878,7 @@ function initGlobePanel() {
   if (closeBtn) closeBtn.addEventListener('click', () => {
     if (panel) panel.classList.remove('open');
     AppState.globeSelection = null;
-    if (AppState.globe) AppState.globe.controls().autoRotate = true;
+    // rotation resumes automatically via globeAutoRotateTimer
   });
 
   if (detailBtn) {

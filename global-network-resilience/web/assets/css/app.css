@@ -641,11 +641,19 @@ ul {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: transparent;
+  background: #08060f;
 }
 
-#globe-container canvas {
-  background: transparent !important;
+/* MapLibre GL overrides — keep within our dark theme */
+#globe-container .maplibregl-canvas-container,
+#globe-container .maplibregl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#globe-container .maplibregl-ctrl-bottom-left,
+#globe-container .maplibregl-ctrl-bottom-right {
+  display: none; /* hide MapLibre attribution/controls */
 }
 
 .globe-ui {
