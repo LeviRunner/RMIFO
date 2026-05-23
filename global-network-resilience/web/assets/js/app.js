@@ -26,6 +26,61 @@ const ACTION_ALIAS = {
   search:         null,
 };
 
+// ─── RMIFO Visual Utilities ───────────────────────────────────────────────────
+
+function rmifoCount(el, target, ms) {
+  if (!el) return;
+  ms = ms || 650;
+  const isFloat = String(target).includes('.');
+  const start = performance.now();
+  (function tick(now) {
+    const p = Math.min((now - start) / ms, 1);
+    const v = target * (1 - Math.pow(1 - p, 3));
+    el.textContent = isFloat ? v.toFixed(1) : Math.round(v);
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = isFloat ? Number(target).toFixed(1) : target;
+  })(start);
+}
+
+function rmifoToast(msg, tipo, ms) {
+  tipo = tipo || 'info';
+  ms   = ms   || 3000;
+  const t = document.createElement('div');
+  t.style.cssText = [
+    'position:fixed;bottom:24px;right:24px;z-index:9999',
+    'background:#120d22;border-radius:10px;padding:12px 18px',
+    'font-size:13px;color:#f4efff;pointer-events:none',
+    'box-shadow:0 12px 40px rgba(0,0,0,.5)',
+    'animation:rmifo-toast-in 260ms cubic-bezier(.16,1,.3,1) both',
+    tipo === 'success' ? 'border:1px solid rgba(65,218,140,.45)'  :
+    tipo === 'error'   ? 'border:1px solid rgba(255,111,141,.45)' :
+    tipo === 'warning' ? 'border:1px solid rgba(240,178,79,.45)'  :
+                         'border:1px solid rgba(168,113,255,.35)',
+  ].join(';');
+  t.textContent = msg;
+  if (!document.getElementById('rmifo-toast-style')) {
+    const s = document.createElement('style');
+    s.id = 'rmifo-toast-style';
+    s.textContent = `@keyframes rmifo-toast-in{from{opacity:0;transform:translateY(14px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}`;
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'opacity 200ms ease';
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 200);
+  }, ms);
+}
+
+function rmifoDebounce(fn, delay) {
+  let timer;
+  return function() {
+    const a = arguments, ctx = this;
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(ctx, a), delay || 300);
+  };
+}
+
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
 function esc(value) {
@@ -453,12 +508,22 @@ function initStarBackground() {
     }));
   }
 
+  let _mx = 0, _my = 0, _tx = 0, _ty = 0;
+  window.addEventListener('mousemove', e => {
+    _mx = (e.clientX / window.innerWidth  - 0.5) * 18;
+    _my = (e.clientY / window.innerHeight - 0.5) * 10;
+  });
+
   function draw(ts) {
+    _tx += (_mx - _tx) * 0.04;
+    _ty += (_my - _ty) * 0.04;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (const s of stars) {
       const alpha = s.base + Math.sin(s.phase + ts * s.speed) * 0.22;
+      const px = s.x + _tx * s.r * 0.8;
+      const py = s.y + _ty * s.r * 0.8;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.arc(px, py, s.r, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(200,190,255,${alpha.toFixed(3)})`;
       ctx.fill();
     }
@@ -473,14 +538,24 @@ function initStarBackground() {
 // ── Dark ocean canvas texture for the globe ───────────────────────────────────
 function makeOceanTexture() {
   const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
+  c.width = 2048; c.height = 1024;
   const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, 1024, 512);
-  g.addColorStop(0,   '#05071a');
-  g.addColorStop(0.5, '#060a1f');
-  g.addColorStop(1,   '#04060f');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1024, 512);
+  const radial = ctx.createRadialGradient(1024, 512, 0, 1024, 512, 1200);
+  radial.addColorStop(0,   '#060a20');
+  radial.addColorStop(0.5, '#050818');
+  radial.addColorStop(1,   '#030510');
+  ctx.fillStyle = radial;
+  ctx.fillRect(0, 0, 2048, 1024);
+  ctx.globalAlpha = 0.018;
+  ctx.strokeStyle = '#4a30a0';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < 2048; x += 64) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke();
+  }
+  for (let y = 0; y < 1024; y += 64) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(2048, y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
   return c.toDataURL();
 }
 
@@ -509,13 +584,15 @@ function initGlobe() {
   const globe = Globe({ rendererConfig: { alpha: true, antialias: true } })(container)
     .globeImageUrl(makeOceanTexture())
     .backgroundImageUrl(null)
-    .atmosphereColor('rgba(139,92,246,0.55)')
-    .atmosphereAltitude(0.18);
+    .atmosphereColor('rgba(139,92,246,0.70)')
+    .atmosphereAltitude(0.25);
 
   AppState.globe = globe;
 
   globe.controls().autoRotate      = true;
   globe.controls().autoRotateSpeed = 0.35;
+  globe.controls().enableDamping   = true;
+  globe.controls().dampingFactor   = 0.07;
 
   // Country borders — drawn map style
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -592,9 +669,14 @@ function initGlobe() {
         .pathPointAlt(() => 0)          // altitude 0 = flush on globe surface
         .pathColor(pathColor)
         .pathStroke(0.5)
-        .pathDashLength(1)              // solid line (no gaps)
-        .pathDashGap(0)
-        .pathDashAnimateTime(0)
+        .pathDashLength(0.2)
+        .pathDashGap(0.8)
+        .pathDashInitialGap(() => Math.random())
+        .pathDashAnimateTime(d => {
+          if (!d.is_operational) return 0;
+          if (d.has_tcp_probe)   return 2500;
+          return 4000;
+        })
         // ── Landing-point dots ─────────────────────────────────────────────
         .pointsData(pts)
         .pointLat('lat')
@@ -2301,7 +2383,8 @@ function initDailyPage() {
     if (tableRows.length > 15) tableRows.pop();
     if (tableWrap) tableWrap.style.display = '';
     if (tbody) {
-      tbody.innerHTML = tableRows.map(r => `<tr>
+      const prevFirst = tbody.firstElementChild ? tbody.firstElementChild.dataset.idx : null;
+      tbody.innerHTML = tableRows.map((r, i) => `<tr data-idx="${r.index}" class="${i === 0 && String(r.index) !== prevFirst ? 'probe-row-new' : ''}">
         <td>${r.index}</td>
         <td class="mono">${esc(r.cable)}</td>
         <td><span class="badge ${r.isTcp ? 'yes' : ''}">${esc(r.isTcp ? 'TCP' : 'Sintético')}</span></td>
