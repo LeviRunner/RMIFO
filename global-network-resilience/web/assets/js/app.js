@@ -626,43 +626,6 @@ function initGlobe() {
 
   AppState.map = map;
 
-  // ── Auto-spin via easeTo chaining — nunca conflita com zoom ──────────────
-  // MapLibre interrompe o easeTo quando o usuário interage e o moveend
-  // re-dispara o próximo spin de forma natural, sem RAF travando a GPU.
-  let userInteracting = false;
-  const SECS_PER_REV  = 120;                       // 1 volta a cada 120s
-
-  function spinGlobe() {
-    if (userInteracting || AppState.globeSelection) return;
-    const z = map.getZoom();
-    if (z > 5) return;                              // para se muito perto
-    let degsPerSec = 360 / SECS_PER_REV;
-    if (z > 3) degsPerSec *= (5 - z) / 2;          // desacelera ao aproximar
-    const c = map.getCenter();
-    c.lng -= degsPerSec;
-    // easeTo de 1s com easing linear → MapLibre anima internamente
-    // zoom interrompe limpo; moveend re-encadeia o próximo passo
-    map.easeTo({ center: c, duration: 1000, easing: t => t });
-  }
-
-  map.on('mousedown',  () => { userInteracting = true; });
-  map.on('touchstart', () => { userInteracting = true; });
-  map.on('dragstart',  () => { stopGlobeRotation(); });
-  map.on('mouseup',    () => { userInteracting = false; });
-  map.on('dragend',    () => {
-    globeAutoRotateTimer = setTimeout(() => {
-      if (!AppState.globeSelection) spinGlobe();
-    }, 8000);
-  });
-  map.on('touchend',   () => {
-    userInteracting = false;
-    globeAutoRotateTimer = setTimeout(() => {
-      if (!AppState.globeSelection) spinGlobe();
-    }, 3000);
-  });
-  // Encadeia o próximo passo de rotação sempre que o mapa para
-  map.on('moveend', () => { if (!userInteracting) spinGlobe(); });
-
   // ── Tudo que precisa do mapa carregado: fog + labels + dados ─────────────
   map.on('load', () => {
 
@@ -834,7 +797,6 @@ function initGlobe() {
       endLat:   coords[coords.length-1][1], endLng: coords[coords.length-1][0],
       points:   coords  // marks this as a path (not a point)
     };
-    userInteracting = true;
     stopGlobeRotation();
     selectFromGlobe(d);
   });
@@ -855,7 +817,6 @@ function initGlobe() {
       lat:            coords[1],
       lng:            coords[0]
     };
-    userInteracting = true;
     stopGlobeRotation();
     selectFromGlobe(d);
   });
