@@ -621,72 +621,89 @@ function initGlobe() {
         const pts   = payload.points || [];
         AppState.globePaths = paths;
 
-        const cableFeatures = paths.map(p => ({
-          type: 'Feature',
-          properties: {
-            cable_id:       p.cable_id,
-            cable_name:     p.cable_name,
-            color:          pathColor(p),
-            is_operational: p.is_operational,
-            has_alert:      p.has_alert,
-            has_tcp_probe:  p.has_tcp_probe
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: p.points.map(pt => [pt[1], pt[0]])
-          }
-        }));
+        // Filtro defensivo: descarta cabos sem pontos válidos
+        const cableFeatures = paths
+          .filter(p => Array.isArray(p.points) && p.points.length >= 2)
+          .map(p => ({
+            type: 'Feature',
+            properties: {
+              cable_id:       p.cable_id,
+              cable_name:     p.cable_name,
+              color:          pathColor(p),
+              is_operational: p.is_operational,
+              has_alert:      p.has_alert,
+              has_tcp_probe:  p.has_tcp_probe
+            },
+            geometry: {
+              type: 'LineString',
+              coordinates: p.points.map(pt => [pt[1], pt[0]])
+            }
+          }));
 
-        map.addSource('cables', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: cableFeatures },
-          tolerance: 0.5
-        });
-        map.addLayer({
-          id: 'cables-layer', type: 'line', source: 'cables',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color':   ['get', 'color'],
-            'line-width':   ['interpolate', ['linear'], ['zoom'], 1, 0.8, 5, 1.4, 10, 2.5],
-            'line-opacity': 0.88
-          }
-        });
+        if (!map.getSource('cables')) {
+          map.addSource('cables', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: cableFeatures },
+            tolerance: 0.5
+          });
+        }
+        if (!map.getLayer('cables-layer')) {
+          map.addLayer({
+            id: 'cables-layer', type: 'line', source: 'cables',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color':   ['get', 'color'],
+              'line-width':   ['interpolate', ['linear'], ['zoom'], 1, 1.2, 5, 2, 10, 3],
+              'line-opacity': 0.95
+            }
+          });
+        }
 
-        const pointFeatures = pts.map(p => ({
-          type: 'Feature',
-          properties: {
-            cable_id:       p.cable_id,
-            cable_name:     p.cable_name,
-            color:          ptColor(p),
-            is_operational: p.is_operational,
-            has_alert:      p.has_alert,
-            has_tcp_probe:  p.has_tcp_probe,
-            city_name:      p.city_name    || null,
-            country_name:   p.country_name || null,
-            ip_sample:      p.ip_sample    || null
-          },
-          geometry: { type: 'Point', coordinates: [parseFloat(p.lng), parseFloat(p.lat)] }
-        }));
+        const pointFeatures = pts
+          .filter(p => p.lat != null && p.lng != null && !isNaN(parseFloat(p.lat)))
+          .map(p => ({
+            type: 'Feature',
+            properties: {
+              cable_id:       p.cable_id,
+              cable_name:     p.cable_name,
+              color:          ptColor(p),
+              is_operational: p.is_operational,
+              has_alert:      p.has_alert,
+              has_tcp_probe:  p.has_tcp_probe,
+              city_name:      p.city_name    || null,
+              country_name:   p.country_name || null,
+              ip_sample:      p.ip_sample    || null
+            },
+            geometry: { type: 'Point', coordinates: [parseFloat(p.lng), parseFloat(p.lat)] }
+          }));
 
-        map.addSource('landing-points', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: pointFeatures }
-        });
-        map.addLayer({
-          id: 'points-layer', type: 'circle', source: 'landing-points',
-          paint: {
-            'circle-radius':       ['interpolate', ['linear'], ['zoom'], 1, 2.5, 4, 4, 8, 8],
-            'circle-color':        ['get', 'color'],
-            'circle-opacity':      0.92,
-            'circle-stroke-width': 0.8,
-            'circle-stroke-color': 'rgba(255,255,255,0.3)'
-          }
-        });
+        if (!map.getSource('landing-points')) {
+          map.addSource('landing-points', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: pointFeatures }
+          });
+        }
+        if (!map.getLayer('points-layer')) {
+          map.addLayer({
+            id: 'points-layer', type: 'circle', source: 'landing-points',
+            paint: {
+              'circle-radius':       ['interpolate', ['linear'], ['zoom'], 1, 3, 4, 5, 8, 9],
+              'circle-color':        ['get', 'color'],
+              'circle-opacity':      0.95,
+              'circle-stroke-width': 1,
+              'circle-stroke-color': 'rgba(255,255,255,0.4)'
+            }
+          });
+        }
 
         const alertIds = new Set(paths.filter(p => p.has_alert).map(p => p.cable_id));
         updateAlertBadge(alertIds.size);
+        if (globeTip && cableFeatures.length === 0) {
+          globeTip.textContent = 'Nenhum dado de cabo disponível.';
+        }
       })
       .catch(err => {
+        console.error('globe_data error:', err);
         if (globeTip) globeTip.textContent = `Erro ao carregar dados: ${err.message}`;
       });
 
@@ -694,6 +711,7 @@ function initGlobe() {
     apiFetch({ action: 'hop_geo_points' })
       .then(fc => {
         if (!fc.features || !fc.features.length) return;
+        if (map.getSource('switch-hops')) return;
         map.addSource('switch-hops', { type: 'geojson', data: fc });
         map.addLayer({
           id: 'switch-hops-layer', type: 'circle', source: 'switch-hops',
