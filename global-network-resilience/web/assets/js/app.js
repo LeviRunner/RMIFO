@@ -713,33 +713,6 @@ function initDbExplorer() {
   const emptyEl      = document.getElementById('db-empty');
   const errorEl      = document.getElementById('db-error');
 
-  // Terminal refs
-  const sqlInput     = document.getElementById('db-sql-input');
-  const sqlRun       = document.getElementById('db-sql-run');
-  const sqlClear     = document.getElementById('db-sql-clear');
-  const sqlError     = document.getElementById('db-sql-error');
-  const sqlEmpty     = document.getElementById('db-sql-empty');
-  const sqlResultBar = document.getElementById('db-sql-result-bar');
-  const sqlResultInf = document.getElementById('db-sql-result-info');
-  const sqlTime      = document.getElementById('db-sql-time');
-  const sqlThead     = document.getElementById('db-sql-thead');
-  const sqlTbody     = document.getElementById('db-sql-tbody');
-  const sqlTableWrap = document.getElementById('db-sql-table-wrap');
-
-  // ── tab switching ──────────────────────────────────────────────────────────
-  document.querySelectorAll('.db-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.db-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const id = tab.dataset.tab;
-      // Left: switch control panels
-      document.getElementById('db-ctrl-browser').style.display    = id === 'browser'  ? '' : 'none';
-      document.getElementById('db-ctrl-terminal').style.display   = id === 'terminal' ? '' : 'none';
-      // Right: switch result panels
-      document.getElementById('db-results-browser').style.display  = id === 'browser'  ? '' : 'none';
-      document.getElementById('db-results-terminal').style.display = id === 'terminal' ? '' : 'none';
-    });
-  });
 
   // ── helpers ────────────────────────────────────────────────────────────────
   function fmtCell(v) {
@@ -876,47 +849,6 @@ function initDbExplorer() {
         currentPage++;
         loadTable(currentTable, currentPage, currentSort.col, currentSort.dir, currentFilter.col, currentFilter.op, currentFilter.val);
       }
-    });
-  }
-
-  // ── SQL terminal ───────────────────────────────────────────────────────────
-  async function runSql() {
-    const sql = sqlInput?.value.trim() || '';
-    if (!sql) return;
-    if (sqlError)     clearEl(sqlError);
-    if (sqlEmpty)     sqlEmpty.style.display  = 'none';
-    if (sqlTableWrap) sqlTableWrap.style.display = 'none';
-    if (sqlResultBar) sqlResultBar.style.display = 'none';
-    if (sqlRun)       { sqlRun.disabled = true; sqlRun.innerHTML = ICONS.clock + ' Executando…'; }
-
-    try {
-      const data = await apiFetch({ action: 'db_query', sql });
-      if (data.error) throw new Error(data.error);
-
-      if (sqlResultInf) sqlResultInf.textContent = `${data.count} linha(s) retornada(s)${data.limited ? ' · limitado a 200' : ''}`;
-      if (sqlTime)      sqlTime.textContent = `${data.time_ms} ms`;
-      if (sqlResultBar) sqlResultBar.style.display = '';
-
-      renderTable(data.columns, data.rows, sqlThead, sqlTbody, sqlTableWrap, sqlEmpty, false);
-
-    } catch (err) {
-      if (sqlError) showError(sqlError, err.message);
-    } finally {
-      if (sqlRun) { sqlRun.disabled = false; sqlRun.innerHTML = ICONS.play + ' Executar'; }
-    }
-  }
-
-  if (sqlRun)   sqlRun.addEventListener('click', runSql);
-  if (sqlClear) sqlClear.addEventListener('click', () => {
-    if (sqlInput)     sqlInput.value = '';
-    if (sqlError)     clearEl(sqlError);
-    if (sqlEmpty)     sqlEmpty.style.display  = 'none';
-    if (sqlTableWrap) sqlTableWrap.style.display = 'none';
-    if (sqlResultBar) sqlResultBar.style.display = 'none';
-  });
-  if (sqlInput) {
-    sqlInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runSql(); }
     });
   }
 

@@ -165,13 +165,8 @@
           </ul>
         </div>
 
-        <!-- Controles: abas + filtros / terminal (fixo, baixo) -->
+        <!-- Controles: filtros -->
         <div class="db-controls">
-          <div class="db-tabs">
-            <button class="db-tab active" data-tab="browser">Navegador</button>
-            <button class="db-tab" data-tab="terminal">Terminal SQL</button>
-          </div>
-
           <!-- Painel Navegador: filtros -->
           <div class="db-ctrl-panel" id="db-ctrl-browser">
             <div class="db-filter-group">
@@ -199,32 +194,6 @@
             </div>
           </div>
 
-          <!-- Painel Terminal: input SQL -->
-          <div class="db-ctrl-panel" id="db-ctrl-terminal" style="display:none">
-            <div class="db-terminal-card">
-              <div class="db-terminal-topbar">
-                <div class="db-terminal-dots">
-                  <span></span><span></span><span></span>
-                </div>
-                <span class="db-terminal-title">psql</span>
-                <div class="db-terminal-actions">
-                  <button class="btn primary btn-sm" id="db-sql-run"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Executar</button>
-                  <button class="btn btn-sm" id="db-sql-clear"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg></button>
-                </div>
-              </div>
-              <div class="db-terminal-prompt-line">
-                <span class="db-prompt-label">rmifo=#</span>
-              </div>
-              <textarea id="db-sql-input" class="db-sql-textarea" spellcheck="false"
-                placeholder="SELECT cable_id, cable_name&#10;FROM cables&#10;WHERE is_operational = true&#10;ORDER BY length_km DESC&#10;LIMIT 10;"></textarea>
-              <div class="db-terminal-legend">
-                <span class="db-legend-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5L1.5 13.5h13z"/><line x1="8" y1="6" x2="8" y2="9.5"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none"/></svg></span>
-                Simulação — apenas <strong>SELECT</strong> aceito.
-                Sem acesso a tabelas do sistema.
-                Dados reais do PostgreSQL RMIFO.
-              </div>
-            </div>
-          </div>
         </div><!-- /.db-controls -->
 
       </div><!-- /.db-left-col -->
@@ -259,24 +228,6 @@
           </div>
         </div>
 
-        <!-- Resultados do Terminal SQL -->
-        <div id="db-results-terminal" class="db-results-wrap" style="display:none">
-          <div class="db-data-topbar">
-            <span class="db-breadcrumb-table">Resultado da consulta SQL</span>
-            <div class="db-result-bar">
-              <span id="db-sql-result-info"></span>
-              <span class="db-sql-exec-time" id="db-sql-time"></span>
-            </div>
-          </div>
-          <div class="error" id="db-sql-error"></div>
-          <div class="empty" id="db-sql-empty" style="display:none">Consulta retornou 0 linhas.</div>
-          <div class="table-wrap db-table-wrap" id="db-sql-table-wrap" style="display:none">
-            <table class="db-table">
-              <thead id="db-sql-thead"></thead>
-              <tbody id="db-sql-tbody"></tbody>
-            </table>
-          </div>
-        </div>
 
       </div><!-- /.db-data-panel -->
 
