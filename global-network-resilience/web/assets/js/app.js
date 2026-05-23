@@ -1996,13 +1996,6 @@ function renderProbeResult(payload) {
   const lossClass   = (r.packet_loss_pct ?? 0) > 5  ? 'danger-text' : 'ok-text';
   const jitterClass = (r.jitter_ms ?? 0)       > 20 ? 'danger-text' : 'ok-text';
 
-  const hopsRows = (r.hops || []).map((hop, i) => `<tr>
-    <td>${i + 1}</td>
-    <td class="mono">${esc(hop.ip || '*')}</td>
-    <td>${esc(hop.host || '*')}</td>
-    <td>${hop.rtt_ms != null ? hop.rtt_ms + ' ms' : '*'}</td>
-  </tr>`).join('');
-
   const openPorts = (r.open_ports || r.ports_tested || []);
   const portsBadge = openPorts.length
     ? `<div class="muted" style="font-size:12px;margin-top:4px;">portas: ${openPorts.join(' · ')}</div>`
@@ -2033,15 +2026,71 @@ function renderProbeResult(payload) {
       <div class="gauge-mini"><div class="k">Amostras</div>
         <div class="v">${r.samples ?? '–'}</div></div>
     </div>
-    ${hopsRows ? `
-    <div class="subhead" style="margin-top:14px;">Rota (hops)</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>#</th><th>IP</th><th>Host</th><th>RTT</th></tr></thead>
-        <tbody>${hopsRows}</tbody>
-      </table>
-    </div>` : ''}
+    <div id="hop-trace-panel" class="hop-trace-panel">
+      <div class="hop-trace-loading">Rastreando rota salto a salto…</div>
+    </div>
     ${r.note ? `<div class="muted" style="margin-top:10px;font-size:12px;">${esc(r.note)}</div>` : ''}`;
+}
+
+function renderHopTrace(hops, targetIp) {
+  const panel = document.getElementById('hop-trace-panel');
+  if (!panel) return;
+  if (!hops || !hops.length) {
+    panel.innerHTML = '<div class="hop-trace-empty">Rastreamento indisponível para este endpoint.</div>';
+    return;
+  }
+
+  // Find bottleneck: hop with largest positive delta_ms
+  let bottleneckIdx = -1, maxDelta = 0;
+  hops.forEach((h, i) => {
+    if ((h.delta_ms || 0) > maxDelta) { maxDelta = h.delta_ms; bottleneckIdx = i; }
+  });
+
+  // Max RTT for bar scaling
+  const maxRtt = Math.max(...hops.map(h => h.rtt_avg || h.rtt_avg_ms || 0), 1);
+
+  const rows = hops.map((h, i) => {
+    const rtt     = h.rtt_avg   ?? h.rtt_avg_ms   ?? 0;
+    const best    = h.rtt_best  ?? h.rtt_best_ms  ?? null;
+    const worst   = h.rtt_worst ?? h.rtt_worst_ms ?? null;
+    const loss    = h.loss_pct  ?? 0;
+    const delta   = h.delta_ms  ?? null;
+    const ip      = h.ip        ?? '*';
+    const barPct  = Math.round((rtt / maxRtt) * 100);
+    const isBottleneck = i === bottleneckIdx;
+    const lossFlag = loss >= 10 ? 'hop-loss-high' : loss >= 1 ? 'hop-loss-mid' : '';
+    const barCls   = isBottleneck ? 'hop-bar-bottleneck' : loss >= 10 ? 'hop-bar-loss' : 'hop-bar-ok';
+    const deltaHtml = delta !== null
+      ? `<span class="hop-delta ${delta > 20 ? 'hop-delta-warn' : ''}">${delta > 0 ? '+' : ''}${delta} ms</span>`
+      : '';
+
+    return `<tr class="${isBottleneck ? 'hop-row-bottleneck' : ''}">
+      <td class="hop-n">${h.hop ?? i + 1}</td>
+      <td class="mono hop-ip">${esc(ip)}</td>
+      <td class="hop-rtt-cell">
+        <div class="hop-bar-wrap">
+          <div class="hop-bar ${barCls}" style="width:${barPct}%"></div>
+        </div>
+        <span class="hop-rtt-val">${rtt > 0 ? rtt + ' ms' : '*'}</span>
+        ${deltaHtml}
+      </td>
+      <td class="hop-range">${best !== null && worst !== null ? best + ' – ' + worst + ' ms' : '—'}</td>
+      <td class="hop-loss ${lossFlag}">${loss > 0 ? loss + '%' : '0%'}</td>
+      ${isBottleneck ? '<td class="hop-flag">⚡ gargalo</td>' : '<td></td>'}
+    </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="hop-trace-header">
+      <span class="hop-trace-title">Rastreamento de Rota</span>
+      <span class="hop-trace-meta">${hops.length} saltos · destino: <span class="mono">${esc(targetIp || '')}</span></span>
+    </div>
+    <div class="table-wrap hop-trace-table">
+      <table>
+        <thead><tr><th>#</th><th>IP</th><th>RTT Médio</th><th>Min – Max</th><th>Perda</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 async function loadProbeEndpoints(cableId) {
@@ -2158,6 +2207,15 @@ function initProbePage() {
         if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
         const d2 = { cable_name: cableId, cable_id: cableId };
         startProbeRealtime(d2, result, telResultEl, result.result || result);
+
+        // Hop-by-hop trace (async, does not block probe result display)
+        const targetIp = result.target || (result.result || {}).target_ip || '';
+        apiFetch({ action: 'hop_trace', cable_id: cableId, endpoint_id: endpointId, ip: targetIp, cycles: '5' })
+          .then(hp => renderHopTrace(hp.hops || [], hp.target_ip || targetIp))
+          .catch(() => {
+            const p = document.getElementById('hop-trace-panel');
+            if (p) p.innerHTML = '<div class="hop-trace-empty">Rastreamento indisponível.</div>';
+          });
       } catch (err) {
         showError(errEl, err.message);
       } finally {

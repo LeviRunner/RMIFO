@@ -1239,6 +1239,149 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         jsonResponse($out);
     }
 
+    // ── hop_trace: executa MTR e retorna análise salto a salto ──────────────
+    if ($_modeNow === 'hop_trace') {
+        $cableId    = trim((string) ($_reqAll['cable_id'] ?? ''));
+        $endpointId = trim((string) ($_reqAll['endpoint_id'] ?? ''));
+        $targetIp   = trim((string) ($_reqAll['ip'] ?? ''));
+        $cycles     = max(3, min(10, (int) ($_reqAll['cycles'] ?? 5)));
+
+        if ($cableId === '') { jsonResponse(['error' => 'cable_id obrigatório.'], 400); }
+
+        try {
+            $pdoH = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+
+            // Resolve IP: parâmetro direto → endpoint_id → primeiro endpoint do cabo
+            if ($targetIp !== '') {
+                assertProbeIpAllowed($pdoH, $targetIp);
+            } elseif ($endpointId !== '') {
+                $st = $pdoH->prepare('SELECT ip_start FROM endpoint_ip_samples WHERE endpoint_id=:eid ORDER BY sample_order LIMIT 1');
+                $st->execute([':eid' => $endpointId]);
+                $targetIp = (string)($st->fetchColumn() ?: '');
+            }
+            if ($targetIp === '') {
+                $st = $pdoH->prepare(
+                    'SELECT eis.ip_start FROM endpoint_ip_samples eis
+                     JOIN cable_endpoints ce ON ce.endpoint_id = eis.endpoint_id
+                     WHERE ce.cable_id = :cid ORDER BY ce.endpoint_order, eis.sample_order LIMIT 1'
+                );
+                $st->execute([':cid' => $cableId]);
+                $targetIp = (string)($st->fetchColumn() ?: '');
+            }
+            if ($targetIp === '') { jsonResponse(['error' => 'Nenhum IP disponível para este cabo.'], 422); }
+
+            // Executa MTR com timeout
+            $cmd    = 'mtr --report --report-cycles=' . $cycles . ' --no-dns --json ' . escapeshellarg($targetIp) . ' 2>/dev/null';
+            $output = '';
+            $handle = @popen($cmd, 'r');
+            if ($handle) {
+                $deadline = time() + ($cycles * 3) + 20;
+                while (!feof($handle) && time() < $deadline) {
+                    $output .= fread($handle, 4096);
+                }
+                pclose($handle);
+            }
+
+            $hops   = [];
+            $hubs   = json_decode($output, true)['report']['hubs'] ?? [];
+            $prevRtt = 0.0;
+            foreach ($hubs as $hub) {
+                $ip     = ($hub['host'] ?? '') !== '???' ? ($hub['host'] ?? null) : null;
+                $avgRtt = round((float)($hub['Avg']    ?? 0), 2);
+                $delta  = $prevRtt > 0 ? round($avgRtt - $prevRtt, 2) : null;
+                if ($avgRtt > 0) $prevRtt = $avgRtt;
+                $hops[] = [
+                    'hop'       => (int)($hub['count']   ?? 0),
+                    'ip'        => $ip,
+                    'loss_pct'  => round((float)($hub['Loss%'] ?? 0), 1),
+                    'snt'       => (int)($hub['Snt']     ?? 0),
+                    'rtt_last'  => round((float)($hub['Last']  ?? 0), 2),
+                    'rtt_avg'   => $avgRtt,
+                    'rtt_best'  => round((float)($hub['Best']  ?? 0), 2),
+                    'rtt_worst' => round((float)($hub['Wrst']  ?? 0), 2),
+                    'rtt_stdev' => round((float)($hub['StDev'] ?? 0), 2),
+                    'delta_ms'  => $delta,
+                ];
+            }
+
+            // Persiste no banco se houve hops reais
+            if (!empty($hops)) {
+                $finalRtt = null;
+                foreach (array_reverse($hops) as $h) {
+                    if ($h['ip'] && $h['rtt_avg'] > 0) { $finalRtt = $h['rtt_avg']; break; }
+                }
+                if ($finalRtt) {
+                    try {
+                        $pdoH->beginTransaction();
+                        $ins = $pdoH->prepare(
+                            'INSERT INTO cable_telemetry_samples
+                             (cable_id, measured_at, latency_ms, source, method, confidence_score, estimated, telemetry_model_version)
+                             VALUES (:cid, NOW(), :lat, \'active_mtr\', \'mtr-hop-trace\', 0.88, FALSE, \'1.4.0\')
+                             RETURNING sample_id'
+                        );
+                        $ins->execute([':cid' => $cableId, ':lat' => $finalRtt]);
+                        $sampleId = $ins->fetchColumn();
+                        $hopQ = $pdoH->prepare(
+                            'INSERT INTO cable_telemetry_hops
+                             (sample_id, cable_id, hop_number, hop_ip,
+                              rtt_last_ms, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, rtt_stdev_ms, loss_pct)
+                             VALUES (:sid,:cid,:hn,:ip::inet,:rl,:ra,:rb,:rw,:rs,:lp)
+                             ON CONFLICT (sample_id, hop_number) DO NOTHING'
+                        );
+                        foreach ($hops as $h) {
+                            $hopQ->execute([
+                                ':sid' => $sampleId, ':cid' => $cableId,
+                                ':hn'  => $h['hop'],   ':ip'  => $h['ip'],
+                                ':rl'  => $h['rtt_last']  ?: null,
+                                ':ra'  => $h['rtt_avg']   ?: null,
+                                ':rb'  => $h['rtt_best']  ?: null,
+                                ':rw'  => $h['rtt_worst'] ?: null,
+                                ':rs'  => $h['rtt_stdev'] ?: null,
+                                ':lp'  => $h['loss_pct'],
+                            ]);
+                        }
+                        $pdoH->commit();
+                    } catch (Throwable) { if ($pdoH->inTransaction()) $pdoH->rollBack(); }
+                }
+            }
+
+            jsonResponse([
+                'cable_id'  => $cableId,
+                'target_ip' => $targetIp,
+                'hop_count' => count($hops),
+                'hops'      => $hops,
+            ]);
+        } catch (Throwable $e) { jsonResponse(['error' => $e->getMessage()], 500); }
+    }
+
+    // ── hop_history: último rastreamento armazenado para um cabo ─────────────
+    if ($_modeNow === 'hop_history') {
+        $cableId = trim((string) ($_reqAll['cable_id'] ?? ''));
+        if ($cableId === '') { jsonResponse(['error' => 'cable_id obrigatório.'], 400); }
+        try {
+            $pdoH = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+            $st   = $pdoH->prepare(
+                'SELECT h.hop_number, h.hop_ip::text AS ip, h.rtt_avg_ms, h.rtt_best_ms,
+                        h.rtt_worst_ms, h.rtt_stdev_ms, h.loss_pct, h.recorded_at
+                 FROM cable_telemetry_hops h
+                 JOIN (SELECT sample_id FROM cable_telemetry_samples
+                       WHERE cable_id = :cid AND source = \'active_mtr\'
+                       ORDER BY measured_at DESC LIMIT 1) s ON s.sample_id = h.sample_id
+                 ORDER BY h.hop_number'
+            );
+            $st->execute([':cid' => $cableId]);
+            $rows    = $st->fetchAll();
+            $prevRtt = 0.0;
+            foreach ($rows as &$row) {
+                $avg = (float)($row['rtt_avg_ms'] ?? 0);
+                $row['delta_ms'] = $prevRtt > 0 && $avg > 0 ? round($avg - $prevRtt, 2) : null;
+                if ($avg > 0) $prevRtt = $avg;
+            }
+            unset($row);
+            jsonResponse(['cable_id' => $cableId, 'hops' => $rows]);
+        } catch (Throwable $e) { jsonResponse(['error' => $e->getMessage()], 500); }
+    }
+
     // ── debug_env: diagnóstico de variáveis de ambiente (remover após uso) ───
     if ($_modeNow === 'debug_env') {
         $envKeys = ['DATABASE_URL','DATABASE_PUBLIC_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','POSTGRES_DB','POSTGRES_USER','POSTGRES_PASSWORD','PG_SOCKET','RAILWAY_ENVIRONMENT','RAILWAY_SERVICE_NAME'];

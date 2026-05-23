@@ -3389,8 +3389,79 @@ tr.bs-found {
 .spr-hop-ip  { font-family: monospace; color: var(--text); flex: 1; }
 .spr-hop-rtt { color: var(--accent); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
+/* ── Hop Trace panel ─────────────────────────────────────────────────────── */
+.hop-trace-panel {
+  margin-top: 18px;
+  border: 1px solid rgba(168,113,255,.18);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(18,13,34,.55);
+}
+.hop-trace-loading,
+.hop-trace-empty {
+  padding: 14px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.hop-trace-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(168,113,255,.15);
+  background: rgba(168,113,255,.06);
+}
+.hop-trace-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.hop-trace-meta { font-size: 11px; color: var(--text-muted); }
+
+.hop-trace-table { margin: 0; border-radius: 0; border: none; background: transparent; }
+.hop-trace-table table { font-size: 12px; }
+.hop-trace-table th { font-size: 10px; padding: 6px 10px; }
+.hop-trace-table td { padding: 5px 10px; vertical-align: middle; }
+
+.hop-n { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 24px; }
+.hop-ip { font-family: monospace; font-size: 11px; }
+
+.hop-rtt-cell { min-width: 160px; }
+.hop-bar-wrap {
+  height: 4px;
+  background: rgba(255,255,255,.06);
+  border-radius: 2px;
+  margin-bottom: 3px;
+  overflow: hidden;
+}
+.hop-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+.hop-bar-ok         { background: #2ddc82; }
+.hop-bar-loss       { background: #ffb92d; }
+.hop-bar-bottleneck { background: #ff465f; }
+
+.hop-rtt-val  { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--text); }
+.hop-delta    { font-size: 11px; color: var(--text-muted); margin-left: 6px; }
+.hop-delta-warn { color: #ffb92d; font-weight: 600; }
+
+.hop-range { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.hop-loss        { font-variant-numeric: tabular-nums; font-size: 12px; }
+.hop-loss-mid    { color: #ffb92d; }
+.hop-loss-high   { color: #ff465f; font-weight: 600; }
+
+.hop-flag { font-size: 11px; color: #ff465f; white-space: nowrap; }
+.hop-row-bottleneck td { background: rgba(255,70,95,.06); }
+
 @media (max-width: 600px) {
   .spr-metrics { grid-template-columns: repeat(2, 1fr); }
+  .hop-range { display: none; }
 }
 
 /* ── Smartphones pequenos (≤ 400 px) ─────────────────────────────────────── */

@@ -154,7 +154,7 @@ function mtrProbe(host, cycles, timeoutS) {
                     }
                 }
                 if (!avg) { res(null); return; }
-                res({ rtt: r3(avg), sentAt: new Date(t0), recvAt: new Date() });
+                res({ rtt: r3(avg), sentAt: new Date(t0), recvAt: new Date(), hubs });
             } catch { res(null); }
         });
         setTimeout(() => { try { proc.kill(); } catch {} res(null); }, (timeoutS + 15) * 1000);
@@ -337,7 +337,7 @@ async function main() {
         // DB insert
         if (db) {
             try {
-                await db.query(`
+                const sampleRes = await db.query(`
                     INSERT INTO cable_telemetry_samples (
                         cable_id, measured_at, sent_at, received_at,
                         latency_ms, jitter_ms, packet_loss_pct, throughput_mbps,
@@ -352,12 +352,32 @@ async function main() {
                         method           = EXCLUDED.method,
                         confidence_score = EXCLUDED.confidence_score,
                         metadata         = EXCLUDED.metadata
+                    RETURNING sample_id
                 `, [
                     cableId, measAt, sentAt, recvAt,
                     latMs, jitMs, lossP, tputM, pps, availP, errs,
                     src, meth, conf, est, MODEL,
                     JSON.stringify({ target_host: host, probe_protocol: meth, open_ports: openPorts }),
                 ]);
+
+                // Store per-hop data when MTR was used
+                const sampleId = sampleRes.rows[0]?.sample_id;
+                if (sampleId && mr && mr.hubs && mr.hubs.length) {
+                    const hopQ = `
+                        INSERT INTO cable_telemetry_hops
+                            (sample_id, cable_id, hop_number, hop_ip,
+                             rtt_last_ms, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, rtt_stdev_ms, loss_pct)
+                        VALUES ($1,$2,$3,$4::inet,$5,$6,$7,$8,$9,$10)
+                        ON CONFLICT (sample_id, hop_number) DO NOTHING`;
+                    for (const h of mr.hubs) {
+                        const ip = h.host && h.host !== '???' ? h.host : null;
+                        await db.query(hopQ, [
+                            sampleId, cableId, h.count, ip,
+                            h.Last || null, h.Avg || null, h.Best || null,
+                            h.Wrst || null, h.StDev || null, h['Loss%'] || 0,
+                        ]).catch(() => {});
+                    }
+                }
             } catch (e) { warn(`DB insert ${cableId}: ${e.message}`); }
         }
 
