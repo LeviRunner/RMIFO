@@ -1,4 +1,4 @@
-const CACHE = 'rmifo-v5';
+const CACHE = 'rmifo-v6';
 const STATIC = [
   '/',
   '/index.html',
