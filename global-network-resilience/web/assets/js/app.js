@@ -575,29 +575,8 @@ function initWelcomeCard() {
   });
 }
 
-// ── MapLibre GL dark globe style (vector tiles + custom theme) ────────────────
-const MAPLIBRE_STYLE = {
-  version: 8,
-  projection: { type: 'globe' },
-  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-  sources: {
-    world: {
-      type: 'vector',
-      url: 'https://demotiles.maplibre.org/tiles/tiles.json'
-    }
-  },
-  layers: [
-    { id: 'bg',       type: 'background', paint: { 'background-color': '#08060f' } },
-    { id: 'ocean',    type: 'fill',   source: 'world', 'source-layer': 'water',
-      paint: { 'fill-color': '#0d0920' } },
-    { id: 'land',     type: 'fill',   source: 'world', 'source-layer': 'countries',
-      paint: { 'fill-color': '#120d22' } },
-    { id: 'borders',  type: 'line',   source: 'world', 'source-layer': 'countries',
-      paint: { 'line-color': '#433169', 'line-width': 0.5, 'line-opacity': 0.7 } },
-    { id: 'states',   type: 'line',   source: 'world', 'source-layer': 'states',
-      paint: { 'line-color': '#2d1e50', 'line-width': 0.3, 'line-opacity': 0.5 } }
-  ]
-};
+// CARTO dark-matter: estilo completo e mantido, sem source-layers customizados
+const GLOBE_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 function initGlobe() {
   const container = document.getElementById('globe-container');
@@ -610,63 +589,29 @@ function initGlobe() {
 
   const map = new maplibregl.Map({
     container:          'globe-container',
-    style:              MAPLIBRE_STYLE,
+    style:              GLOBE_STYLE,
     center:             [10, 20],
-    zoom:               1.2,
+    zoom:               1.5,
     minZoom:            0.5,
     maxZoom:            14,
+    projection:         { type: 'globe' },
     attributionControl: false,
-    antialias:          true
+    antialias:          true,
   });
 
   AppState.map = map;
 
-  // ── Tudo que precisa do mapa carregado: fog + labels + dados ─────────────
   map.on('load', () => {
-
-    // Projeção globo — forçar via API após load garante aplicação
+    // Garante projeção globo 3D
     map.setProjection({ type: 'globe' });
 
-    // Atmosfera roxa visível ao redor do globo
+    // Atmosfera ao redor do globo (espaço escuro = esfera visível)
     map.setFog({
-      'color':          'rgba(20, 10, 50, 0.85)',
-      'high-color':     '#04020a',
-      'horizon-blend':  0.08,
-      'space-color':    '#04020a',
-      'star-intensity': 0.35
-    });
-
-    // Labels de cidade (symbol layer)
-    const labelFeatures = CITY_DATA.map(c => ({
-      type: 'Feature',
-      geometry:   { type: 'Point', coordinates: [c[1], c[0]] },
-      properties: { name: c[2].normalize('NFD').replace(/[̀-ͯ]/g, ''), tier: c[3] }
-    }));
-    map.addSource('city-labels', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: labelFeatures }
-    });
-    map.addLayer({
-      id: 'city-labels', type: 'symbol', source: 'city-labels',
-      layout: {
-        'text-field':            ['get', 'name'],
-        'text-size':             ['match', ['get', 'tier'], 1, 11, 2, 9, 7],
-        'text-font':             ['Open Sans Regular'],
-        'text-anchor':           'top',
-        'text-offset':           [0, 0.3],
-        'text-allow-overlap':    false,
-        'text-ignore-placement': false
-      },
-      paint: {
-        'text-color':      ['match', ['get', 'tier'], 1, 'rgba(255,255,230,0.95)', 2, 'rgba(255,255,200,0.80)', 'rgba(220,220,190,0.65)'],
-        'text-halo-color': 'rgba(8,6,15,0.85)',
-        'text-halo-width': 1.2
-      },
-      filter: ['<=', ['get', 'tier'], 1]
-    });
-    map.on('zoom', () => {
-      const z = map.getZoom();
-      map.setFilter('city-labels', ['<=', ['get', 'tier'], z < 2 ? 1 : z < 4 ? 2 : 3]);
+      'color':          'rgba(18, 8, 40, 0.9)',
+      'high-color':     '#030108',
+      'horizon-blend':  0.1,
+      'space-color':    '#030108',
+      'star-intensity': 0.45,
     });
 
     // ── Dados dos cabos e pontos ──────────────────────────────────────────
