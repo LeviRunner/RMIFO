@@ -21,7 +21,8 @@ if ($dbUrl !== '') {
     $pgDb     = ltrim($p['path'] ?? '/railway', '/');
     $pgUser   = urldecode($p['user'] ?? 'postgres');
     $pgPass   = urldecode($p['pass'] ?? '');
-    $pgSsl    = ($pgPort !== 5432 && $pgPort !== 55432);
+    // Railway TCP proxy usa porta alta (ex: 46600) → requer SSL
+    $pgSsl    = ($pgPort !== 5432 && $pgPort !== 55432 && $pgPort !== 5433);
     log_msg("DATABASE_URL detectada — host={$pgHost} port={$pgPort} db={$pgDb} ssl=" . ($pgSsl ? 'yes' : 'no'));
 } else {
     $pgHost = getenv('PGHOST') ?: '';
