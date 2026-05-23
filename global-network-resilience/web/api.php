@@ -87,7 +87,7 @@ function checkRateLimit(PDO $pdo, string $action): void
     };
     $windowMins = ($action === 'daily_start') ? 10 : 1;
     $ipHash = hash('sha256', $ip . $action); // hash separado por ação
-    $window = gmdate('Y-m-d H:') . str_pad((int)(gmdate('i') / $windowMins) * $windowMins, 2, '0', STR_PAD_LEFT) . ':00+00';
+    $window = gmdate('Y-m-d H:') . str_pad((string)((int)(gmdate('i') / $windowMins) * $windowMins), 2, '0', STR_PAD_LEFT) . ':00+00';
 
     try {
         $pdo->prepare(
