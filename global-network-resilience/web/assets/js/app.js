@@ -439,10 +439,7 @@ function statusLabel(isOp, hasAlert) {
   return '<span class="badge yes">Operacional</span>';
 }
 
-function stopGlobeRotation() {
-  // MapLibre GL handles interaction natively — nothing to pause
-  if (globeAutoRotateTimer) { clearTimeout(globeAutoRotateTimer); globeAutoRotateTimer = null; }
-}
+function stopGlobeRotation() {}
 
 function selectFromGlobe(d) {
   if (!d) return;
@@ -493,8 +490,6 @@ function selectFromGlobe(d) {
   bodyEl.innerHTML = html;
   panel.classList.add('open');
 }
-
-let globeAutoRotateTimer = null;
 
 // ── Star background ───────────────────────────────────────────────────────────
 function initStarBackground() {
@@ -671,9 +666,6 @@ function initGlobe() {
       map.setFilter('city-labels', ['<=', ['get', 'tier'], z < 2 ? 1 : z < 4 ? 2 : 3]);
     });
 
-    // Inicia rotação
-    spinGlobe();
-
     // ── Dados dos cabos e pontos ──────────────────────────────────────────
     apiFetch({ action: 'globe_data' })
       .then(payload => {
@@ -839,7 +831,6 @@ function initGlobePanel() {
   if (closeBtn) closeBtn.addEventListener('click', () => {
     if (panel) panel.classList.remove('open');
     AppState.globeSelection = null;
-    // rotation resumes automatically via globeAutoRotateTimer
   });
 
   if (detailBtn) {
