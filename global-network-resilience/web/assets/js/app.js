@@ -559,20 +559,36 @@ function makeOceanTexture() {
   return c.toDataURL();
 }
 
-// ── Welcome card ──────────────────────────────────────────────────────────────
+// ── Welcome / Homepage ────────────────────────────────────────────────────────
 function initWelcomeCard() {
   const card = document.getElementById('welcome-card');
   const btn  = document.getElementById('welcome-dismiss');
   if (!card) return;
-  if (sessionStorage.getItem('wc_dismissed')) { card.style.display = 'none'; return; }
+
+  // Sempre mostra na carga inicial da página
   card.classList.add('visible');
-  // animate stats counters
-  card.querySelectorAll('[data-target]').forEach(el => {
-    rmifoCount(el, parseInt(el.dataset.target, 10), 900);
-  });
+
+  // Busca estatísticas reais do banco e popula os cards
+  fetch('api.php?action=summary')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d) return;
+      const cablesEl  = card.querySelector('[data-stat="cables"]');
+      const samplesEl = card.querySelector('[data-stat="samples"]');
+      const opEl      = card.querySelector('[data-stat="operational"]');
+      const lastEl    = card.querySelector('[data-stat="last"]');
+      if (cablesEl  && d.cables_total       > 0) rmifoCount(cablesEl,  d.cables_total,       900);
+      if (samplesEl && d.telemetry_samples  > 0) rmifoCount(samplesEl, d.telemetry_samples,  900);
+      if (opEl      && d.cables_operational > 0) rmifoCount(opEl,      d.cables_operational, 900);
+      if (lastEl    && d.last_measured_at) {
+        const dt = new Date(d.last_measured_at);
+        lastEl.textContent = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+    })
+    .catch(() => {/* BD indisponível — valores fixos já estão no HTML */});
+
   if (btn) btn.addEventListener('click', () => {
     card.classList.remove('visible');
-    sessionStorage.setItem('wc_dismissed', '1');
   });
 }
 

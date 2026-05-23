@@ -1223,6 +1223,22 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
     $_reqAll    = array_merge($_GET, $_POST);
     $_modeNow   = (string) ($_reqAll['mode'] ?? $_reqAll['action'] ?? '');
 
+    // ── summary: estatísticas gerais para homepage ────────────────────────────
+    if ($_modeNow === 'summary') {
+        $out = ['cables_total' => 0, 'cables_operational' => 0, 'telemetry_samples' => 0, 'last_measured_at' => null, 'tables' => 12];
+        if (extension_loaded('pdo_pgsql')) {
+            try {
+                $pdoS = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+                $out['cables_total']       = (int) $pdoS->query("SELECT COUNT(*) FROM cables")->fetchColumn();
+                $out['cables_operational'] = (int) $pdoS->query("SELECT COUNT(*) FROM cables WHERE is_operational = TRUE")->fetchColumn();
+                $out['telemetry_samples']  = (int) $pdoS->query("SELECT COUNT(*) FROM cable_telemetry_samples")->fetchColumn();
+                $last = $pdoS->query("SELECT MAX(measured_at) FROM cable_telemetry_samples")->fetchColumn();
+                $out['last_measured_at']   = $last ?: null;
+            } catch (Throwable) { /* retorna zeros se BD indisponível */ }
+        }
+        jsonResponse($out);
+    }
+
     // ── debug_env: diagnóstico de variáveis de ambiente (remover após uso) ───
     if ($_modeNow === 'debug_env') {
         $envKeys = ['DATABASE_URL','DATABASE_PUBLIC_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','POSTGRES_DB','POSTGRES_USER','POSTGRES_PASSWORD','PG_SOCKET','RAILWAY_ENVIRONMENT','RAILWAY_SERVICE_NAME'];

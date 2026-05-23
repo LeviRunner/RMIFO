@@ -24,103 +24,109 @@
 <!-- ── STAR BACKGROUND ──────────────────────────────────────────────────── -->
 <canvas id="star-bg" aria-hidden="true"></canvas>
 
-<!-- ── HOMEPAGE / WELCOME ────────────────────────────────────────────────── -->
-<div id="welcome-card" role="dialog" aria-modal="true" aria-label="RMIFO — Global Network Resilience">
+<!-- ── HOMEPAGE ───────────────────────────────────────────────────────────── -->
+<div id="welcome-card" aria-label="RMIFO — Global Network Resilience">
   <div class="wc-inner">
 
     <!-- HERO -->
     <header class="wc-hero">
       <div class="wc-logo">RMIFO</div>
       <h1 class="wc-title">Global Network Resilience</h1>
-      <p class="wc-subtitle">Plataforma de monitoramento em tempo real para cabos submarinos e infraestrutura de rede global — dados brutos de telemetria transformados em visualizações interativas.</p>
+      <p class="wc-subtitle">Plataforma open-source de monitoramento de cabos submarinos — coleta telemetria TCP/MTR, persiste em PostgreSQL e exibe em globo 3D interativo em tempo real.</p>
     </header>
 
-    <!-- STATS -->
+    <!-- STATS LIVE -->
     <div class="wc-stats" aria-label="Estatísticas do sistema">
       <div class="wc-stat">
-        <span class="wc-stat-n" data-target="699">0</span>
-        <span class="wc-stat-l">cabos monitorados</span>
+        <span class="wc-stat-n" data-stat="cables">—</span>
+        <span class="wc-stat-l">cabos catalogados</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="operational">—</span>
+        <span class="wc-stat-l">operacionais</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="samples">—</span>
+        <span class="wc-stat-l">amostras de telemetria</span>
       </div>
       <div class="wc-stat">
         <span class="wc-stat-n">12</span>
         <span class="wc-stat-l">tabelas PostgreSQL</span>
       </div>
-      <div class="wc-stat">
-        <span class="wc-stat-n">TCP · MTR</span>
-        <span class="wc-stat-l">varredura diária</span>
-      </div>
     </div>
 
     <!-- ARCHITECTURE FLOW -->
     <section class="wc-arch" aria-label="Fluxo de comunicação">
-      <h2 class="wc-section-title">Como a comunicação funciona</h2>
-
+      <h2 class="wc-section-title">Como o projeto se interliga</h2>
       <div class="wc-flow">
 
-        <!-- STEP 1 -->
+        <!-- 1 · Scripts Python -->
         <div class="wc-flow-step">
           <div class="wc-flow-icon" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
           </div>
           <div class="wc-flow-body">
-            <strong>Scripts Python</strong>
-            <p>Varredura paralela TCP/HTTP/MTR nos endpoints de aterrissagem dos cabos. Gera JSON com latência, jitter, perda de pacotes e hops de rota.</p>
+            <strong>Scripts Python — coleta de dados</strong>
+            <p>Executam varredura TCP (múltiplas portas), ICMP ping e traceroute MTR em paralelo contra os endpoints de aterrissagem de cada cabo. <strong>Uso real:</strong> ao rodar a Sonda Diária, o script itera todos os cabos ativos, testa conectividade, mede latência/jitter/perda de pacotes e salva os resultados em arquivos JSON de checkpoint — que depois são importados para o banco via UPSERT.</p>
             <div class="wc-flow-tags">
-              <span>probe_tcp.py</span><span>probe_mtr.py</span><span>checkpoint.json</span>
+              <span>run_daily_telemetry_tasks.sh</span><span>checkpoint_*.json</span><span>probe_full_*.json</span>
             </div>
           </div>
         </div>
 
         <div class="wc-flow-arrow" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>grava JSON · importa para BD</span>
         </div>
 
-        <!-- STEP 2 -->
+        <!-- 2 · PostgreSQL -->
         <div class="wc-flow-step">
           <div class="wc-flow-icon" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
           </div>
           <div class="wc-flow-body">
-            <strong>PostgreSQL — Railway</strong>
-            <p>Dados persistidos via <code>UPSERT ON CONFLICT DO NOTHING</code> em <code>cable_telemetry_samples</code>. Views <code>rollup_1h</code> e <code>rollup_5m</code> calculam agregações sem tabelas físicas redundantes.</p>
+            <strong>PostgreSQL (Railway) — persistência</strong>
+            <p>Armazena a topologia de cabos, pontos de aterrissagem, amostras de telemetria e hops de rota em 12 tabelas relacionadas. <strong>Uso real:</strong> <code>cable_telemetry_samples</code> recebe cada medição com UPSERT; views <code>rollup_1h</code> e <code>rollup_5m</code> calculam médias, p95 e pico sem tabelas físicas redundantes — qualquer query ao Explorador DB lê diretamente dessas views.</p>
             <div class="wc-flow-tags">
-              <span>cables</span><span>landing_points</span><span>telemetry_samples</span><span>telemetry_hops</span>
+              <span>cables</span><span>landing_points</span><span>cable_telemetry_samples</span><span>cable_telemetry_hops</span><span>telemetry_alerts</span>
             </div>
           </div>
         </div>
 
         <div class="wc-flow-arrow" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>consulta SQL · serve JSON</span>
         </div>
 
-        <!-- STEP 3 -->
+        <!-- 3 · API PHP -->
         <div class="wc-flow-step">
           <div class="wc-flow-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </div>
           <div class="wc-flow-body">
-            <strong>API PHP — api.php</strong>
-            <p>Endpoints REST com rate limiting por IP (SHA-256), headers de segurança CSP/X-Frame-Options e fallback para <code>DATABASE_PUBLIC_URL</code>. Responde JSON diretamente do PostgreSQL.</p>
+            <strong>API PHP (api.php) — camada de serviço</strong>
+            <p>Único ponto de entrada entre o frontend e o banco. <strong>Uso real:</strong> cada aba do site dispara um <code>fetch()</code> diferente — o Mapa chama <code>?action=all</code> para listar cabos com coordenadas; a Sonda chama <code>?action=probe</code> para testar um endpoint ao vivo; o Explorador DB chama <code>?action=db_browse</code> com paginação. Rate limiting por SHA-256 do IP previne abuso.</p>
             <div class="wc-flow-tags">
-              <span>cables_list</span><span>probe</span><span>daily_start</span><span>db_browse</span>
+              <span>?action=all</span><span>?action=probe</span><span>?action=db_browse</span><span>?action=summary</span><span>?action=daily_start</span>
             </div>
           </div>
         </div>
 
         <div class="wc-flow-arrow" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>fetch() · renderiza no cliente</span>
         </div>
 
-        <!-- STEP 4 -->
+        <!-- 4 · Frontend -->
         <div class="wc-flow-step">
           <div class="wc-flow-icon" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           </div>
           <div class="wc-flow-body">
-            <strong>Frontend Vanilla JS</strong>
-            <p>SPA sem bundler — <code>globe.gl</code> renderiza arcos 3D animados com pulse e damping. Canvas de estrelas com parallax. PWA instalável via service worker com cache-first strategy.</p>
+            <strong>Frontend Vanilla JS — visualização</strong>
+            <p>SPA sem bundler ou framework. <strong>Uso real:</strong> ao abrir o Mapa, <code>globe.gl</code> desenha cada cabo como um arco 3D animado sobre o globo — a cor indica status (verde = operacional, amarelo = alerta, cinza = inativo). O <em>Explorador DB</em> mostra tabelas paginadas com filtros. A <em>Sonda ao Vivo</em> testa um endpoint e exibe latência, jitter e hops de rota em tempo real. O app é instalável como PWA via service worker.</p>
             <div class="wc-flow-tags">
-              <span>globe.gl</span><span>Three.js</span><span>service worker</span><span>canvas 2D</span>
+              <span>globe.gl</span><span>Three.js</span><span>Canvas 2D</span><span>PWA · sw.js</span><span>requestAnimationFrame</span>
             </div>
           </div>
         </div>
@@ -131,56 +137,43 @@
     <!-- SCHEMA ERD -->
     <section class="wc-schema" aria-label="Esquema do banco de dados">
       <h2 class="wc-section-title">Esquema do banco — 12 tabelas</h2>
-      <p class="wc-schema-label">Relações por chave estrangeira entre topologia de cabos, pontos de aterrissagem, telemetria e monitoramento em tempo real.</p>
+      <p class="wc-schema-label">Relações por chave estrangeira: topologia de cabos → pontos de aterrissagem → telemetria → alertas.</p>
       <svg class="wc-schema-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" aria-hidden="true">
         <defs>
           <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
             <path d="M0,0 L0,6 L6,3 z" fill="#a871ff" opacity="0.7"/>
           </marker>
         </defs>
-        <!-- nodes -->
         <rect x="10"  y="130" width="100" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
         <text x="60"  y="154" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="11" fill="#a871ff">nodes</text>
-        <!-- cables -->
         <rect x="160" y="40"  width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="2"/>
         <text x="215" y="64"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="11" fill="#c49dff" font-weight="600">cables</text>
-        <!-- cable_metadata -->
         <rect x="160" y="130" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
         <text x="215" y="154" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">cable_metadata</text>
-        <!-- landing_points -->
         <rect x="160" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
         <text x="215" y="244" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">landing_points</text>
-        <!-- cable_landing_points -->
         <rect x="330" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="385" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">cable_landing</text>
-        <text x="385" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">_points</text>
-        <!-- endpoint_ip_samples -->
+        <text x="385" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_landing</text>
+        <text x="385" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_points</text>
         <rect x="330" y="295" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
-        <text x="385" y="311" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">endpoint_ip</text>
-        <text x="385" y="325" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">_samples</text>
-        <!-- geoip_mapping -->
+        <text x="385" y="311" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">endpoint_ip</text>
+        <text x="385" y="325" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_samples</text>
         <rect x="10"  y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
         <text x="65"  y="244" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">geoip_mapping</text>
-        <!-- cable_telemetry_samples -->
         <rect x="330" y="40"  width="130" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="2"/>
-        <text x="395" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#c49dff" font-weight="600">cable_telemetry</text>
-        <text x="395" y="70"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#c49dff" font-weight="600">_samples</text>
-        <!-- cable_telemetry_hops -->
+        <text x="395" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#c49dff" font-weight="600">cable_telemetry</text>
+        <text x="395" y="70"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#c49dff" font-weight="600">_samples</text>
         <rect x="500" y="40"  width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="555" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">cable_telemetry</text>
-        <text x="555" y="69"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">_hops</text>
-        <!-- cable_telemetry_reference -->
+        <text x="555" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_telemetry</text>
+        <text x="555" y="69"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_hops</text>
         <rect x="500" y="130" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="555" y="145" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">cable_telemetry</text>
-        <text x="555" y="159" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">_reference</text>
-        <!-- telemetry_alerts -->
+        <text x="555" y="145" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_telemetry</text>
+        <text x="555" y="159" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_reference</text>
         <rect x="500" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="555" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">telemetry</text>
-        <text x="555" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9"  fill="#a871ff">_alerts</text>
-        <!-- api_rate_limit -->
+        <text x="555" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">telemetry</text>
+        <text x="555" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_alerts</text>
         <rect x="500" y="295" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
         <text x="555" y="319" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">api_rate_limit</text>
-        <!-- FK arrows -->
         <g stroke="#a871ff" stroke-width="1.2" fill="none" opacity="0.6" marker-end="url(#arr)">
           <line x1="110" y1="145" x2="158" y2="69"/>
           <line x1="215" y1="78"  x2="215" y2="128"/>
@@ -195,8 +188,11 @@
       </svg>
     </section>
 
+    <!-- ÚLTIMA MEDIÇÃO -->
+    <p class="wc-last-measured">Última medição registrada: <strong data-stat="last">carregando…</strong></p>
+
     <!-- CTA -->
-    <button id="welcome-dismiss" class="btn primary wc-btn">Explorar o Mapa</button>
+    <button id="welcome-dismiss" class="btn primary wc-btn">Explorar o Mapa →</button>
 
   </div>
 </div>
