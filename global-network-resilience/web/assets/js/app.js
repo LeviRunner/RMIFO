@@ -401,11 +401,11 @@ const CITY_DATA = [
 
 function pathColor(d) {
   if (AppState.probeActiveCable && d.cable_id === AppState.probeActiveCable)
-    return 'rgba(255,240,60,1.0)';
-  if (!d.is_operational) return 'rgba(255,70,95,0.85)';
-  if (d.has_alert)       return 'rgba(255,185,45,0.90)';
-  if (d.has_tcp_probe)   return 'rgba(168,113,255,0.88)';
-  return 'rgba(45,220,130,0.82)';
+    return '#fff03c';
+  if (!d.is_operational) return '#ff465f';
+  if (d.has_alert)       return '#ffb92d';
+  if (d.has_tcp_probe)   return '#a871ff';
+  return '#2ddc82';
 }
 
 function refreshGlobeProbeHighlight() {
@@ -686,17 +686,12 @@ function initGlobe() {
         .pathPoints('points')
         .pathPointLat(p => p[0])
         .pathPointLng(p => p[1])
-        .pathPointAlt(() => 0)          // altitude 0 = flush on globe surface
+        .pathPointAlt(() => 0.001)      // slightly above surface to avoid z-fighting
         .pathColor(pathColor)
-        .pathStroke(0.5)
-        .pathDashLength(0.2)
-        .pathDashGap(0.8)
-        .pathDashInitialGap(() => Math.random())
-        .pathDashAnimateTime(d => {
-          if (!d.is_operational) return 0;
-          if (d.has_tcp_probe)   return 2500;
-          return 4000;
-        })
+        .pathStroke(0.9)
+        .pathDashLength(1)              // solid line (no dash gap)
+        .pathDashGap(0)
+        .pathDashAnimateTime(0)
         // ── Landing-point dots ─────────────────────────────────────────────
         .pointsData(pts)
         .pointLat('lat')
