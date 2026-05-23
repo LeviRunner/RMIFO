@@ -211,11 +211,14 @@ ul {
 
 #welcome-card.visible {
   display: flex;
+  align-items: flex-start;
+  overflow-y: auto;
 }
 
 .wc-inner {
   max-width: 480px;
   width: 100%;
+  margin: auto;
   background: rgba(17, 10, 34, 0.88);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -289,6 +292,29 @@ ul {
   color: var(--accent);
   font-size: 13px;
   margin-top: 1px;
+}
+
+.wc-schema {
+  margin: 14px 0 10px;
+  border: 1px solid rgba(168,113,255,0.22);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px 8px;
+  background: rgba(168,113,255,0.04);
+}
+
+.wc-schema-label {
+  font-size: 10px;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.wc-schema-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 180px;
 }
 
 .wc-btn {
