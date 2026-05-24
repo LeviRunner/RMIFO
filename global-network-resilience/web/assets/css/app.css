@@ -2016,6 +2016,69 @@ tr.bs-found {
   margin-left: 10px;
 }
 
+/* Protocol breakdown bar (Sonda & Telemetria) */
+.tel-proto-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(168,113,255,0.05);
+  border: 1px solid rgba(168,113,255,0.14);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.tel-proto-label {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.tel-proto-sep {
+  font-size: 12px;
+  color: rgba(255,255,255,0.15);
+  margin: 0 2px;
+}
+
+.tel-proto-src {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.tel-proto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms, color 140ms;
+  white-space: nowrap;
+}
+.tel-proto-chip:hover         { border-color: rgba(168,113,255,0.4); color: var(--text); background: rgba(168,113,255,0.1); }
+.tel-proto-chip.active        { border-color: rgba(168,113,255,0.7); color: #fff; background: rgba(168,113,255,0.2); }
+.tel-proto-chip.tpc           { border-color: rgba(168,113,255,0.3); color: #c49dff; }
+.tel-proto-chip.mtr           { border-color: rgba(240,178,79,0.3);  color: #f0b24f; }
+.tel-proto-chip.icm           { border-color: rgba(94,234,212,0.3);  color: #5eead4; }
+.tel-proto-chip.htp           { border-color: rgba(45,180,220,0.3);  color: #2db4dc; }
+.tel-proto-chip.syn           { border-color: rgba(65,218,140,0.3);  color: #41da8c; }
+
+.tel-proto-n {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+
 /* ── Real average (TCP Probe) section ────────────────────────────────────── */
 .real-subhead {
   display: flex;
@@ -2678,7 +2741,7 @@ tr.bs-found {
 
 /* Stats grid */
 .daily-stats {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 10px; margin-bottom: 20px;
 }
 .dstat {
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
@@ -2698,6 +2761,7 @@ tr.bs-found {
 .dstat.mtr:hover   { border-color: rgba(240,178,79,0.55); }
 .dstat.hop:hover   { border-color: rgba(245,158,11,0.60); }
 .dstat.warn:hover  { border-color: rgba(255,185,45,0.55); }
+.dstat.icmp  { border-color: rgba(94,234,212,0.30); }
 .dstat.http  { border-color: rgba(45,180,220,0.30); }
 .dstat.warn  { border-color: rgba(255,185,45,0.30); }
 .dstat-v {
@@ -2706,6 +2770,7 @@ tr.bs-found {
 .dstat.tcp   .dstat-v { color: #a871ff; }
 .dstat.synth .dstat-v { color: #41da8c; }
 .dstat.mtr   .dstat-v { color: #f0b24f; }
+.dstat.icmp  .dstat-v { color: #5eead4; }
 .dstat.http  .dstat-v { color: #2db4dc; }
 .dstat.warn  .dstat-v { color: #ffbe3c; }
 .dstat.hop   .dstat-v { color: #f59e0b; }
@@ -2716,11 +2781,24 @@ tr.bs-found {
    ══════════════════════════════════════════════════════════════════════════ */
 
 .hist-toolbar {
-  display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
 }
 .hist-toolbar select,
-.hist-toolbar input  { flex: 1; min-width: 160px; }
+.hist-toolbar input  { flex: 1; min-width: 140px; }
 .hist-toolbar .btn   { flex-shrink: 0; }
+
+.hist-lat-range {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.hist-lat-input  { width: 88px !important; min-width: unset !important; flex: none !important; }
+.hist-lat-sep    { font-size: 12px; color: var(--text-soft); }
+
+.hist-filter-anom-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--text-soft);
+  white-space: nowrap; cursor: pointer; flex-shrink: 0;
+}
+.hist-filter-anom-label input { width: auto; flex: none; min-width: unset; cursor: pointer; }
 
 .hist-summary {
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;

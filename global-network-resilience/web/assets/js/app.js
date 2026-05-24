@@ -1448,6 +1448,8 @@ function renderTelemetryChart(history, ciLatency, metric = 'latency_ms', label =
     ['latency_ms',      'Latência'],
     ['jitter_ms',       'Jitter'],
     ['packet_loss_pct', 'Perda %'],
+    ['throughput_mbps', 'Throughput'],
+    ['availability_pct','Disponib.'],
   ].map(([m, lbl]) =>
     `<button class="btn-sm ${m === metric ? 'primary' : ''}"
        onclick="window.__telemetryMetric('${m}','${lbl} (${m})')">
@@ -1534,6 +1536,70 @@ function renderTelemetryResult(payload) {
 
   const chartHtml = renderTelemetryChart(history, ci, 'latency_ms', 'Latência (ms)', realHist);
 
+  // Protocol breakdown counters
+  function countByProto(arr) {
+    const c = { tcp: 0, mtr: 0, icmp: 0, http: 0, synth: 0 };
+    for (const r of arr) {
+      const m = (r.method || r.proto || r.source || '').toLowerCase();
+      if (m.includes('mtr') || m.includes('traceroute')) c.mtr++;
+      else if (m.includes('tcp'))  c.tcp++;
+      else if (m.includes('icmp')) c.icmp++;
+      else if (m.includes('http')) c.http++;
+      else                         c.synth++;
+    }
+    return c;
+  }
+  const dbCounts   = countByProto(history);
+  const realCounts = countByProto(realHist);
+
+  function protoChip(label, count, colorClass, filterKey) {
+    if (!count) return '';
+    return `<button class="tel-proto-chip ${colorClass}"
+      onclick="window.__telemetryFilter('${filterKey}')"
+      title="Filtrar por ${label}">${label}<span class="tel-proto-n">${count}</span></button>`;
+  }
+
+  const protoBar = `<div class="tel-proto-bar">
+    <span class="tel-proto-label">Protocolos:</span>
+    ${protoChip('TCP',         realCounts.tcp  + dbCounts.tcp,  'tpc', 'tcp')}
+    ${protoChip('MTR',         realCounts.mtr  + dbCounts.mtr,  'mtr', 'mtr')}
+    ${protoChip('ICMP',        realCounts.icmp + dbCounts.icmp, 'icm', 'icmp')}
+    ${protoChip('HTTP',        realCounts.http + dbCounts.http, 'htp', 'http')}
+    ${protoChip('Sintético',   dbCounts.synth,                  'syn', 'synth')}
+    <span class="tel-proto-sep">|</span>
+    <button class="tel-proto-chip" onclick="window.__telemetryFilter('')" title="Mostrar todos">Todos <span class="tel-proto-n">${history.length + realHist.length}</span></button>
+    <span class="tel-proto-src">
+      <span class="tel-legend-db">■ BD ${history.length}</span>
+      <span class="tel-legend-real">■ TCP Probe ${realHist.length}</span>
+    </span>
+  </div>`;
+
+  // Wire filter: subset history by protocol and re-render chart
+  window.__telemetryFilter = (proto) => {
+    const chartDiv = document.getElementById('telemetry-chart-container');
+    if (!chartDiv) return;
+    const fHist = proto
+      ? AppState.lastTelemetryHistory.filter(r => {
+          const m = (r.method || r.proto || r.source || '').toLowerCase();
+          if (proto === 'synth') return !m.includes('tcp') && !m.includes('mtr') && !m.includes('icmp') && !m.includes('http');
+          return m.includes(proto);
+        })
+      : AppState.lastTelemetryHistory;
+    const fReal = proto && proto !== 'synth'
+      ? AppState.lastRealHistory.filter(r => {
+          const m = (r.method || r.proto || '').toLowerCase();
+          return m.includes(proto) || (!proto && true);
+        })
+      : (proto === 'synth' ? [] : AppState.lastRealHistory);
+    chartDiv.innerHTML = renderTelemetryChart(fHist, AppState.lastTelemetryCiLatency, 'latency_ms', 'Latência (ms)', fReal);
+    // Highlight active chip
+    document.querySelectorAll('.tel-proto-chip').forEach(b => b.classList.remove('active'));
+    if (proto) {
+      const active = document.querySelector(`.tel-proto-chip[onclick*="'${proto}'"]`);
+      if (active) active.classList.add('active');
+    }
+  };
+
   // Real-data card HTML (shown only when history files have data)
   const realCardHtml = realAvg && realAvg.sample_count > 0 ? `
     <div class="subhead real-subhead" style="margin-top:16px;">
@@ -1572,6 +1638,7 @@ function renderTelemetryResult(payload) {
 
   resultEl.innerHTML = `
     <h3>Telemetria · ${esc(cable.cable_name || 'Cabo')}</h3>
+    ${protoBar}
     ${realCardHtml}
     <div class="subhead" style="margin-top:16px;">Série Temporal</div>
     <div id="telemetry-chart-container">${chartHtml}</div>
@@ -2524,11 +2591,15 @@ function initDailyPage() {
     const tcp   = summary?.tcp       ?? live?.tcp         ?? null;
     const synth = summary?.synthetic ?? live?.synth       ?? null;
     const mtr   = summary?.mtr       ?? null;
+    const icmp  = summary?.icmp      ?? live?.icmp        ?? null;
+    const http  = summary?.http      ?? live?.http        ?? null;
     const anom  = summary?.anomalies ?? null;
     set('dstat-total',     progress ? `${progress.current}/${progress.total}` : total);
     set('dstat-tcp',       tcp);
     set('dstat-synth',     synth);
     set('dstat-mtr',       mtr);
+    set('dstat-icmp',      icmp);
+    set('dstat-http',      http);
     set('dstat-anomalies', anom);
   }
 
@@ -2780,14 +2851,18 @@ function initDailyPage() {
 // ─── History page ─────────────────────────────────────────────────────────────
 
 function initHistoryPage() {
-  const dateSelect  = document.getElementById('hist-date-sel');
-  const filterCable = document.getElementById('hist-filter-cable');
-  const filterProto = document.getElementById('hist-filter-proto');
-  const btnLoad     = document.getElementById('btn-hist-load');
-  const errEl       = document.getElementById('hist-error');
-  const summaryEl   = document.getElementById('hist-summary');
-  const tableWrap   = document.getElementById('hist-table-wrap');
-  const tbody       = document.getElementById('hist-tbody');
+  const dateSelect    = document.getElementById('hist-date-sel');
+  const filterCable   = document.getElementById('hist-filter-cable');
+  const filterProto   = document.getElementById('hist-filter-proto');
+  const filterStatus  = document.getElementById('hist-filter-status');
+  const filterLatMin  = document.getElementById('hist-filter-lat-min');
+  const filterLatMax  = document.getElementById('hist-filter-lat-max');
+  const filterAnom    = document.getElementById('hist-filter-anom');
+  const btnLoad       = document.getElementById('btn-hist-load');
+  const errEl         = document.getElementById('hist-error');
+  const summaryEl     = document.getElementById('hist-summary');
+  const tableWrap     = document.getElementById('hist-table-wrap');
+  const tbody         = document.getElementById('hist-tbody');
 
   let allCables = [];
 
@@ -2876,11 +2951,21 @@ function initHistoryPage() {
   }
 
   function applyFilters() {
-    const cq = (filterCable?.value || '').toLowerCase().trim();
-    const pq = filterProto?.value || '';
+    const cq      = (filterCable?.value  || '').toLowerCase().trim();
+    const pq      = filterProto?.value   || '';
+    const sq      = filterStatus?.value  || '';
+    const latMin  = parseFloat(filterLatMin?.value) || null;
+    const latMax  = parseFloat(filterLatMax?.value) || null;
+    const anomOnly= filterAnom?.checked  || false;
+
     let filtered = allCables;
     if (cq) filtered = filtered.filter(c => c.cable_id.toLowerCase().includes(cq));
     if (pq) filtered = filtered.filter(c => (c.proto || '').includes(pq));
+    if (sq === 'real')  filtered = filtered.filter(c => c.source !== 'db' && !(c.proto || '').includes('heuristic') && !(c.proto || '').includes('synthetic'));
+    if (sq === 'synth') filtered = filtered.filter(c => c.source === 'db' || (c.proto || '').includes('heuristic') || (c.proto || '').includes('synthetic'));
+    if (latMin !== null) filtered = filtered.filter(c => (c.latency_ms ?? 0) >= latMin);
+    if (latMax !== null) filtered = filtered.filter(c => (c.latency_ms ?? 9999) <= latMax);
+    if (anomOnly) filtered = filtered.filter(c => (c.latency_ms ?? 0) > 300);
     renderTable(filtered);
   }
 
@@ -2954,8 +3039,12 @@ function initHistoryPage() {
     if (dateSelect && dateSelect.options.length <= 1) loadHistoryDates();
   });
 
-  if (filterCable) filterCable.addEventListener('input', applyFilters);
-  if (filterProto) filterProto.addEventListener('change', applyFilters);
+  if (filterCable)  filterCable.addEventListener('input',  applyFilters);
+  if (filterProto)  filterProto.addEventListener('change', applyFilters);
+  if (filterStatus) filterStatus.addEventListener('change', applyFilters);
+  if (filterLatMin) filterLatMin.addEventListener('input',  applyFilters);
+  if (filterLatMax) filterLatMax.addEventListener('input',  applyFilters);
+  if (filterAnom)   filterAnom.addEventListener('change',  applyFilters);
 
   if (btnLoad) {
     btnLoad.addEventListener('click', async () => {
