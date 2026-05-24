@@ -636,7 +636,7 @@ function initGlobe() {
             },
             geometry: {
               type: 'LineString',
-              coordinates: p.points.map(pt => [pt[1], pt[0]])
+              coordinates: p.points  // API já retorna [lng, lat] (formato MapLibre)
             }
           }));
 

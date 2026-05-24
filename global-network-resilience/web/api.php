@@ -1459,6 +1459,163 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         jsonResponse($out);
     }
     $_projectDir = dirname(__DIR__);
+
+    // ── globe_data: cabos do GeoJSON + status do banco (banco opcional) ──────
+    if ($_modeNow === 'globe_data') {
+        $geoDataExt = is_dir($_projectDir . '/data/external')
+            ? $_projectDir . '/data/external'
+            : (is_dir($_projectDir . '/../data/external')
+                ? realpath($_projectDir . '/../data/external')
+                : $workspaceRoot . '/data/external');
+
+        $geoPath = $geoDataExt . '/submarine_cables.geojson';
+        if (!file_exists($geoPath)) {
+            jsonResponse(['error' => 'GeoJSON não encontrado: ' . $geoPath], 500);
+        }
+        $geoRaw = @file_get_contents($geoPath);
+        if ($geoRaw === false) {
+            jsonResponse(['error' => 'Falha ao ler GeoJSON.'], 500);
+        }
+        $geo = json_decode($geoRaw, true);
+        if (!isset($geo['features'])) {
+            jsonResponse(['error' => 'GeoJSON inválido.'], 500);
+        }
+
+        // Tenta enriquecer com dados do banco (opcional — falha silenciosa)
+        $cableStatus  = [];
+        $tcpProbedIds = [];
+        $lpByCoord    = [];
+        try {
+            $pdoG = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+
+            $statusRows = $pdoG->query("
+                SELECT c.cable_id, c.cable_name, c.is_operational,
+                       EXISTS(
+                           SELECT 1 FROM telemetry_alerts ta
+                           WHERE ta.cable_id = c.cable_id AND ta.resolved_at IS NULL
+                       ) AS has_alert
+                FROM cables c
+            ")->fetchAll();
+            foreach ($statusRows as $sr) {
+                $cableStatus[$sr['cable_id']] = [
+                    'cable_name'     => $sr['cable_name'],
+                    'is_operational' => normalizeBool($sr['is_operational']) ?? true,
+                    'has_alert'      => normalizeBool($sr['has_alert']) ?? false,
+                ];
+            }
+
+            try {
+                $tcpRows = $pdoG->query("
+                    SELECT DISTINCT cable_id
+                    FROM cable_telemetry_samples
+                    WHERE source = 'active_tcp_connect'
+                      AND measured_at > NOW() - INTERVAL '72 hours'
+                ")->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($tcpRows as $cid) { $tcpProbedIds[$cid] = true; }
+            } catch (\Throwable) {}
+
+            $lpRows = $pdoG->query("
+                SELECT lp.endpoint_id, lp.city_name, lp.country_name,
+                       lp.latitude, lp.longitude,
+                       (SELECT ip_start::text FROM endpoint_ip_samples eis
+                        WHERE eis.endpoint_id = lp.endpoint_id
+                        ORDER BY sample_order LIMIT 1) AS ip_sample
+                FROM landing_points lp
+                WHERE lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
+            ")->fetchAll();
+            foreach ($lpRows as $lr) {
+                $key = round((float)$lr['latitude'], 3) . ',' . round((float)$lr['longitude'], 3);
+                $lpByCoord[$key] = $lr;
+            }
+        } catch (\Throwable) {}
+
+        // Fallback: lê histórico local para TCP probe IDs
+        $histDir2 = $_projectDir . '/data/local/historico';
+        if (empty($tcpProbedIds) && is_dir($histDir2)) {
+            $probeFiles = array_merge(
+                glob($histDir2 . '/*_probe_full_*.json')   ?: [],
+                glob($histDir2 . '/*/*_probe_full_*.json') ?: []
+            );
+            if ($probeFiles) {
+                rsort($probeFiles);
+                $probeJson = @file_get_contents($probeFiles[0]);
+                if ($probeJson) {
+                    $probeData = json_decode($probeJson, true);
+                    foreach (($probeData['registros'] ?? []) as $reg) {
+                        if (($reg['source'] ?? '') === 'active_tcp_connect') {
+                            $tcpProbedIds[$reg['cable_id']] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        $paths = [];
+        $pts   = [];
+        $seen  = [];
+
+        foreach ($geo['features'] as $feature) {
+            $props     = $feature['properties'];
+            $cableId   = $props['cable_id'] ?? '';
+            $status    = $cableStatus[$cableId] ?? null;
+            $cableName = $status['cable_name']     ?? $props['cable_name'] ?? $cableId;
+            $isOp      = $status['is_operational'] ?? true;
+            $hasAlert  = $status['has_alert']      ?? false;
+            $hasTcp    = isset($tcpProbedIds[$cableId]);
+
+            $segments = $feature['geometry']['coordinates'] ?? [];
+            foreach ($segments as $seg) {
+                if (count($seg) < 2) continue;
+
+                // GeoJSON: [lng, lat] — mantém [lng, lat] para MapLibre GL
+                $pathPts = array_map(
+                    fn($c) => [(float)$c[0], (float)$c[1]],
+                    $seg
+                );
+
+                $startLng = $pathPts[0][0];
+                $startLat = $pathPts[0][1];
+                $endLng   = $pathPts[count($pathPts) - 1][0];
+                $endLat   = $pathPts[count($pathPts) - 1][1];
+
+                $paths[] = [
+                    'cable_id'       => $cableId,
+                    'cable_name'     => $cableName,
+                    'is_operational' => $isOp,
+                    'has_alert'      => $hasAlert,
+                    'has_tcp_probe'  => $hasTcp,
+                    'startLat'       => $startLat,
+                    'startLng'       => $startLng,
+                    'endLat'         => $endLat,
+                    'endLng'         => $endLng,
+                    'points'         => $pathPts,
+                ];
+
+                foreach ([[$startLat, $startLng], [$endLat, $endLng]] as [$lat, $lng]) {
+                    $key = round($lat, 3) . ',' . round($lng, 3);
+                    if (isset($seen[$key])) continue;
+                    $seen[$key] = true;
+                    $lp = $lpByCoord[$key] ?? null;
+                    $pts[] = [
+                        'endpoint_id'    => $lp['endpoint_id'] ?? $key,
+                        'lat'            => $lat,
+                        'lng'            => $lng,
+                        'city_name'      => $lp['city_name']    ?? '',
+                        'country_name'   => $lp['country_name'] ?? '',
+                        'cable_id'       => $cableId,
+                        'cable_name'     => $cableName,
+                        'ip_sample'      => $lp['ip_sample']    ?? '',
+                        'is_operational' => $isOp,
+                        'has_alert'      => $hasAlert,
+                        'has_tcp_probe'  => $hasTcp,
+                    ];
+                }
+            }
+        }
+
+        jsonResponse(['paths' => $paths, 'points' => $pts]);
+    }
+
     $_noDbModes = ['daily_start', 'daily_status', 'daily_cancel'];
 
     if (in_array($_modeNow, $_noDbModes, true)) {
@@ -2223,153 +2380,6 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             case 'alerts':
                 $alerts = fetchActiveAlerts($pdo);
                 jsonResponse(['total' => count($alerts), 'alerts' => $alerts]);
-
-            case 'globe_data':
-                $paths = [];
-                $pts   = [];
-                $seen  = [];
-
-                // Load status for all cables from DB (is_operational + active alerts)
-                $statusRows = $pdo->query("
-                    SELECT c.cable_id, c.cable_name, c.is_operational,
-                           EXISTS(
-                               SELECT 1 FROM telemetry_alerts ta
-                               WHERE ta.cable_id = c.cable_id AND ta.resolved_at IS NULL
-                           ) AS has_alert
-                    FROM cables c
-                ")->fetchAll();
-                $cableStatus = [];
-                foreach ($statusRows as $sr) {
-                    $cableStatus[$sr['cable_id']] = [
-                        'cable_name'     => $sr['cable_name'],
-                        'is_operational' => (bool) $sr['is_operational'],
-                        'has_alert'      => (bool) $sr['has_alert'],
-                    ];
-                }
-
-                // Load set of cable IDs with verified real TCP probe data
-                // Source 1: DB (primary — works on Railway and locally with DB)
-                $tcpProbedIds = [];
-                try {
-                    $tcpRows = $pdo->query("
-                        SELECT DISTINCT cable_id
-                        FROM cable_telemetry_samples
-                        WHERE source = 'active_tcp_connect'
-                          AND measured_at > NOW() - INTERVAL '72 hours'
-                    ")->fetchAll(PDO::FETCH_COLUMN);
-                    foreach ($tcpRows as $cid) {
-                        $tcpProbedIds[$cid] = true;
-                    }
-                } catch (\Throwable) {}
-
-                // Source 2: local JSON history files (fallback / offline)
-                $histDir = dirname(__DIR__) . '/data/local/historico';
-                if (is_dir($histDir)) {
-                    $probeFiles = array_merge(
-                        glob($histDir . '/*_probe_full_*.json')     ?: [],
-                        glob($histDir . '/*/*_probe_full_*.json')   ?: []
-                    );
-                    if ($probeFiles) {
-                        rsort($probeFiles);
-                        $probeJson = @file_get_contents($probeFiles[0]);
-                        if ($probeJson) {
-                            $probeData = json_decode($probeJson, true);
-                            foreach (($probeData['registros'] ?? []) as $reg) {
-                                if (($reg['source'] ?? '') === 'active_tcp_connect') {
-                                    $tcpProbedIds[$reg['cable_id']] = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Load landing-point city/country for coordinate-enriched points
-                $lpRows = $pdo->query("
-                    SELECT lp.endpoint_id, lp.city_name, lp.country_name,
-                           lp.latitude, lp.longitude,
-                           (SELECT ip_start::text FROM endpoint_ip_samples eis
-                            WHERE eis.endpoint_id = lp.endpoint_id
-                            ORDER BY sample_order LIMIT 1) AS ip_sample
-                    FROM landing_points lp
-                    WHERE lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
-                ")->fetchAll();
-                // Index by rounded coords for quick lookup
-                $lpByCoord = [];
-                foreach ($lpRows as $lr) {
-                    $key = round((float)$lr['latitude'], 3) . ',' . round((float)$lr['longitude'], 3);
-                    $lpByCoord[$key] = $lr;
-                }
-
-                // Read the GeoJSON with actual cable paths (all 710 cables, 1908 segments)
-                $geoPath = $dataExternal . '/submarine_cables.geojson';
-                if (!file_exists($geoPath)) {
-                    jsonResponse(['error' => 'GeoJSON não encontrado.'], 500);
-                }
-                $geo = json_decode(file_get_contents($geoPath), true);
-                if (!isset($geo['features'])) {
-                    jsonResponse(['error' => 'GeoJSON inválido.'], 500);
-                }
-
-                foreach ($geo['features'] as $feature) {
-                    $props   = $feature['properties'];
-                    $cableId = $props['cable_id'] ?? '';
-                    $status  = $cableStatus[$cableId] ?? null;
-                    $cableName   = $status['cable_name']     ?? $props['cable_name'] ?? $cableId;
-                    $isOp        = $status['is_operational'] ?? true;
-                    $hasAlert    = $status['has_alert']      ?? false;
-                    $hasTcpProbe = isset($tcpProbedIds[$cableId]);
-
-                    $segments = $feature['geometry']['coordinates'] ?? [];
-
-                    foreach ($segments as $seg) {
-                        if (count($seg) < 2) continue;
-
-                        // GeoJSON: [lng, lat] → convert each point to [lat, lng] for globe.gl
-                        $pathPts = array_map(
-                            fn($c) => [(float)$c[1], (float)$c[0]],
-                            $seg
-                        );
-
-                        [$startLat, $startLng] = $pathPts[0];
-                        [$endLat,   $endLng]   = $pathPts[count($pathPts) - 1];
-
-                        $paths[] = [
-                            'cable_id'       => $cableId,
-                            'cable_name'     => $cableName,
-                            'is_operational' => $isOp,
-                            'has_alert'      => $hasAlert,
-                            'has_tcp_probe'  => $hasTcpProbe,
-                            'startLat'       => $startLat,
-                            'startLng'       => $startLng,
-                            'endLat'         => $endLat,
-                            'endLng'         => $endLng,
-                            'points'         => $pathPts,
-                        ];
-
-                        // Landing-point dots at each segment endpoint
-                        foreach ([[$startLat, $startLng], [$endLat, $endLng]] as [$lat, $lng]) {
-                            $key = round($lat, 3) . ',' . round($lng, 3);
-                            if (isset($seen[$key])) continue;
-                            $seen[$key] = true;
-                            $lp = $lpByCoord[$key] ?? null;
-                            $pts[] = [
-                                'endpoint_id'    => $lp['endpoint_id'] ?? $key,
-                                'lat'            => $lat,
-                                'lng'            => $lng,
-                                'city_name'      => $lp['city_name']    ?? '',
-                                'country_name'   => $lp['country_name'] ?? '',
-                                'cable_id'       => $cableId,
-                                'cable_name'     => $cableName,
-                                'ip_sample'      => $lp['ip_sample']    ?? '',
-                                'is_operational' => $isOp,
-                                'has_alert'      => $hasAlert,
-                                'has_tcp_probe'  => $hasTcpProbe,
-                            ];
-                        }
-                    }
-                }
-                jsonResponse(['paths' => $paths, 'points' => $pts]);
-                break;
 
             case 'endpoints':
                 if ($q === '') {
