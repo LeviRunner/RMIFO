@@ -594,7 +594,7 @@ async function initGlobe() {
     const styleResp = await fetch(GLOBE_STYLE);
     if (styleResp.ok) {
       const styleJson = await styleResp.json();
-      styleJson.projection = { type: 'globe' };
+      styleJson.projection = { name: 'globe' };
       mapStyle = styleJson;
     }
   } catch (e) {
@@ -616,7 +616,7 @@ async function initGlobe() {
 
   map.on('load', () => {
     // Garante projeção globo 3D (best-effort — não aborta se falhar)
-    try { map.setProjection({ type: 'globe' }); } catch (e) {
+    try { map.setProjection({ name: 'globe' }); } catch (e) {
       console.warn('setProjection falhou:', e);
     }
 
