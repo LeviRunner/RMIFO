@@ -580,6 +580,8 @@ function initWelcomeCard() {
       countEl('[data-stat="landing-points"]', d.landing_points,     800);
       countEl('[data-stat="countries"]',      d.countries,          700);
       countEl('[data-stat="tables"]',         d.tables,             500);
+      countEl('[data-stat="switch-geos"]',    d.switch_geos,        1300);
+      countEl('[data-stat="cable-lps"]',      d.cable_lps,          1000);
 
       // Inline na seção "Como funciona"
       const inlineTablesEl = $('[data-stat="tables-inline"]');
@@ -767,6 +769,25 @@ async function initGlobe() {
         console.error('globe_data error:', err);
         if (globeTip) globeTip.textContent = `Erro ao carregar dados: ${err.message}`;
       });
+
+    // ── Linhas comutador → landing-point ─────────────────────────────────
+    apiFetch({ action: 'switch_lp_lines' })
+      .then(fc => {
+        if (!fc.features || !fc.features.length) return;
+        if (map.getSource('switch-lp-lines')) return;
+        map.addSource('switch-lp-lines', { type: 'geojson', data: fc });
+        map.addLayer({
+          id: 'switch-lp-lines-layer', type: 'line', source: 'switch-lp-lines',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color':     '#5eead4',
+            'line-width':     0.9,
+            'line-opacity':   0.28,
+            'line-dasharray': [2, 4],
+          },
+        });
+      })
+      .catch(() => {});
 
     // ── Comutadores geolocalizados (switch hop layer) ─────────────────────
     apiFetch({ action: 'hop_geo_points' })
@@ -2698,7 +2719,7 @@ function initDailyPage() {
     // live table (last 15 rows)
     const proto = p.proto || '—';
     const isTcp = proto.includes('tcp');
-    tableRows.unshift({ index: p.current, cable: p.cable, proto, lat: p.latency_ms, isTcp, hops: p.hop_count || 0 });
+    tableRows.unshift({ index: p.current, cable: p.cable, proto, lat: p.latency_ms, isTcp, hops: p.hop_count || 0, switches: p.switch_count || 0 });
     if (tableRows.length > 15) tableRows.pop();
     if (tableWrap) tableWrap.style.display = '';
     if (tbody) {
@@ -2709,6 +2730,7 @@ function initDailyPage() {
         <td><span class="badge ${r.isTcp ? 'yes' : ''}">${esc(r.isTcp ? 'TCP' : 'Sintético')}</span></td>
         <td class="${r.lat > 200 ? 'danger-text' : 'ok-text'}">${r.lat} ms</td>
         <td class="mono">${r.hops > 0 ? r.hops : '—'}</td>
+        <td class="mono">${r.switches > 0 ? r.switches : '—'}</td>
       </tr>`).join('');
     }
   }

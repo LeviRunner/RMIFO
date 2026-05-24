@@ -262,7 +262,7 @@ ul {
 /* ── Stats row (6 contadores do BD) ── */
 .wc-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-bottom: 24px;
 }
@@ -299,6 +299,49 @@ ul {
   line-height: 1.3;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* ── Linguagens / badges de stack ── */
+.wc-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  justify-content: center;
+}
+
+.wc-lang {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 20px;
+  text-decoration: none;
+  transition: border-color 150ms, background 150ms;
+}
+
+.wc-lang:hover {
+  border-color: rgba(168,113,255,0.40);
+  background: rgba(168,113,255,0.08);
+}
+
+.wc-lang img {
+  display: block;
+  flex-shrink: 0;
+}
+
+.wc-lang-name {
+  font-size: 11.5px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.wc-lang-pct {
+  font-size: 10px;
+  color: var(--text-soft);
+  font-family: "Oxanium", monospace;
 }
 
 /* ── Como funciona (3 passos horizontais) ── */

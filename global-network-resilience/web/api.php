@@ -1235,6 +1235,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             'countries'          => 0,
             'alerts_active'      => 0,
             'cable_hops'         => 0,
+            'switch_geos'        => 0,
+            'cable_lps'          => 0,
             'db_ok'              => false,
         ];
         if (extension_loaded('pdo_pgsql')) {
@@ -1249,6 +1251,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $out['countries']          = (int) $pdoS->query("SELECT COUNT(DISTINCT country_code) FROM landing_points WHERE country_code IS NOT NULL")->fetchColumn();
                 $out['alerts_active']      = (int) $pdoS->query("SELECT COUNT(*) FROM telemetry_alerts WHERE resolved_at IS NULL")->fetchColumn();
                 $out['cable_hops']         = (int) $pdoS->query("SELECT COUNT(*) FROM cable_telemetry_hops")->fetchColumn();
+                $out['switch_geos']        = (int) $pdoS->query("SELECT COUNT(*) FROM hop_switch_geolocations")->fetchColumn();
+                $out['cable_lps']          = (int) $pdoS->query("SELECT COUNT(*) FROM cable_landing_points")->fetchColumn();
                 $out['tables']             = (int) $pdoS->query(
                     "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"
                 )->fetchColumn();
@@ -1290,6 +1294,35 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'as_name'      => $r['as_name'],
                     'cable_count'  => (int)$r['cable_count'],
                 ],
+            ], $rows);
+            jsonResponse(['type' => 'FeatureCollection', 'features' => $features]);
+        } catch (Throwable) {
+            jsonResponse(['type' => 'FeatureCollection', 'features' => []]);
+        }
+    }
+
+    // ── switch_lp_lines: linhas GeoJSON comutador → ponto de aterrissagem ────
+    if ($_modeNow === 'switch_lp_lines') {
+        try {
+            $pdoL = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+            $rows = $pdoL->query("
+                SELECT DISTINCT hg.lng  AS sw_lng,  hg.lat  AS sw_lat,
+                                lp.longitude AS lp_lng, lp.latitude AS lp_lat
+                FROM hop_switch_geolocations hg
+                JOIN cable_telemetry_hops  cth ON cth.hop_ip    = hg.hop_ip
+                JOIN cable_landing_points  clp ON clp.cable_id  = cth.cable_id
+                JOIN landing_points        lp  ON lp.endpoint_id = clp.endpoint_id
+                WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
+                  AND lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
+                LIMIT 4000
+            ")->fetchAll();
+            $features = array_map(fn($r) => [
+                'type'       => 'Feature',
+                'geometry'   => ['type' => 'LineString', 'coordinates' => [
+                    [(float)$r['sw_lng'],  (float)$r['sw_lat']],
+                    [(float)$r['lp_lng'],  (float)$r['lp_lat']],
+                ]],
+                'properties' => [],
             ], $rows);
             jsonResponse(['type' => 'FeatureCollection', 'features' => $features]);
         } catch (Throwable) {
