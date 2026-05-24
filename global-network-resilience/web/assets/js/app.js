@@ -587,18 +587,18 @@ async function initGlobe() {
     return;
   }
 
-  // Busca o estilo CARTO e injeta globe projection diretamente no JSON
-  // (mais confiável do que depender de setProjection() em tempo de execução)
+  // Busca o estilo CARTO e injeta "projection":"globe" diretamente no JSON do estilo.
+  // MapLibre GL JS 4.x usa { type: 'globe' } — NÃO { name: 'globe' } (que é Mapbox).
   let mapStyle = GLOBE_STYLE;
   try {
     const styleResp = await fetch(GLOBE_STYLE);
     if (styleResp.ok) {
       const styleJson = await styleResp.json();
-      styleJson.projection = { name: 'globe' };
+      styleJson.projection = { type: 'globe' };
       mapStyle = styleJson;
     }
   } catch (e) {
-    console.warn('Falha ao pré-carregar estilo CARTO para globe projection:', e);
+    console.warn('Pré-carregamento do estilo falhou — usando URL direto:', e);
   }
 
   const map = new maplibregl.Map({
@@ -608,6 +608,7 @@ async function initGlobe() {
     zoom:               1.5,
     minZoom:            0.5,
     maxZoom:            14,
+    projection:         'globe',   // fallback se a injeção no estilo não funcionar
     attributionControl: false,
     antialias:          true,
   });
@@ -615,15 +616,20 @@ async function initGlobe() {
   AppState.map = map;
 
   map.on('load', () => {
-    // Garante projeção globo 3D (best-effort — não aborta se falhar)
-    try { map.setProjection({ name: 'globe' }); } catch (e) {
-      console.warn('setProjection falhou:', e);
+    // Reaplica projeção globo após o estilo carregar (garante mesmo quando o
+    // estilo remoto sobrescreve o que foi injetado).
+    // Usa string 'globe' — forma mais compatível com MapLibre GL JS 4.x.
+    try { map.setProjection('globe'); } catch (e) {
+      console.warn('setProjection("globe") falhou:', e);
+      try { map.setProjection({ type: 'globe' }); } catch (e2) {
+        console.warn('setProjection({type:"globe"}) também falhou:', e2);
+      }
     }
 
-    // Atmosfera ao redor do globo
+    // Atmosfera (espaço escuro = esfera visível)
     try {
       map.setFog({
-        'color':          'rgba(18, 8, 40, 0.9)',
+        color:            'rgba(18, 8, 40, 0.9)',
         'high-color':     '#030108',
         'horizon-blend':  0.1,
         'space-color':    '#030108',
