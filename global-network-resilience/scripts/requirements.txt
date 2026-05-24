@@ -1,1 +1,10 @@
 psycopg2-binary>=2.9
+requests>=2.31
+
+# Sonda SNMP — fork ativo compatível com Python 3.12+
+# (pysnmp original está em modo de manutenção)
+pysnmp-lextudio>=6.2
+
+# Captura passiva LLDP/NetFlow — requer root no host
+# Opcional: o script detecta automaticamente se está disponível
+scapy>=2.5
