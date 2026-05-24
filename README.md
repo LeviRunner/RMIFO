@@ -19,14 +19,14 @@ Plataforma open-source de monitoramento e análise de cabos submarinos de fibra 
 
 ## Linguagens
 
-| Linguagem | % |
-|---|---|
-| JavaScript | 30.7% |
-| PHP | 20.7% |
-| Python | 18.7% |
-| CSS | 16.1% |
-| HTML | 7.7% |
-| Shell | 6.1% |
+| Linguagem |
+|---|
+| JavaScript |
+| PHP |
+| Python |
+| CSS |
+| HTML |
+| Shell |
 
 ---
 
