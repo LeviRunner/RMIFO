@@ -2894,7 +2894,27 @@ function initHistoryPage() {
   const tableWrap     = document.getElementById('hist-table-wrap');
   const tbody         = document.getElementById('hist-tbody');
 
-  let allCables = [];
+  let allCables   = [];
+  let vecCableIds = { A: new Set(), B: new Set(), C: new Set(), D: new Set(), E: new Set() };
+  let activeVecs  = new Set(); // empty = show all
+
+  // ── Carrega conjuntos de cable_ids por vetor avançado ────────────────────
+  async function loadVectorCableIds() {
+    const wrap = document.getElementById('hist-vector-filters');
+    if (!wrap) return;
+    try {
+      const data = await apiFetch({ action: 'vector_cable_ids' });
+      for (const v of ['A', 'B', 'C', 'D', 'E']) {
+        vecCableIds[v] = new Set(data[v] || []);
+        const chip = wrap.querySelector(`[data-vec="${v}"]`);
+        if (chip) {
+          const n = vecCableIds[v].size;
+          chip.textContent = `${v}${n ? ' ' + n : ''}`;
+          chip.disabled    = n === 0;
+        }
+      }
+    } catch { /* tabelas ainda não existem */ }
+  }
 
   // ── Label humanizado para cada valor de proto ─────────────────────────────
   function protoLabel(p) {
@@ -2996,6 +3016,11 @@ function initHistoryPage() {
     if (latMin !== null) filtered = filtered.filter(c => (c.latency_ms ?? 0) >= latMin);
     if (latMax !== null) filtered = filtered.filter(c => (c.latency_ms ?? 9999) <= latMax);
     if (anomOnly) filtered = filtered.filter(c => (c.latency_ms ?? 0) > 300);
+    if (activeVecs.size > 0) {
+      const allowed = new Set();
+      for (const v of activeVecs) { for (const id of vecCableIds[v]) allowed.add(id); }
+      filtered = filtered.filter(c => allowed.has(c.cable_id));
+    }
     renderTable(filtered);
   }
 
@@ -3064,9 +3089,10 @@ function initHistoryPage() {
     }
   }
 
-  // Carrega datas ao abrir a página (nav click)
+  // Carrega datas e vetores ao abrir a página (nav click)
   document.querySelector('[data-page="history"]')?.addEventListener('click', () => {
     if (dateSelect && dateSelect.options.length <= 1) loadHistoryDates();
+    if (Object.values(vecCableIds).every(s => s.size === 0)) loadVectorCableIds();
   });
 
   if (filterCable)  filterCable.addEventListener('input',  applyFilters);
@@ -3075,6 +3101,15 @@ function initHistoryPage() {
   if (filterLatMin) filterLatMin.addEventListener('input',  applyFilters);
   if (filterLatMax) filterLatMax.addEventListener('input',  applyFilters);
   if (filterAnom)   filterAnom.addEventListener('change',  applyFilters);
+
+  document.getElementById('hist-vector-filters')?.addEventListener('click', e => {
+    const chip = e.target.closest('[data-vec]');
+    if (!chip || chip.disabled) return;
+    const v = chip.dataset.vec;
+    activeVecs.has(v) ? activeVecs.delete(v) : activeVecs.add(v);
+    chip.classList.toggle('active', activeVecs.has(v));
+    applyFilters();
+  });
 
   if (btnLoad) {
     btnLoad.addEventListener('click', async () => {

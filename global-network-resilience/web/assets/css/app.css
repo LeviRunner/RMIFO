@@ -2931,6 +2931,32 @@ tr.bs-found {
 }
 .hist-filter-anom-label input { width: auto; flex: none; min-width: unset; cursor: pointer; }
 
+.hist-vector-filters {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.hist-vec-label {
+  font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .06em; flex-shrink: 0;
+}
+.hist-vec-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 32px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-soft); font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.hist-vec-chip:hover:not(:disabled) {
+  background: rgba(139,92,246,0.18); border-color: rgba(139,92,246,0.5); color: #c4b5fd;
+}
+.hist-vec-chip.active {
+  background: rgba(139,92,246,0.32); border-color: #8b5cf6; color: #ede9fe;
+}
+.hist-vec-chip:disabled {
+  opacity: .35; cursor: not-allowed;
+}
+
 .hist-summary {
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;
 }

@@ -822,15 +822,18 @@ def run_full_advanced(conn):
         all_ips += [r[0] for r in cur.fetchall()]
     bulk_dns_ptr_fingerprint(list(set(all_ips)))
 
-    # Vetor B: NETCONF nos switches com porta 830 aberta
+    # Vetor B: NETCONF nos switches com porta 830 aberta (preserva cable_id)
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT DISTINCT ip_address::text FROM switch_banners
-            WHERE port = 830 LIMIT 20
+            SELECT DISTINCT ON (ip_address::text) ip_address::text, cable_id
+            FROM switch_banners
+            WHERE port = 830
+            ORDER BY ip_address, cable_id NULLS LAST
+            LIMIT 20
         """)
-        netconf_targets = [r[0] for r in cur.fetchall()]
-    if netconf_targets:
-        run_netconf_collection(conn, netconf_targets)
+        netconf_map = {r[0]: r[1] for r in cur.fetchall()}
+    for ip, cid in netconf_map.items():
+        run_netconf_collection(conn, [ip], cable_id=cid)
 
     # Vetor C: MRT dump do RouteViews
     if asns:
@@ -838,17 +841,19 @@ def run_full_advanced(conn):
         if mrt_path:
             parse_mrt_for_asn(mrt_path, asns, conn=conn)
 
-    # Vetor D: MPLS traceroute para os principais destinos
+    # Vetor D: MPLS traceroute para os principais destinos (inclui cable_id)
+    ip_to_cable = dict(zip(landing_ips, cable_ids))
     for dst_ip in landing_ips[:10]:
+        cid = ip_to_cable.get(dst_ip)
         lsrs = mpls_traceroute(dst_ip)
         if lsrs and conn:
             with conn.cursor() as cur:
                 psycopg2.extras.execute_values(cur, """
                     INSERT INTO mpls_lsr_map
-                        (dst_ip, hop_number, lsr_ip, mpls_label, ttl_mode, rtt_ms)
+                        (dst_ip, hop_number, lsr_ip, mpls_label, ttl_mode, rtt_ms, cable_id)
                     VALUES %s
                 """, [(dst_ip, l["hop_number"], l["lsr_ip"],
-                       l.get("mpls_label"), l["ttl_mode"], l["rtt_ms"])
+                       l.get("mpls_label"), l["ttl_mode"], l["rtt_ms"], cid)
                       for l in lsrs])
             conn.commit()
 

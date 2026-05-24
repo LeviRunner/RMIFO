@@ -412,12 +412,21 @@ async function main() {
                         telemetry_model_version, metadata
                     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
                     ON CONFLICT (cable_id, measured_at) DO UPDATE SET
-                        latency_ms       = EXCLUDED.latency_ms,
-                        jitter_ms        = EXCLUDED.jitter_ms,
-                        source           = EXCLUDED.source,
-                        method           = EXCLUDED.method,
-                        confidence_score = EXCLUDED.confidence_score,
-                        metadata         = EXCLUDED.metadata
+                        sent_at                 = EXCLUDED.sent_at,
+                        received_at             = EXCLUDED.received_at,
+                        latency_ms              = EXCLUDED.latency_ms,
+                        jitter_ms               = EXCLUDED.jitter_ms,
+                        packet_loss_pct         = EXCLUDED.packet_loss_pct,
+                        throughput_mbps         = EXCLUDED.throughput_mbps,
+                        packets_per_second      = EXCLUDED.packets_per_second,
+                        availability_pct        = EXCLUDED.availability_pct,
+                        route_error_count       = EXCLUDED.route_error_count,
+                        source                  = EXCLUDED.source,
+                        method                  = EXCLUDED.method,
+                        confidence_score        = EXCLUDED.confidence_score,
+                        estimated               = EXCLUDED.estimated,
+                        telemetry_model_version = EXCLUDED.telemetry_model_version,
+                        metadata                = EXCLUDED.metadata
                     RETURNING sample_id
                 `, [
                     cableId, measAt, sentAt, recvAt,
@@ -434,7 +443,14 @@ async function main() {
                             (sample_id, cable_id, hop_number, hop_ip,
                              rtt_last_ms, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, rtt_stdev_ms, loss_pct)
                         VALUES ($1,$2,$3,$4::inet,$5,$6,$7,$8,$9,$10)
-                        ON CONFLICT (sample_id, hop_number) DO NOTHING`;
+                        ON CONFLICT (sample_id, hop_number) DO UPDATE SET
+                            hop_ip       = EXCLUDED.hop_ip,
+                            rtt_last_ms  = EXCLUDED.rtt_last_ms,
+                            rtt_avg_ms   = EXCLUDED.rtt_avg_ms,
+                            rtt_best_ms  = EXCLUDED.rtt_best_ms,
+                            rtt_worst_ms = EXCLUDED.rtt_worst_ms,
+                            rtt_stdev_ms = EXCLUDED.rtt_stdev_ms,
+                            loss_pct     = EXCLUDED.loss_pct`;
                     for (const h of mr.hubs) {
                         const ip = h.host && h.host !== '???' ? h.host : null;
                         await db.query(hopQ, [

@@ -1339,6 +1339,56 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
     }
 
+    // ── vector_cable_ids: cables verificados por cada vetor avançado (A–E) ───
+    if ($_modeNow === 'vector_cable_ids') {
+        $pdoV = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+        $out  = ['A' => [], 'B' => [], 'C' => [], 'D' => [], 'E' => []];
+
+        // Vetor A — SSH Banner Grab + TLS Cert
+        try {
+            $rows = $pdoV->query("SELECT DISTINCT cable_id FROM switch_banners WHERE cable_id IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
+            $out['A'] = $rows;
+        } catch (Throwable) {}
+
+        // Vetor B — NETCONF / RESTCONF
+        try {
+            $rows = $pdoV->query("SELECT DISTINCT cable_id FROM netconf_state WHERE cable_id IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
+            $out['B'] = $rows;
+        } catch (Throwable) {}
+
+        // Vetor C — RouteViews MRT Dump (via AS mapping)
+        try {
+            $rows = $pdoV->query("
+                SELECT DISTINCT cth.cable_id
+                FROM cable_telemetry_hops cth
+                JOIN hop_switch_geolocations hg  ON hg.hop_ip = cth.hop_ip
+                JOIN mrt_bgp_peers          mbp  ON mbp.peer_asn = hg.as_number::text
+                WHERE cth.cable_id IS NOT NULL
+            ")->fetchAll(PDO::FETCH_COLUMN);
+            $out['C'] = $rows;
+        } catch (Throwable) {}
+
+        // Vetor D — MPLS Traceroute + IXP Peering LAN
+        try {
+            $rows = $pdoV->query("SELECT DISTINCT cable_id FROM mpls_lsr_map WHERE cable_id IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
+            $out['D'] = $rows;
+        } catch (Throwable) {}
+
+        // Vetor E — Shodan API + DNS PTR (via AS mapping)
+        try {
+            $rows = $pdoV->query("
+                SELECT DISTINCT cth.cable_id
+                FROM cable_telemetry_hops cth
+                JOIN hop_switch_geolocations hg  ON hg.hop_ip = cth.hop_ip
+                JOIN ixp_peering_lan         ipl ON ipl.peer_asn = hg.as_number::text
+                WHERE cth.cable_id IS NOT NULL
+            ")->fetchAll(PDO::FETCH_COLUMN);
+            $out['E'] = $rows;
+        } catch (Throwable) {}
+
+        jsonResponse($out);
+    }
+
     // ── hop_trace: executa MTR e retorna análise salto a salto ──────────────
     if ($_modeNow === 'hop_trace') {
         $cableId    = trim((string) ($_reqAll['cable_id'] ?? ''));
