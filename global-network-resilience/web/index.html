@@ -380,11 +380,14 @@
 
   <!-- PÁGINA: DETALHES -->
   <section class="page" id="page-detail">
-    <div class="page-inner">
-      <div class="page-toolbar">
-        <input id="detail-picker" list="cable-list" placeholder="Digite ou selecione um cable_id">
-        <datalist id="cable-list"></datalist>
-        <button class="btn primary" id="detail-load">Abrir</button>
+    <div class="page-inner probe-v2">
+      <div class="detail-search-bar">
+        <div class="probe-cable-field">
+          <input id="detail-picker" list="cable-list" type="text"
+                 placeholder="Nome ou ID do cabo…" autocomplete="off" spellcheck="false">
+          <datalist id="cable-list"></datalist>
+        </div>
+        <button class="btn primary" id="detail-load">Ver Detalhes</button>
       </div>
       <div class="error" id="detail-error"></div>
       <div class="empty" id="detail-empty">Selecione um cabo para ver endpoints, geografia e amostras de IP.</div>
