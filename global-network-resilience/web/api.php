@@ -1660,10 +1660,22 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     $info = @json_decode(@file_get_contents($runFile), true);
                     $pid  = (string) ($info['pid'] ?? '');
                     if ($pid !== '' && file_exists('/proc/' . $pid)) {
-                        jsonResponse(['status' => 'already_running', 'log_file' => $info['log_file'] ?? '', 'pid' => $pid]);
+                        // PID is alive — but only block if the associated log is NOT completed.
+                        // A completed log + live PID means PID was recycled by the OS; start fresh.
+                        $prevLog     = (string) ($info['log_file'] ?? '');
+                        $prevContent = $prevLog !== '' ? ((string) @file_get_contents($prevLog)) : '';
+                        $prevDone    = str_contains($prevContent, 'Ciclo concluído com sucesso')
+                                    || str_contains($prevContent, 'Ciclo concluído COM ERROS');
+                        if (!$prevDone) {
+                            jsonResponse(['status' => 'already_running', 'log_file' => $prevLog, 'pid' => $pid]);
+                        }
                     }
                     @unlink($runFile);
                 }
+
+                // Clear stale live file from any previous run so the new run starts clean
+                $liveFile = $histDir . '/.probe_live.json';
+                if (file_exists($liveFile)) { @unlink($liveFile); }
 
                 $fullScan  = ($_reqAll['full_scan']  ?? '0') === '1' ? '1' : '0';
                 $mtrCycles = max(1, min(100, (int) ($_reqAll['mtr_cycles'] ?? 5)));
@@ -1855,8 +1867,10 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 if (file_exists($liveFile)) {
                     $liveAge  = time() - (@filemtime($liveFile) ?: 0);
                     $liveData = @json_decode(@file_get_contents($liveFile), true);
-                    // Live status válido por 5 min (uma entrada por cabo; cabos lentos podem demorar)
-                    if ($liveData && isset($liveData['current']) && $liveAge < 300) {
+                    // Live status válido por 5 min e deve pertencer ao log atual
+                    $liveLogFile = (string) ($liveData['log_file'] ?? '');
+                    $liveMatchesRun = ($liveLogFile === '' || $liveLogFile === $logFile);
+                    if ($liveData && isset($liveData['current']) && $liveAge < 300 && $liveMatchesRun) {
                         $progress = [
                             'current'      => (int)   ($liveData['current']      ?? 0),
                             'total'        => (int)   ($liveData['total']        ?? 699),

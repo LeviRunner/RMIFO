@@ -332,9 +332,10 @@ async function main() {
         }
 
         // 1. MTR
+        let mr = null;
         if (host && mtrUsed < MTR_BUDGET) {
             const cyc = Math.min(MTR_CYCLES, MTR_BUDGET - mtrUsed);
-            const mr  = await mtrProbe(host, cyc, TIMEOUT_S);
+            mr = await mtrProbe(host, cyc, TIMEOUT_S);
             if (mr) {
                 latMs  = r3(base.lat * 0.4 + mr.rtt * 0.6);
                 conf   = 0.90; est = false; src = 'active_mtr'; meth = 'mtr-udp';
@@ -493,6 +494,7 @@ async function main() {
             hop_count:    hopCount,
             switch_count: switchCount,
             hops_preview: hopsPreview,
+            log_file:     process.env.LOG_FILE || '',
             updated_at:   new Date().toISOString(),
         });
 
