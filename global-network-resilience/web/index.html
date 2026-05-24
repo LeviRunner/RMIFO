@@ -620,7 +620,7 @@
         <div class="pv-metrics">
           <div class="pv-m"><span class="pv-k">Latência RTT</span><span class="pv-v accent" id="pv-lat">—</span></div>
           <div class="pv-m"><span class="pv-k">Protocolo</span><span class="pv-v" id="pv-proto">—</span></div>
-          <div class="pv-m"><span class="pv-k">Pacotes</span><span class="pv-v mono"><span id="pv-pkt-n">0</span><span class="pv-muted">/100</span></span></div>
+          <div class="pv-m"><span class="pv-k">Pacotes</span><span class="pv-v mono"><span id="pv-pkt-n">0</span><span class="pv-muted" id="pv-pkt-target">/—</span></span></div>
           <div class="pv-m"><span class="pv-k">Portas</span><span class="pv-v mono" id="pv-ports">—</span></div>
           <div class="pv-m"><span class="pv-k">Saltos (hops)</span><span class="pv-v mono pv-hop-accent" id="pv-hop-n">—</span></div>
           <div class="pv-m"><span class="pv-k">Comutadores geo</span><span class="pv-v mono" id="pv-switch-n">—</span></div>
@@ -630,10 +630,10 @@
       <!-- Cards de estatísticas -->
       <div class="daily-stats" id="daily-stats">
         <div class="dstat"><div class="dstat-v" id="dstat-total">—</div><div class="dstat-l">Cabos</div></div>
-        <div class="dstat tcp"><div class="dstat-v" id="dstat-tcp">—</div><div class="dstat-l">TCP Real</div></div>
+        <div class="dstat tcp"><div class="dstat-v" id="dstat-tcp">—</div><div class="dstat-l">TCP SYN-ACK</div></div>
+        <div class="dstat jitter"><div class="dstat-v" id="dstat-jitter">—</div><div class="dstat-l">TCP Jitter</div></div>
         <div class="dstat synth"><div class="dstat-v" id="dstat-synth">—</div><div class="dstat-l">Sintético</div></div>
         <div class="dstat"><div class="dstat-v" id="dstat-mtr">—</div><div class="dstat-l">MTR</div></div>
-        <div class="dstat icmp"><div class="dstat-v" id="dstat-icmp">—</div><div class="dstat-l">ICMP</div></div>
         <div class="dstat http"><div class="dstat-v" id="dstat-http">—</div><div class="dstat-l">HTTP</div></div>
         <div class="dstat hop"><div class="dstat-v" id="dstat-switches">—</div><div class="dstat-l">Comutadores</div></div>
         <div class="dstat warn"><div class="dstat-v" id="dstat-anomalies">—</div><div class="dstat-l">Anomalias</div></div>

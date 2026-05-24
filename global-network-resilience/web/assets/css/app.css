@@ -2781,9 +2781,10 @@ tr.bs-found {
   font-size: 11px; font-weight: 700; letter-spacing: .04em;
   background: rgba(13,148,136,.2); color: #0d9488; border: 1px solid rgba(13,148,136,.4);
 }
-.pv-proto-chip.synth { background: rgba(245,158,11,.15); color: #f59e0b; border-color: rgba(245,158,11,.35); }
-.pv-proto-chip.mtr   { background: rgba(59,130,246,.15);  color: #3b82f6; border-color: rgba(59,130,246,.35); }
-.pv-proto-chip.http  { background: rgba(139,92,246,.15);  color: #8b5cf6; border-color: rgba(139,92,246,.35); }
+.pv-proto-chip.synth   { background: rgba(245,158,11,.15); color: #f59e0b; border-color: rgba(245,158,11,.35); }
+.pv-proto-chip.mtr     { background: rgba(59,130,246,.15);  color: #3b82f6; border-color: rgba(59,130,246,.35); }
+.pv-proto-chip.http    { background: rgba(139,92,246,.15);  color: #8b5cf6; border-color: rgba(139,92,246,.35); }
+.pv-proto-chip.jitter  { background: rgba(249,115,22,.15);  color: #f97316; border-color: rgba(249,115,22,.35); }
 .pv-ep-pair { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
 .pv-ep-arr  { color: rgba(255,255,255,.2); }
 
@@ -2892,8 +2893,8 @@ tr.bs-found {
 .dstat.mtr:hover   { border-color: rgba(240,178,79,0.55); }
 .dstat.hop:hover   { border-color: rgba(245,158,11,0.60); }
 .dstat.warn:hover  { border-color: rgba(255,185,45,0.55); }
-.dstat.icmp  { border-color: rgba(94,234,212,0.30); }
-.dstat.http  { border-color: rgba(45,180,220,0.30); }
+.dstat.jitter { border-color: rgba(249,115,22,0.30); }
+.dstat.http   { border-color: rgba(45,180,220,0.30); }
 .dstat.warn  { border-color: rgba(255,185,45,0.30); }
 .dstat-v {
   font-size: 26px; font-weight: 700; color: var(--fg); line-height: 1.1; margin-bottom: 4px;
@@ -2901,7 +2902,7 @@ tr.bs-found {
 .dstat.tcp   .dstat-v { color: #a871ff; }
 .dstat.synth .dstat-v { color: #41da8c; }
 .dstat.mtr   .dstat-v { color: #f0b24f; }
-.dstat.icmp  .dstat-v { color: #5eead4; }
+.dstat.jitter .dstat-v { color: #f97316; }
 .dstat.http  .dstat-v { color: #2db4dc; }
 .dstat.warn  .dstat-v { color: #ffbe3c; }
 .dstat.hop   .dstat-v { color: #f59e0b; }

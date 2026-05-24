@@ -72,7 +72,18 @@ REQUEST_TIMEOUT         = 10
 MAX_WORKERS             = int(os.getenv("PROBE_WORKERS", "8"))
 SNMP_COMMUNITY          = os.getenv("SNMP_COMMUNITY", "public")
 FULL_SCAN_PORTS         = (443, 80, 22, 8443, 8080)
-PACKETS_PER_ROUTE       = 100
+
+# ── Cobertura calibrada por variação (16 variações ativas) ────────────────────
+MTR_CYCLES_DEFAULT  = int(os.getenv("MTR_CYCLES",        "15"))  # ×hops → ~300 pkts/rota
+MTR_CYCLES_UNSTABLE = int(os.getenv("MTR_CYCLES_UNST",   "30"))  # cabo instável: ×2
+MTR_BUDGET_TOTAL    = int(os.getenv("MTR_BUDGET",        "300")) # limite global de ciclos
+TCP_JITTER_PACKETS  = int(os.getenv("TCP_JITTER_PKTS",   "50"))  # p95 estável c/ 50 amostras
+TCP_CONN_TIMEOUT    = float(os.getenv("TCP_CONN_TIMEOUT","4.0")) # segundos por porta
+HTTP_RETRIES        = int(os.getenv("HTTP_RETRIES",      "3"))   # 3 requisições → média
+HTTP_TIMEOUT        = int(os.getenv("HTTP_TIMEOUT",      "8"))   # segundos
+SNMP_RETRIES        = int(os.getenv("SNMP_RETRIES",      "1"))   # 1 retry por OID
+BGP_REQUEST_DELAY   = float(os.getenv("BGP_DELAY",       "0.5")) # rate-limit RIPE API
+PACKETS_PER_ROUTE   = TCP_JITTER_PACKETS                         # alias → jitter passes
 
 SNMP_OIDS = {
     "sysDescr":     "1.3.6.1.2.1.1.1.0",
@@ -160,7 +171,7 @@ def extract_host(url: str | None) -> str | None:
         return None
 
 
-def probe_mtr(host: str, cycles: int = 100, timeout: int = 10):
+def probe_mtr(host: str, cycles: int = MTR_CYCLES_DEFAULT, timeout: int = HTTP_TIMEOUT):
     cmd = [
         "mtr", "--report", f"--report-cycles={cycles}",
         "--no-dns", "--json", "--timeout", str(timeout),
@@ -452,7 +463,7 @@ def cmd_telemetry(args: argparse.Namespace) -> None:
     log_dir = get_log_dir(base_dir)
     stats = {"mtr": 0, "tcp": 0, "http": 0, "synthetic": 0, "hops_total": 0}
     probe_records: list[dict] = []
-    mtr_budget = 250
+    mtr_budget = MTR_BUDGET_TOTAL
     used_budget = 0
 
     with conn:
@@ -490,7 +501,7 @@ def cmd_telemetry(args: argparse.Namespace) -> None:
             open_ports = discover_open_ports(host, ports=FULL_SCAN_PORTS, timeout=1.5)
 
         current_cycles = (
-            args.mtr_cycles * 3
+            MTR_CYCLES_UNSTABLE
             if health_map.get(cable_id, {}).get("is_unstable") else args.mtr_cycles
         )
         if used_budget + current_cycles > mtr_budget:
@@ -846,7 +857,7 @@ def probe_snmp_target(target: dict) -> None:
             err_ind, err_status, _, var_binds = next(getCmd(
                 SnmpEngine(),
                 CommunityData(SNMP_COMMUNITY, mpModel=1),
-                UdpTransportTarget((ip, 161), timeout=2, retries=1),
+                UdpTransportTarget((ip, 161), timeout=2, retries=SNMP_RETRIES),
                 ContextData(),
                 ObjectType(ObjectIdentity(oid)),
             ))
@@ -1016,7 +1027,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_tel.add_argument("--limit",        type=int,  default=9999)
     p_tel.add_argument("--seed",         type=int,  default=42)
     p_tel.add_argument("--timeout",      type=int,  default=6)
-    p_tel.add_argument("--mtr-cycles",   type=int,  default=3)
+    p_tel.add_argument("--mtr-cycles",   type=int,  default=MTR_CYCLES_DEFAULT)
     p_tel.add_argument("--full-scan",    action="store_true")
     p_tel.add_argument("--probe-report", type=str,  default="")
 
@@ -1036,7 +1047,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--limit",      type=int,  default=9999)
     p_all.add_argument("--seed",       type=int,  default=42)
     p_all.add_argument("--timeout",    type=int,  default=6)
-    p_all.add_argument("--mtr-cycles", type=int,  default=3)
+    p_all.add_argument("--mtr-cycles", type=int,  default=MTR_CYCLES_DEFAULT)
     p_all.add_argument("--full-scan",  action="store_true")
     p_all.add_argument("--probe-report", type=str, default="")
 

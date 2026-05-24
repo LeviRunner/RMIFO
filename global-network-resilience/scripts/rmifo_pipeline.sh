@@ -36,7 +36,7 @@ VENV="$WORKSPACE_ROOT/.venv"
 
 # ── Parâmetros do ciclo diário ────────────────────────────────────────────────
 FULL_SCAN="${FULL_SCAN:-1}"
-MTR_CYCLES="${MTR_CYCLES:-100}"
+MTR_CYCLES="${MTR_CYCLES:-15}"
 TIMEOUT="${TIMEOUT:-8}"
 PACKET_COUNT="${PACKET_COUNT:-5}"
 PACKET_LOSS_THRESHOLD="${PACKET_LOSS_THRESHOLD:-50}"

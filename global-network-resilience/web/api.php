@@ -1836,11 +1836,12 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $summary = null;
                 if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
                     $summary = ['inserted' => (int) $m[1]];
-                    if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',  $content, $m2)) $summary['tcp']       = (int) $m2[1];
-                    if (preg_match('/Sintetico\s*:\s*(\d+)/m',     $content, $m2)) $summary['synthetic'] = (int) $m2[1];
-                    if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',  $content, $m2)) $summary['mtr']       = (int) $m2[1];
-                    if (preg_match('/HTTP curl\s*:\s*(\d+)/m',      $content, $m2)) $summary['http']      = (int) $m2[1];
-                    if (preg_match('/(\d+) anomalias/m',            $content, $m2)) $summary['anomalies'] = (int) $m2[1];
+                    if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',  $content, $m2)) $summary['tcp']        = (int) $m2[1];
+                    if (preg_match('/TCP Jitter\s*:\s*(\d+)/m',   $content, $m2)) $summary['tcp_jitter'] = (int) $m2[1];
+                    if (preg_match('/Sintetico\s*:\s*(\d+)/m',     $content, $m2)) $summary['synthetic']  = (int) $m2[1];
+                    if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',  $content, $m2)) $summary['mtr']        = (int) $m2[1];
+                    if (preg_match('/HTTP curl\s*:\s*(\d+)/m',      $content, $m2)) $summary['http']       = (int) $m2[1];
+                    if (preg_match('/(\d+) anomalias/m',            $content, $m2)) $summary['anomalies']  = (int) $m2[1];
                     if (preg_match('/Concluido em\s*(\S+)/m',       $content, $m2)) $summary['completed_at'] = $m2[1];
                 }
 
@@ -1973,6 +1974,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                             'hop_count'    => (int)   ($liveData['hop_count']    ?? 0),
                             'switch_count' => (int)   ($liveData['switch_count'] ?? 0),
                             'hops_preview' => (array) ($liveData['hops_preview'] ?? []),
+                            'var_counts'   => (array) ($liveData['var_counts']   ?? []),
+                            'var_target'   => (int)   ($liveData['var_target']   ?? 0),
                         ];
                         if (!$isRun) { $isRun = true; }
                     }
@@ -2122,6 +2125,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 if (preg_match('/Cabos inseridos\s*:\s*(\d+)/m', $content, $m)) {
                     $summary = ['inserted' => (int) $m[1]];
                     if (preg_match('/TCP SYN-ACK\s*:\s*(\d+)/m',  $content, $m2)) $summary['tcp']          = (int) $m2[1];
+                    if (preg_match('/TCP Jitter\s*:\s*(\d+)/m',   $content, $m2)) $summary['tcp_jitter']   = (int) $m2[1];
                     if (preg_match('/Sintetico\s*:\s*(\d+)/m',     $content, $m2)) $summary['synthetic']    = (int) $m2[1];
                     if (preg_match('/mtr \(hops\)\s*:\s*(\d+)/m',  $content, $m2)) $summary['mtr']          = (int) $m2[1];
                     if (preg_match('/HTTP curl\s*:\s*(\d+)/m',      $content, $m2)) $summary['http']         = (int) $m2[1];

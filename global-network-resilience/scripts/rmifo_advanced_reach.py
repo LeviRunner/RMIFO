@@ -80,8 +80,15 @@ DB_CONFIG = {
 SHODAN_API_KEY = os.getenv("SHODAN_API_KEY", "")
 NETCONF_USER   = os.getenv("NETCONF_USER",   "admin")
 NETCONF_PASS   = os.getenv("NETCONF_PASS",   "")
-MAX_WORKERS    = int(os.getenv("PROBE_WORKERS", "30"))
-TIMEOUT        = int(os.getenv("PROBE_TIMEOUT", "5"))
+MAX_WORKERS         = int(os.getenv("PROBE_WORKERS", "30"))
+TIMEOUT             = int(os.getenv("PROBE_TIMEOUT", "5"))
+
+# ── Cobertura calibrada por vetor ─────────────────────────────────────────────
+MPLS_MAX_HOPS       = int(os.getenv("MPLS_MAX_HOPS",   "30"))  # Vetor D: hops TTL incremental
+IXP_MAX_SCAN        = int(os.getenv("IXP_MAX_SCAN",    "20"))  # Vetor D: IXPs PeeringDB
+NETCONF_MAX_IPS     = int(os.getenv("NETCONF_MAX",     "20"))  # Vetor B: máx IPs por ciclo
+SHODAN_MAX_RESULTS  = int(os.getenv("SHODAN_MAX",      "50"))  # Vetor E: resultados Shodan
+DNS_PTR_BATCH       = int(os.getenv("DNS_PTR_BATCH",   "50"))  # Vetor E: IPs por lote PTR
 
 # Fingerprints de vendor em banners SSH e sysDescr
 VENDOR_PATTERNS = {
@@ -569,7 +576,7 @@ def parse_mrt_for_asn(mrt_path: str, target_asns: set[str],
 # VETOR D — MPLS TRACEROUTE + IXP PEERING LAN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def mpls_traceroute(dst: str, max_hops: int = 30) -> list[dict]:
+def mpls_traceroute(dst: str, max_hops: int = MPLS_MAX_HOPS) -> list[dict]:
     """
     Traceroute MPLS-aware usando UDP na porta 3503 (LDP echo)
     ou TCP SYN na 443. Revela Label Switch Routers (LSRs) ocultos
@@ -616,7 +623,7 @@ def mpls_traceroute(dst: str, max_hops: int = 30) -> list[dict]:
     return lsrs
 
 
-def scan_ixp_peering_lan(conn=None, max_ixps: int = 20) -> list[dict]:
+def scan_ixp_peering_lan(conn=None, max_ixps: int = IXP_MAX_SCAN) -> list[dict]:
     """
     Consulta PeeringDB para obter prefixos de peering LAN dos IXPs.
     Esses prefixos contêm switches de troca raramente visíveis externamente.

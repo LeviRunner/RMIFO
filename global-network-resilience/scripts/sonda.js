@@ -18,7 +18,7 @@ const hasFlag = (f) => argv.includes(f);
 const getArg  = (f, d) => { const i = argv.indexOf(f); return i !== -1 && argv[i + 1] ? argv[i + 1] : d; };
 
 const FULL_SCAN  = hasFlag('--full-scan');
-const MTR_CYCLES = parseInt(getArg('--mtr-cycles', '5'), 10);
+const MTR_CYCLES = parseInt(getArg('--mtr-cycles', '15'), 10);
 const TIMEOUT_S  = parseInt(getArg('--timeout', '8'), 10);
 const LIMIT      = parseInt(getArg('--limit', '999'), 10);
 
@@ -33,9 +33,10 @@ const CABLES_JSONL = path.join(histDir, 'cables_live.jsonl');
 // ── Constants ─────────────────────────────────────────────────────────────────
 const MODEL      = '1.4.0';
 const AGENT      = 'RMIFO-GlobalNetworkResilience/1.4.0';
-const FULL_PORTS = [443, 80, 22, 8443, 8080];
-const STD_PORTS  = [443, 80];
-const MTR_BUDGET = 250;
+const FULL_PORTS      = [443, 80, 22, 8443, 8080];
+const STD_PORTS       = [443, 80];
+const MTR_BUDGET      = 300;
+const TCP_JITTER_PKTS = 50;
 
 // ── Logging ───────────────────────────────────────────────────────────────────
 const ts   = () => new Date().toISOString().slice(11, 19);
@@ -248,6 +249,17 @@ async function ensureSchema(db) {
 }
 
 
+// ── Packet-target por variação ────────────────────────────────────────────────
+function varTarget(method) {
+    if (!method) return 0;
+    if (method.includes('mtr'))         return MTR_CYCLES * 20; // ~20 hops médios
+    const m = method.match(/(\d+)pkt/);
+    if (m)                              return parseInt(m[1], 10);
+    if (method.includes('tcp'))         return 1;
+    if (method.includes('http') || method.includes('curl')) return 1;
+    return 0;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
     log('=== Sonda RMIFO v3 (Node.js) iniciando ===');
@@ -310,7 +322,7 @@ async function main() {
 
     // Main probe loop
     const measAt = new Date();
-    const stats  = { mtr: 0, tcp: 0, http: 0, synth: 0 };
+    const stats  = { mtr: 0, tcp_syn: 0, tcp_full: 0, tcp_jitter: 0, http: 0, synth: 0 };
     let mtrUsed  = 0;
     let inserted = 0;
     const total  = cables.length;
@@ -355,15 +367,16 @@ async function main() {
                     conf   = 0.78; est = false; src = 'active_tcp_connect';
                     meth   = `tcp-syn-ack-port${p}`;
                     sentAt = tr.sentAt; recvAt = tr.recvAt;
-                    stats.tcp++;
+                    stats.tcp_syn++;
 
                     if (FULL_SCAN && openPorts.length) {
-                        const j = await jitterPasses(host, openPorts, 100, 2000);
+                        const j = await jitterPasses(host, openPorts, TCP_JITTER_PKTS, 2000);
                         if (j) {
                             latMs = r3(base.lat * 0.3 + j.mean * 0.7);
                             jitMs = j.jit; lossP = j.loss ?? lossP;
                             conf  = 0.95;
-                            meth  = `tcp-100pkt-ports${openPorts.join(',')}-p95=${j.p95}ms`;
+                            meth  = `tcp-${TCP_JITTER_PKTS}pkt-ports${openPorts.join(',')}-p95=${j.p95}ms`;
+                            stats.tcp_jitter++;
                         }
                     }
                     break;
@@ -503,7 +516,7 @@ async function main() {
             percent:      prog,
             proto:        meth,
             latency_ms:   r1(latMs),
-            tcp:          stats.tcp,
+            tcp:          stats.tcp_syn + stats.tcp_full + stats.tcp_jitter,
             synthetic:    stats.synth,
             mtr:          stats.mtr,
             http:         stats.http,
@@ -512,6 +525,15 @@ async function main() {
             hops_preview: hopsPreview,
             log_file:     process.env.LOG_FILE || '',
             updated_at:   new Date().toISOString(),
+            var_counts: {
+                mtr_udp:    stats.mtr,
+                tcp_syn:    stats.tcp_syn,
+                tcp_full:   stats.tcp_full,
+                tcp_jitter: stats.tcp_jitter,
+                http_curl:  stats.http,
+                synthetic:  stats.synth,
+            },
+            var_target: varTarget(meth),
         });
 
         // Per-cable JSONL history
@@ -565,13 +587,14 @@ async function main() {
     const endTs = new Date().toISOString().slice(11, 19);
     console.log('');
     console.log(`Cabos inseridos: ${inserted}`);
-    console.log(`TCP SYN-ACK: ${stats.tcp}`);
+    console.log(`TCP SYN-ACK: ${stats.tcp_syn}`);
+    console.log(`TCP Jitter: ${stats.tcp_jitter}`);
     console.log(`Sintetico: ${stats.synth}`);
     console.log(`mtr (hops): ${stats.mtr}`);
     console.log(`HTTP curl: ${stats.http}`);
     console.log(`0 anomalias`);
     console.log(`Concluido em ${endTs}`);
-    ok(`=== Sonda concluída: ${inserted}/${total} | MTR=${stats.mtr} TCP=${stats.tcp} HTTP=${stats.http} Sint=${stats.synth} ===`);
+    ok(`=== Sonda concluída: ${inserted}/${total} | MTR=${stats.mtr} TCP-SYN=${stats.tcp_syn} TCP-JIT=${stats.tcp_jitter} HTTP=${stats.http} Sint=${stats.synth} ===`);
 }
 
 main().catch(e => {

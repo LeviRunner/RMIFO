@@ -2474,10 +2474,17 @@ function initDailyPage() {
 
   function parseProto(str) {
     if (!str) return { label: '—', chipCls: '', ports: [], tags: ['PKT', 'PKT', 'PKT'] };
+    const tagMap = { '80': 'HTTP', '443': 'TLS', '22': 'SSH', '8080': 'ALT', '8443': 'TLS' };
+    if (str.match(/tcp-\d+pkt/)) {
+      const m = str.match(/ports([\d,]+)/);
+      const ports = m ? m[1].split(',').filter(Boolean) : [];
+      const tags = ports.slice(0, 3).map(p => tagMap[p] || `P${p}`);
+      while (tags.length < 3) tags.push('JIT');
+      return { label: 'TCP Jitter', chipCls: 'jitter', ports, tags };
+    }
     if (str.includes('tcp')) {
-      const m = str.match(/ports\[([^\]]+)\]/);
-      const ports = m ? m[1].split(/[\s,]+/).filter(Boolean) : [];
-      const tagMap = { '80': 'HTTP', '443': 'TLS', '22': 'SSH', '8080': 'ALT', '8443': 'TLS' };
+      const m = str.match(/port(\d+)/);
+      const ports = m ? [m[1]] : [];
       const tags = ports.slice(0, 3).map(p => tagMap[p] || `P${p}`);
       while (tags.length < 3) tags.push('SYN');
       return { label: 'TCP', chipCls: '', ports, tags };
@@ -2485,7 +2492,7 @@ function initDailyPage() {
     if (str.includes('mtr') || str.includes('traceroute')) {
       return { label: 'MTR', chipCls: 'mtr', ports: [], tags: ['UDP', 'TTL', 'HOP'] };
     }
-    if (str.includes('http')) {
+    if (str.includes('http') || str.includes('curl')) {
       return { label: 'HTTP', chipCls: 'http', ports: [], tags: ['HEAD', 'GET', '200'] };
     }
     return { label: 'Sint.', chipCls: 'synth', ports: [], tags: ['EST', '≈', 'SIM'] };
@@ -2616,18 +2623,19 @@ function initDailyPage() {
 
   function setStats(summary, progress, live) {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
-    const total = summary?.inserted  ?? progress?.total   ?? null;
-    const tcp   = summary?.tcp       ?? live?.tcp         ?? null;
-    const synth = summary?.synthetic ?? live?.synth       ?? null;
-    const mtr   = summary?.mtr       ?? null;
-    const icmp  = summary?.icmp      ?? live?.icmp        ?? null;
-    const http  = summary?.http      ?? live?.http        ?? null;
-    const anom  = summary?.anomalies ?? null;
+    const vc     = progress?.var_counts ?? {};
+    const total  = summary?.inserted    ?? progress?.total   ?? null;
+    const tcp    = summary?.tcp         ?? vc.tcp_syn        ?? live?.tcp   ?? null;
+    const jitter = summary?.tcp_jitter  ?? vc.tcp_jitter     ?? null;
+    const synth  = summary?.synthetic   ?? vc.synthetic      ?? live?.synth ?? null;
+    const mtr    = summary?.mtr         ?? vc.mtr_udp        ?? null;
+    const http   = summary?.http        ?? vc.http_curl      ?? live?.http  ?? null;
+    const anom   = summary?.anomalies   ?? null;
     set('dstat-total',     progress ? `${progress.current}/${progress.total}` : total);
     set('dstat-tcp',       tcp);
+    set('dstat-jitter',    jitter);
     set('dstat-synth',     synth);
     set('dstat-mtr',       mtr);
-    set('dstat-icmp',      icmp);
     set('dstat-http',      http);
     set('dstat-anomalies', anom);
   }
@@ -2687,16 +2695,19 @@ function initDailyPage() {
     const dstatSw = document.getElementById('dstat-switches');
     if (dstatSw && p.switch_count > 0) dstatSw.textContent = p.switch_count;
 
-    // packet counter: reset and count 0→100 when cable changes
+    // packet counter: reset and count 0→var_target when cable changes
+    const pvTarget    = p.var_target || 100;
+    const pvPktTarget = document.getElementById('pv-pkt-target');
+    if (pvPktTarget) pvPktTarget.textContent = `/${pvTarget}`;
     if (p.cable && p.cable !== pvLastCable) {
       pvLastCable = p.cable;
       clearInterval(pvCounterTimer);
       pvPacketCount = 0;
       if (pvPktN) pvPktN.textContent = '0';
       pvCounterTimer = setInterval(() => {
-        pvPacketCount = Math.min(100, pvPacketCount + 1);
+        pvPacketCount = Math.min(pvTarget, pvPacketCount + 1);
         if (pvPktN) pvPktN.textContent = pvPacketCount;
-        if (pvPacketCount >= 100) clearInterval(pvCounterTimer);
+        if (pvPacketCount >= pvTarget) clearInterval(pvCounterTimer);
       }, 30);
     }
 
@@ -2790,7 +2801,7 @@ function initDailyPage() {
       tableRows = [];
       if (tbody) tbody.innerHTML = '';
       try {
-        const data = await apiFetch({ action: 'daily_start', full_scan: fullScan, mtr_cycles: fullScan === '1' ? '10' : '3' });
+        const data = await apiFetch({ action: 'daily_start', full_scan: fullScan, mtr_cycles: fullScan === '1' ? '30' : '15' });
         if (data.status === 'error') {
           if (errEl) { errEl.textContent = data.message; errEl.style.display = ''; }
           setRunningUI(false);
