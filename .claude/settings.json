@@ -74,7 +74,11 @@
       "Bash(php8.3 -m)",
       "Read(//usr/**)",
       "Bash(php -i)",
-      "Bash(grep -n 'globe_data\\\\|pathPts\\\\|$startLat\\\\|$startLng\\\\|$endLat\\\\|$endLng' /workspaces/RMIFO/global-network-resilience/web/api.php)"
+      "Bash(grep -n 'globe_data\\\\|pathPts\\\\|$startLat\\\\|$startLng\\\\|$endLat\\\\|$endLng' /workspaces/RMIFO/global-network-resilience/web/api.php)",
+      "Bash(git -C /workspaces/RMIFO push origin main)",
+      "Bash(git -C /workspaces/RMIFO fetch origin)",
+      "Bash(git -C /workspaces/RMIFO log --oneline origin/main -5)",
+      "Bash(git -C /workspaces/RMIFO rebase origin/main)"
     ]
   }
 }
