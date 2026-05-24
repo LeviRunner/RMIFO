@@ -1737,7 +1737,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 if (!function_exists('exec')) {
                     jsonResponse(['status' => 'error', 'message' => 'exec() não disponível neste servidor.'], 503);
                 }
-                $script = $_projectDir . '/scripts/run_daily_telemetry_tasks.sh';
+                $script = $_projectDir . '/scripts/rmifo_pipeline.sh';
                 if (!file_exists($script)) {
                     jsonResponse(['status' => 'error', 'message' => 'Script não encontrado: ' . $script], 404);
                 }
@@ -1772,7 +1772,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $fullScan  = ($_reqAll['full_scan']  ?? '0') === '1' ? '1' : '0';
                 $mtrCycles = max(1, min(100, (int) ($_reqAll['mtr_cycles'] ?? 5)));
                 $cmd = sprintf(
-                    'LOG_FILE=%s FULL_SCAN=%s MTR_CYCLES=%s nohup bash %s > /dev/null 2>&1 & echo $!',
+                    'LOG_FILE=%s FULL_SCAN=%s MTR_CYCLES=%s nohup bash %s daily > /dev/null 2>&1 & echo $!',
                     escapeshellarg($logFile),
                     escapeshellarg($fullScan),
                     escapeshellarg((string) $mtrCycles),
