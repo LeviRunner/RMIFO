@@ -1301,20 +1301,29 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
     }
 
-    // ── switch_lp_lines: linhas GeoJSON comutador → ponto de aterrissagem ────
+    // ── switch_lp_lines: linhas GeoJSON comutador → landing-point verificado ──
+    // Apenas comutadores descobertos por MTR real (source='active_mtr').
+    // Por par (switch, cable) usa apenas o landing-point mais próximo geograficamente.
     if ($_modeNow === 'switch_lp_lines') {
         try {
             $pdoL = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
             $rows = $pdoL->query("
-                SELECT DISTINCT hg.lng  AS sw_lng,  hg.lat  AS sw_lat,
-                                lp.longitude AS lp_lng, lp.latitude AS lp_lat
+                SELECT DISTINCT ON (hg.hop_ip, cth.cable_id)
+                    hg.lng::float       AS sw_lng,
+                    hg.lat::float       AS sw_lat,
+                    lp.longitude::float AS lp_lng,
+                    lp.latitude::float  AS lp_lat
                 FROM hop_switch_geolocations hg
-                JOIN cable_telemetry_hops  cth ON cth.hop_ip    = hg.hop_ip
-                JOIN cable_landing_points  clp ON clp.cable_id  = cth.cable_id
-                JOIN landing_points        lp  ON lp.endpoint_id = clp.endpoint_id
+                JOIN cable_telemetry_hops    cth ON cth.hop_ip    = hg.hop_ip
+                JOIN cable_telemetry_samples cts ON cts.sample_id = cth.sample_id
+                                                AND cts.source    = 'active_mtr'
+                JOIN cable_landing_points    clp ON clp.cable_id  = cth.cable_id
+                JOIN landing_points          lp  ON lp.endpoint_id = clp.endpoint_id
                 WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
                   AND lp.latitude IS NOT NULL AND lp.longitude IS NOT NULL
-                LIMIT 4000
+                ORDER BY hg.hop_ip, cth.cable_id,
+                         (hg.lat - lp.latitude)^2 + (hg.lng - lp.longitude)^2
+                LIMIT 3000
             ")->fetchAll();
             $features = array_map(fn($r) => [
                 'type'       => 'Feature',
