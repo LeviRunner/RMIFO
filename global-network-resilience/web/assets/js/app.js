@@ -578,7 +578,7 @@ function initWelcomeCard() {
 // CARTO dark-matter: estilo completo e mantido, sem source-layers customizados
 const GLOBE_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-function initGlobe() {
+async function initGlobe() {
   const container = document.getElementById('globe-container');
   const globeTip  = document.getElementById('globe-tip');
   if (!container) return;
@@ -587,14 +587,27 @@ function initGlobe() {
     return;
   }
 
+  // Busca o estilo CARTO e injeta globe projection diretamente no JSON
+  // (mais confiável do que depender de setProjection() em tempo de execução)
+  let mapStyle = GLOBE_STYLE;
+  try {
+    const styleResp = await fetch(GLOBE_STYLE);
+    if (styleResp.ok) {
+      const styleJson = await styleResp.json();
+      styleJson.projection = { type: 'globe' };
+      mapStyle = styleJson;
+    }
+  } catch (e) {
+    console.warn('Falha ao pré-carregar estilo CARTO para globe projection:', e);
+  }
+
   const map = new maplibregl.Map({
     container:          'globe-container',
-    style:              GLOBE_STYLE,
+    style:              mapStyle,
     center:             [10, 20],
     zoom:               1.5,
     minZoom:            0.5,
     maxZoom:            14,
-    projection:         { type: 'globe' },
     attributionControl: false,
     antialias:          true,
   });
@@ -602,17 +615,23 @@ function initGlobe() {
   AppState.map = map;
 
   map.on('load', () => {
-    // Garante projeção globo 3D
-    map.setProjection({ type: 'globe' });
+    // Garante projeção globo 3D (best-effort — não aborta se falhar)
+    try { map.setProjection({ type: 'globe' }); } catch (e) {
+      console.warn('setProjection falhou:', e);
+    }
 
-    // Atmosfera ao redor do globo (espaço escuro = esfera visível)
-    map.setFog({
-      'color':          'rgba(18, 8, 40, 0.9)',
-      'high-color':     '#030108',
-      'horizon-blend':  0.1,
-      'space-color':    '#030108',
-      'star-intensity': 0.45,
-    });
+    // Atmosfera ao redor do globo
+    try {
+      map.setFog({
+        'color':          'rgba(18, 8, 40, 0.9)',
+        'high-color':     '#030108',
+        'horizon-blend':  0.1,
+        'space-color':    '#030108',
+        'star-intensity': 0.45,
+      });
+    } catch (e) {
+      console.warn('setFog falhou:', e);
+    }
 
     // ── Dados dos cabos e pontos ──────────────────────────────────────────
     apiFetch({ action: 'globe_data' })
