@@ -1,0 +1,14 @@
+{
+  "gerado_em": "2026-05-17T19:00:01.776200",
+  "tipo": "rollup_summary",
+  "rollups_5m": 0,
+  "rollups_1h": 0,
+  "estatisticas": {
+    "cabos_com_dados": 0,
+    "latencia_media_ms": 0.0,
+    "jitter_medio_ms": 0.0,
+    "perda_media_pct": 0.0,
+    "amostras_totais": null
+  },
+  "top20_por_latencia": []
+}

@@ -1,0 +1,215 @@
+{
+  "gerado_em": "2026-05-16T01:50:14.741088",
+  "tipo": "rollup_summary",
+  "rollups_5m": 803,
+  "rollups_1h": 699,
+  "estatisticas": {
+    "cabos_com_dados": 699,
+    "latencia_media_ms": 53.779,
+    "jitter_medio_ms": 1.542,
+    "perda_media_pct": 0.1069,
+    "amostras_totais": 803
+  },
+  "top20_por_latencia": [
+    {
+      "cable_id": "aden-djibouti",
+      "cable_name": "Aden-Djibouti",
+      "avg_latency_ms": 882.71,
+      "avg_jitter_ms": 0.68,
+      "avg_packet_loss_pct": 0.07,
+      "avg_throughput_mbps": 24282.451,
+      "sample_count": 2,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "polar-express",
+      "cable_name": "Polar Express",
+      "avg_latency_ms": 590.344,
+      "avg_jitter_ms": 5.508,
+      "avg_packet_loss_pct": 0.17,
+      "avg_throughput_mbps": 1249.32,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "mauritius-and-rodrigues-submarine-cable-system-mars",
+      "cable_name": "Mauritius and Rodrigues Submarine Cable System (MARS)",
+      "avg_latency_ms": 446.506,
+      "avg_jitter_ms": 0.656,
+      "avg_packet_loss_pct": 0.1,
+      "avg_throughput_mbps": 9458.711,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "pldt-domestic-fiber-optic-network-dfon",
+      "cable_name": "PLDT Domestic Fiber Optic Network (DFON)",
+      "avg_latency_ms": 425.95,
+      "avg_jitter_ms": 4.333,
+      "avg_packet_loss_pct": 0.158,
+      "avg_throughput_mbps": 1197.823,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "pishgaman-oman-iran-poi-network",
+      "cable_name": "Pishgaman Oman Iran (POI) Network",
+      "avg_latency_ms": 417.85,
+      "avg_jitter_ms": 0.523,
+      "avg_packet_loss_pct": 0.076,
+      "avg_throughput_mbps": 16966.95,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "damai-cable-system",
+      "cable_name": "DAMAI Cable System",
+      "avg_latency_ms": 370.965,
+      "avg_jitter_ms": 0.643,
+      "avg_packet_loss_pct": 0.109,
+      "avg_throughput_mbps": 12212.466,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "arsat-submarine-fiber-optic-cable",
+      "cable_name": "ARSAT Submarine Fiber Optic Cable",
+      "avg_latency_ms": 339.977,
+      "avg_jitter_ms": 0.599,
+      "avg_packet_loss_pct": 0.08,
+      "avg_throughput_mbps": 68237.55,
+      "sample_count": 2,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "pgascom",
+      "cable_name": "PGASCOM",
+      "avg_latency_ms": 336.748,
+      "avg_jitter_ms": 0.64,
+      "avg_packet_loss_pct": 0.11,
+      "avg_throughput_mbps": 25284.136,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "asia-america-gateway-aag-cable-system",
+      "cable_name": "Asia-America Gateway (AAG) Cable System",
+      "avg_latency_ms": 328.2735,
+      "avg_jitter_ms": 8.352,
+      "avg_packet_loss_pct": 0.157,
+      "avg_throughput_mbps": 1194.716,
+      "sample_count": 2,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "batam-dumai-melaka-bdm",
+      "cable_name": "Batam Dumai Melaka (BDM)",
+      "avg_latency_ms": 322.584,
+      "avg_jitter_ms": 0.658,
+      "avg_packet_loss_pct": 0.099,
+      "avg_throughput_mbps": 19516.234,
+      "sample_count": 2,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "east-west-submarine-cable-system",
+      "cable_name": "East-West Submarine Cable System",
+      "avg_latency_ms": 319.074,
+      "avg_jitter_ms": 0.683,
+      "avg_packet_loss_pct": 0.089,
+      "avg_throughput_mbps": 6964.568,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "jakabare",
+      "cable_name": "JAKABARE",
+      "avg_latency_ms": 310.744,
+      "avg_jitter_ms": 0.594,
+      "avg_packet_loss_pct": 0.076,
+      "avg_throughput_mbps": 5045.458,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "matrix-cable-system",
+      "cable_name": "Matrix Cable System",
+      "avg_latency_ms": 296.314,
+      "avg_jitter_ms": 0.547,
+      "avg_packet_loss_pct": 0.107,
+      "avg_throughput_mbps": 6510.005,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "biznet-nusantara-cable-system-1-bncs-1",
+      "cable_name": "Biznet Nusantara Cable System-1 (BNCS-1)",
+      "avg_latency_ms": 293.95550000000003,
+      "avg_jitter_ms": 0.715,
+      "avg_packet_loss_pct": 0.108,
+      "avg_throughput_mbps": 66927.21,
+      "sample_count": 2,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "tanjung-pandan-sungai-kakap",
+      "cable_name": "Tanjung Pandan-Sungai Kakap",
+      "avg_latency_ms": 287.043,
+      "avg_jitter_ms": 0.718,
+      "avg_packet_loss_pct": 0.104,
+      "avg_throughput_mbps": 17439.67,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "sape-labuan-bajo-ende-kupang",
+      "cable_name": "Sape-Labuan Bajo-Ende-Kupang",
+      "avg_latency_ms": 284.884,
+      "avg_jitter_ms": 0.658,
+      "avg_packet_loss_pct": 0.084,
+      "avg_throughput_mbps": 14894.038,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "moratelindo-international-cable-system-1-mic-1",
+      "cable_name": "Moratelindo International Cable System-1 (MIC-1)",
+      "avg_latency_ms": 277.156,
+      "avg_jitter_ms": 0.637,
+      "avg_packet_loss_pct": 0.102,
+      "avg_throughput_mbps": 65092.889,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "asia-connect-cable-1-acc-1",
+      "cable_name": "Asia Connect Cable-1 (ACC-1)",
+      "avg_latency_ms": 272.372,
+      "avg_jitter_ms": 7.451,
+      "avg_packet_loss_pct": 0.198,
+      "avg_throughput_mbps": 1153.515,
+      "sample_count": 2,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "jakarta-bangka-bintan-batam-singapore-b3js",
+      "cable_name": "Jakarta-Bangka-Bintan-Batam-Singapore (B3JS)",
+      "avg_latency_ms": 272.261,
+      "avg_jitter_ms": 0.582,
+      "avg_packet_loss_pct": 0.087,
+      "avg_throughput_mbps": 6549.239,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    },
+    {
+      "cable_id": "seamewe-4",
+      "cable_name": "SeaMeWe-4",
+      "avg_latency_ms": 271.447,
+      "avg_jitter_ms": 8.414,
+      "avg_packet_loss_pct": 0.21,
+      "avg_throughput_mbps": 1340.492,
+      "sample_count": 1,
+      "bucket": "2026-05-16 01:00:00+00:00"
+    }
+  ]
+}

@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RMIFO — Global Network Map</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6c47ff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RMIFO">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+
+<!-- ── STAR BACKGROUND ──────────────────────────────────────────────────── -->
+<canvas id="star-bg" aria-hidden="true"></canvas>
+
+<!-- ── HOMEPAGE ───────────────────────────────────────────────────────────── -->
+<div id="welcome-card" aria-label="RMIFO — Global Network Resilience">
+  <div class="wc-inner">
+
+    <!-- HERO -->
+    <header class="wc-hero">
+      <div class="wc-logo">RMIFO</div>
+      <h1 class="wc-title">Global Network Resilience</h1>
+      <p class="wc-subtitle">Plataforma open-source de monitoramento de cabos submarinos — coleta telemetria TCP/MTR, persiste em PostgreSQL e exibe em globo 3D interativo em tempo real.</p>
+    </header>
+
+    <!-- STATS LIVE -->
+    <div class="wc-stats" aria-label="Estatísticas do sistema">
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="cables">—</span>
+        <span class="wc-stat-l">cabos catalogados</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="operational">—</span>
+        <span class="wc-stat-l">operacionais</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="samples">—</span>
+        <span class="wc-stat-l">amostras de telemetria</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n">12</span>
+        <span class="wc-stat-l">tabelas PostgreSQL</span>
+      </div>
+    </div>
+
+    <!-- ARCHITECTURE FLOW -->
+    <section class="wc-arch" aria-label="Fluxo de comunicação">
+      <h2 class="wc-section-title">Como o projeto se interliga</h2>
+      <div class="wc-flow">
+
+        <!-- 1 · Scripts Python -->
+        <div class="wc-flow-step">
+          <div class="wc-flow-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <div class="wc-flow-body">
+            <strong>Scripts Python — coleta de dados</strong>
+            <p>Executam varredura TCP (múltiplas portas), ICMP ping e traceroute MTR em paralelo contra os endpoints de aterrissagem de cada cabo. <strong>Uso real:</strong> ao rodar a Sonda Diária, o script itera todos os cabos ativos, testa conectividade, mede latência/jitter/perda de pacotes e salva os resultados em arquivos JSON de checkpoint — que depois são importados para o banco via UPSERT.</p>
+            <div class="wc-flow-tags">
+              <span>run_daily_telemetry_tasks.sh</span><span>checkpoint_*.json</span><span>probe_full_*.json</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wc-flow-arrow" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>grava JSON · importa para BD</span>
+        </div>
+
+        <!-- 2 · PostgreSQL -->
+        <div class="wc-flow-step">
+          <div class="wc-flow-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+          </div>
+          <div class="wc-flow-body">
+            <strong>PostgreSQL (Railway) — persistência</strong>
+            <p>Armazena a topologia de cabos, pontos de aterrissagem, amostras de telemetria e hops de rota em 12 tabelas relacionadas. <strong>Uso real:</strong> <code>cable_telemetry_samples</code> recebe cada medição com UPSERT; views <code>rollup_1h</code> e <code>rollup_5m</code> calculam médias, p95 e pico sem tabelas físicas redundantes — qualquer query ao Explorador DB lê diretamente dessas views.</p>
+            <div class="wc-flow-tags">
+              <span>cables</span><span>landing_points</span><span>cable_telemetry_samples</span><span>cable_telemetry_hops</span><span>telemetry_alerts</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wc-flow-arrow" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>consulta SQL · serve JSON</span>
+        </div>
+
+        <!-- 3 · API PHP -->
+        <div class="wc-flow-step">
+          <div class="wc-flow-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <div class="wc-flow-body">
+            <strong>API PHP (api.php) — camada de serviço</strong>
+            <p>Único ponto de entrada entre o frontend e o banco. <strong>Uso real:</strong> cada aba do site dispara um <code>fetch()</code> diferente — o Mapa chama <code>?action=all</code> para listar cabos com coordenadas; a Sonda chama <code>?action=probe</code> para testar um endpoint ao vivo; o Explorador DB chama <code>?action=db_browse</code> com paginação. Rate limiting por SHA-256 do IP previne abuso.</p>
+            <div class="wc-flow-tags">
+              <span>?action=all</span><span>?action=probe</span><span>?action=db_browse</span><span>?action=summary</span><span>?action=daily_start</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wc-flow-arrow" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>fetch() · renderiza no cliente</span>
+        </div>
+
+        <!-- 4 · Frontend -->
+        <div class="wc-flow-step">
+          <div class="wc-flow-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div class="wc-flow-body">
+            <strong>Frontend Vanilla JS — visualização</strong>
+            <p>SPA sem bundler ou framework. <strong>Uso real:</strong> ao abrir o Mapa, <code>globe.gl</code> desenha cada cabo como um arco 3D animado sobre o globo — a cor indica status (verde = operacional, amarelo = alerta, cinza = inativo). O <em>Explorador DB</em> mostra tabelas paginadas com filtros. A <em>Sonda ao Vivo</em> testa um endpoint e exibe latência, jitter e hops de rota em tempo real. O app é instalável como PWA via service worker.</p>
+            <div class="wc-flow-tags">
+              <span>globe.gl</span><span>Three.js</span><span>Canvas 2D</span><span>PWA · sw.js</span><span>requestAnimationFrame</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SCHEMA ERD -->
+    <section class="wc-schema" aria-label="Esquema do banco de dados">
+      <h2 class="wc-section-title">Esquema do banco — 12 tabelas</h2>
+      <p class="wc-schema-label">Relações por chave estrangeira: topologia de cabos → pontos de aterrissagem → telemetria → alertas.</p>
+      <svg class="wc-schema-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" aria-hidden="true">
+        <defs>
+          <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#a871ff" opacity="0.7"/>
+          </marker>
+        </defs>
+        <rect x="10"  y="130" width="100" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="60"  y="154" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="11" fill="#a871ff">nodes</text>
+        <rect x="160" y="40"  width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="2"/>
+        <text x="215" y="64"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="11" fill="#c49dff" font-weight="600">cables</text>
+        <rect x="160" y="130" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="215" y="154" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">cable_metadata</text>
+        <rect x="160" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="215" y="244" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">landing_points</text>
+        <rect x="330" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="385" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_landing</text>
+        <text x="385" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_points</text>
+        <rect x="330" y="295" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
+        <text x="385" y="311" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">endpoint_ip</text>
+        <text x="385" y="325" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_samples</text>
+        <rect x="10"  y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
+        <text x="65"  y="244" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">geoip_mapping</text>
+        <rect x="330" y="40"  width="130" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="2"/>
+        <text x="395" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#c49dff" font-weight="600">cable_telemetry</text>
+        <text x="395" y="70"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#c49dff" font-weight="600">_samples</text>
+        <rect x="500" y="40"  width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="555" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_telemetry</text>
+        <text x="555" y="69"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_hops</text>
+        <rect x="500" y="130" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="555" y="145" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_telemetry</text>
+        <text x="555" y="159" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_reference</text>
+        <rect x="500" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
+        <text x="555" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">telemetry</text>
+        <text x="555" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_alerts</text>
+        <rect x="500" y="295" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
+        <text x="555" y="319" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">api_rate_limit</text>
+        <g stroke="#a871ff" stroke-width="1.2" fill="none" opacity="0.6" marker-end="url(#arr)">
+          <line x1="110" y1="145" x2="158" y2="69"/>
+          <line x1="215" y1="78"  x2="215" y2="128"/>
+          <path d="M270,59 Q310,59 330,230"/>
+          <line x1="270" y1="239" x2="328" y2="239"/>
+          <line x1="270" y1="258" x2="328" y2="310"/>
+          <line x1="270" y1="59"  x2="328" y2="59"/>
+          <line x1="460" y1="59"  x2="498" y2="59"/>
+          <path d="M270,78 Q290,149 498,149"/>
+          <path d="M270,68 Q300,239 498,239"/>
+        </g>
+      </svg>
+    </section>
+
+    <!-- ÚLTIMA MEDIÇÃO -->
+    <p class="wc-last-measured">Última medição registrada: <strong data-stat="last">carregando…</strong></p>
+
+    <!-- CTA -->
+    <button id="welcome-dismiss" class="btn primary wc-btn">Explorar o Mapa →</button>
+
+  </div>
+</div>
+
+<!-- ── HEADER FIXO ──────────────────────────────────────────────────────── -->
+<header id="app-header">
+  <div class="header-logo">
+    <span class="logo-dot"></span>RMIFO
+  </div>
+  <div class="header-center" id="header-page-title">Mapa Global</div>
+  <div class="header-actions">
+    <div class="alert-badge" id="alert-badge" title="Alertas ativos"></div>
+    <button class="hamburger" id="hamburger-btn" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<!-- ── MENU SANDUÍCHE (DRAWER) ─────────────────────────────────────────── -->
+<div class="drawer-overlay" id="drawer-overlay"></div>
+<nav class="drawer" id="drawer">
+  <div class="drawer-header">
+    <span>Navegação</span>
+    <button class="drawer-close" id="drawer-close"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
+  </div>
+  <ul class="drawer-nav">
+    <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
+    <li><a href="#" class="nav-link" data-page="search">Explorador DB</a></li>
+    <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
+    <li><a href="#" class="nav-link" data-page="routes">Top 3 Rotas</a></li>
+    <li><a href="#" class="nav-link" data-page="risk">Risco de Endpoints</a></li>
+    <li><a href="#" class="nav-link" data-page="cuts">Cortes Críticos</a></li>
+    <li><a href="#" class="nav-link" data-page="probe">Sonda &amp; Telemetria</a></li>
+    <li class="drawer-divider"></li>
+    <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
+    <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
+  </ul>
+</nav>
+
+<!-- ── PÁGINAS ──────────────────────────────────────────────────────────── -->
+<main class="app-main">
+
+  <!-- PÁGINA: MAPA GLOBAL -->
+  <section class="page active" id="page-map">
+    <div id="globe-container"></div>
+    <div class="globe-ui">
+      <div class="globe-legend">
+        <span class="leg-item"><span class="leg-dot ok"></span>Operacional</span>
+        <span class="leg-item"><span class="leg-dot probe"></span>Telemetria TCP verificada</span>
+        <span class="leg-item"><span class="leg-dot warn"></span>Com alerta</span>
+        <span class="leg-item"><span class="leg-dot off"></span>Inativo</span>
+        <span class="leg-item"><span class="leg-dot switch"></span>Comutador de rota</span>
+      </div>
+      <div class="globe-tip" id="globe-tip">
+        Clique em um cabo ou ponto para selecionar
+      </div>
+    </div>
+    <!-- Painel lateral de seleção (aparece ao clicar endpoint) -->
+    <div class="selection-panel" id="selection-panel">
+      <div class="sel-header">
+        <span class="sel-title" id="sel-title">Endpoint</span>
+        <button class="sel-close" id="sel-close"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
+      </div>
+      <div class="sel-body" id="sel-body"></div>
+      <div class="sel-actions">
+        <button class="btn primary" id="sel-probe-btn">Sondar Endpoint</button>
+        <button class="btn" id="sel-detail-btn">Ver Detalhes</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: BUSCA -->
+  <section class="page" id="page-search">
+    <div class="page-inner db-explorer-wrap">
+
+      <!-- ── Coluna esquerda ────────────────────────────────────────────────── -->
+      <div class="db-left-col">
+
+        <!-- Lista de tabelas (rolável) -->
+        <div class="db-sidebar">
+          <div class="db-sidebar-title"><span class="db-dot"></span>PostgreSQL</div>
+          <div class="db-sidebar-sub">global_network_resilience</div>
+          <ul class="db-table-list" id="db-table-list">
+            <li class="db-table-item active" data-table="cables">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cables
+              <span class="db-table-rows" id="dbrows-cables"></span>
+            </li>
+            <li class="db-table-item" data-table="cable_metadata">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cable_metadata
+              <span class="db-table-rows" id="dbrows-cable_metadata"></span>
+            </li>
+            <li class="db-table-item" data-table="landing_points">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>landing_points
+              <span class="db-table-rows" id="dbrows-landing_points"></span>
+            </li>
+            <li class="db-table-item" data-table="cable_landing_points">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cable_landing_points
+              <span class="db-table-rows" id="dbrows-cable_landing_points"></span>
+            </li>
+            <li class="db-table-item" data-table="nodes">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>nodes
+              <span class="db-table-rows" id="dbrows-nodes"></span>
+            </li>
+            <li class="db-table-item" data-table="cable_telemetry_samples">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cable_telemetry_samples
+              <span class="db-table-rows" id="dbrows-cable_telemetry_samples"></span>
+            </li>
+            <li class="db-table-item" data-table="telemetry_rollup_1h">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>telemetry_rollup_1h
+              <span class="db-table-rows" id="dbrows-telemetry_rollup_1h"></span>
+            </li>
+            <li class="db-table-item" data-table="telemetry_rollup_5m">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>telemetry_rollup_5m
+              <span class="db-table-rows" id="dbrows-telemetry_rollup_5m"></span>
+            </li>
+            <li class="db-table-item" data-table="telemetry_alerts">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>telemetry_alerts
+              <span class="db-table-rows" id="dbrows-telemetry_alerts"></span>
+            </li>
+            <li class="db-table-item" data-table="cable_telemetry_reference">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cable_telemetry_reference
+              <span class="db-table-rows" id="dbrows-cable_telemetry_reference"></span>
+            </li>
+            <li class="db-table-item" data-table="endpoint_ip_samples">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>endpoint_ip_samples
+              <span class="db-table-rows" id="dbrows-endpoint_ip_samples"></span>
+            </li>
+            <li class="db-table-item" data-table="cable_telemetry_hops">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.25"/><line x1="1.5" y1="6.25" x2="14.5" y2="6.25"/><line x1="5.75" y1="6.25" x2="5.75" y2="13.5"/></svg></span>cable_telemetry_hops
+              <span class="db-table-rows" id="dbrows-cable_telemetry_hops"></span>
+            </li>
+            <li class="db-table-item" data-table="hop_switch_geolocations">
+              <span class="db-table-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/><ellipse cx="8" cy="8" rx="3" ry="5.5"/></svg></span>hop_switch_geolocations
+              <span class="db-table-rows" id="dbrows-hop_switch_geolocations"></span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Controles: filtros -->
+        <div class="db-controls">
+          <!-- Painel Navegador: filtros -->
+          <div class="db-ctrl-panel" id="db-ctrl-browser">
+            <div class="db-filter-group">
+              <label class="db-filter-label">Coluna</label>
+              <select id="db-filter-col" class="db-select"></select>
+            </div>
+            <div class="db-filter-group">
+              <label class="db-filter-label">Operador</label>
+              <select id="db-filter-op" class="db-select">
+                <option value="ilike">contém</option>
+                <option value="eq">= igual</option>
+                <option value="gt">&gt; maior</option>
+                <option value="lt">&lt; menor</option>
+                <option value="gte">&gt;= maior/igual</option>
+                <option value="lte">&lt;= menor/igual</option>
+              </select>
+            </div>
+            <div class="db-filter-group">
+              <label class="db-filter-label">Valor</label>
+              <input id="db-filter-val" class="db-filter-input" type="text" placeholder="valor…">
+            </div>
+            <div class="db-filter-btns">
+              <button class="btn primary btn-sm" id="db-filter-btn">Filtrar</button>
+              <button class="btn btn-sm" id="db-filter-clear">Limpar</button>
+            </div>
+          </div>
+
+        </div><!-- /.db-controls -->
+
+      </div><!-- /.db-left-col -->
+
+      <!-- ── Coluna direita: dados ──────────────────────────────────────────── -->
+      <div class="db-data-panel">
+
+        <!-- Resultados do Navegador -->
+        <div id="db-results-browser" class="db-results-wrap">
+          <div class="db-data-topbar">
+            <div class="db-breadcrumb">
+              <span class="db-breadcrumb-db">global_network_resilience</span>
+              <span class="db-breadcrumb-sep">›</span>
+              <span class="db-breadcrumb-table" id="db-current-table">—</span>
+            </div>
+            <div class="db-result-bar">
+              <span id="db-result-info">Selecione uma tabela.</span>
+              <div class="db-pagination">
+                <button class="btn btn-sm" id="db-prev-page" disabled>‹</button>
+                <span class="db-page-label" id="db-page-label">—</span>
+                <button class="btn btn-sm" id="db-next-page" disabled>›</button>
+              </div>
+            </div>
+          </div>
+          <div class="error" id="db-error"></div>
+          <div class="empty" id="db-empty" style="display:none">Nenhum resultado para este filtro.</div>
+          <div class="table-wrap db-table-wrap" id="db-table-wrap" style="display:none">
+            <table class="db-table">
+              <thead id="db-thead"></thead>
+              <tbody id="db-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+
+      </div><!-- /.db-data-panel -->
+
+    </div><!-- /.db-explorer-wrap -->
+  </section>
+
+  <!-- PÁGINA: DETALHES -->
+  <section class="page" id="page-detail">
+    <div class="page-inner">
+      <div class="page-toolbar">
+        <input id="detail-picker" list="cable-list" placeholder="Digite ou selecione um cable_id">
+        <datalist id="cable-list"></datalist>
+        <button class="btn primary" id="detail-load">Abrir</button>
+      </div>
+      <div class="error" id="detail-error"></div>
+      <div class="empty" id="detail-empty">Selecione um cabo para ver endpoints, geografia e amostras de IP.</div>
+      <div id="detail-content" style="display:none">
+        <div class="detail-summary" id="detail-summary"></div>
+        <div class="subhead">Endpoints e Geografia</div>
+        <div class="endpoint-list" id="endpoint-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: ROTAS -->
+  <!-- PÁGINA: TOP 3 ROTAS -->
+  <section class="page" id="page-routes">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
+        <div class="fn-name">Top 3 Rotas</div>
+        <div class="field"><label>País origem</label><select id="route-country-a" class="country-select"></select></div>
+        <div class="field"><label>País destino</label><select id="route-country-b" class="country-select"></select></div>
+        <button class="btn primary fn-action" id="btn-top-routes">Calcular Rotas</button>
+        <div class="error" id="route-error"></div>
+      </div>
+      <div class="probe-result-area">
+        <div class="fn-result" id="route-result">Selecione os países e calcule as rotas.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: RISCO DE ENDPOINTS -->
+  <section class="page" id="page-risk">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
+        <div class="fn-name">Risco de Endpoints</div>
+        <div class="field"><label>País</label><select id="risk-country" class="country-select"></select></div>
+        <button class="btn primary fn-action" id="btn-endpoint-risk">Mapear Risco</button>
+        <div class="error" id="risk-error"></div>
+      </div>
+      <div class="probe-result-area">
+        <div class="fn-result" id="risk-result">Selecione um país para mapear o risco dos endpoints.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: CORTES CRÍTICOS -->
+  <section class="page" id="page-cuts">
+    <div class="page-inner probe-layout">
+      <div class="fn-card probe-card">
+        <div class="fn-name">Cortes Críticos</div>
+        <div class="field"><label>País origem</label><select id="cut-country-a" class="country-select"></select></div>
+        <div class="field"><label>País destino</label><select id="cut-country-b" class="country-select"></select></div>
+        <button class="btn primary fn-action" id="btn-critical-cuts">Analisar Isolamento</button>
+        <div class="error" id="cuts-error"></div>
+      </div>
+      <div class="probe-result-area">
+        <div class="fn-result" id="cuts-result">Selecione o par de países para análise de isolamento.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: TELEMETRIA -->
+  <!-- PÁGINA: SONDA & TELEMETRIA -->
+  <section class="page" id="page-probe">
+    <div class="page-inner probe-v2">
+
+      <!-- Barra superior: input de cabo + modo + janela -->
+      <div class="probe-top-bar">
+        <div class="probe-cable-field">
+          <input id="probe-cable-input" type="text" list="probe-cable-list"
+                 placeholder="Nome ou ID do cabo…" autocomplete="off" spellcheck="false">
+          <datalist id="probe-cable-list"></datalist>
+        </div>
+        <div class="probe-mode-wrap">
+          <label class="probe-mode-opt">
+            <input type="radio" name="probe-mode" id="probe-mode-history" value="history" checked>
+            <span>Histórico de Janela</span>
+          </label>
+          <label class="probe-mode-opt">
+            <input type="radio" name="probe-mode" id="probe-mode-realtime" value="realtime">
+            <span>Monitoramento em Tempo Real</span>
+          </label>
+        </div>
+        <div class="probe-window-wrap" id="probe-window-wrap">
+          <select id="telemetry-hours">
+            <option value="6">6 h</option>
+            <option value="24" selected>24 h</option>
+            <option value="72">3 d</option>
+            <option value="168">7 d</option>
+            <option value="720">30 d</option>
+          </select>
+          <button class="btn primary" id="btn-telemetry">Carregar</button>
+        </div>
+        <div class="probe-realtime-wrap" id="probe-realtime-wrap" style="display:none;">
+          <button class="btn primary" id="btn-single-probe">Sondar Agora</button>
+        </div>
+      </div>
+
+      <!-- Barra de legenda -->
+      <div class="probe-legend-bar" id="probe-legend-bar">
+        <div class="probe-legend-item">
+          <span class="plb-label">Janela</span>
+          <span class="plb-value" id="legend-janela">—</span>
+        </div>
+        <div class="probe-legend-divider"></div>
+        <div class="probe-legend-item">
+          <span class="plb-label">Qualidade</span>
+          <span class="plb-value" id="legend-qualidade">—</span>
+        </div>
+        <div class="probe-legend-divider"></div>
+        <div class="probe-legend-item">
+          <span class="plb-label">Origem</span>
+          <span class="plb-value" id="legend-origem">—</span>
+        </div>
+        <div class="probe-legend-divider"></div>
+        <div class="probe-legend-item">
+          <span class="plb-label">Amostras</span>
+          <span class="plb-value" id="legend-amostras">—</span>
+        </div>
+      </div>
+
+      <!-- Área de conteúdo -->
+      <div class="probe-content-area">
+        <div class="error" id="probe-error"></div>
+        <div class="fn-result" id="probe-result">Digite o nome de um cabo e selecione o modo de análise.</div>
+        <div id="telemetry-result"></div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PÁGINA: SONDA DIÁRIA -->
+  <section class="page" id="page-daily">
+    <div class="page-inner">
+
+      <!-- Header -->
+      <div class="daily-header">
+        <div>
+          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v2</span></div>
+          <div class="daily-subtitle">Verificação ICMP real + latência TCP em 699 cabos submarinos</div>
+        </div>
+        <div class="daily-actions">
+          <label class="daily-opt"><input type="checkbox" id="daily-full-scan" checked> Sonda completa</label>
+          <button class="btn primary" id="btn-daily-start"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Iniciar Sonda</button>
+          <button class="btn danger" id="btn-daily-cancel" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg> Cancelar</button>
+          <span class="daily-status-badge" id="daily-status-badge"></span>
+        </div>
+      </div>
+
+      <!-- Barra de fases do ciclo -->
+      <div class="daily-phase-bar" id="daily-phase-bar" style="display:none">
+        <div class="dpb-step" id="dpb-preflight">PRÉ-FLIGHT</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-icmp">ICMP</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-dns">DNS</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-http">HTTP</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-pipeline">Pipeline</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="dpb-done">Sumário</div>
+      </div>
+
+      <!-- PRÉ-FLIGHT: resultado dos probes ICMP + checks de serviços -->
+      <div class="daily-preflight" id="daily-preflight" style="display:none">
+        <div class="pf-row">
+          <div class="pf-check" id="pf-deps"><span class="pf-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><polyline points="8 4.75 8 8 10.25 9.25"/></svg></span> Dependências</div>
+          <div class="pf-check" id="pf-dns"><span class="pf-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><polyline points="8 4.75 8 8 10.25 9.25"/></svg></span> DNS</div>
+          <div class="pf-check" id="pf-http"><span class="pf-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><polyline points="8 4.75 8 8 10.25 9.25"/></svg></span> HTTP</div>
+          <div class="pf-check pf-reach" id="pf-reach"><span class="pf-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><polyline points="8 4.75 8 8 10.25 9.25"/></svg></span> <span id="pf-reach-label">Rede —</span></div>
+        </div>
+        <div class="pf-probes" id="pf-probes"></div>
+      </div>
+
+      <!-- Task Python atual (tentativa N/M) -->
+      <div class="daily-task-bar" id="daily-task-bar" style="display:none">
+        <span class="dtb-label" id="dtb-label">—</span>
+        <span class="dtb-attempt" id="dtb-attempt"></span>
+        <div class="dtb-done" id="dtb-done"></div>
+      </div>
+
+      <!-- Barra de progresso de cabos -->
+      <div id="daily-progress-wrap" style="display:none">
+        <div class="daily-progress-outer">
+          <div class="daily-progress-inner" id="daily-progress-inner"></div>
+        </div>
+        <div class="daily-progress-label" id="daily-progress-label">0 / 0 — 0%</div>
+      </div>
+
+      <!-- Animação de pacote + info do cabo atual -->
+      <div id="daily-cable-panel" style="display:none">
+        <!-- Hero: nome do cabo em destaque -->
+        <div class="pv-hero">
+          <div class="pv-hero-sup">Medindo agora</div>
+          <div class="pv-hero-name" id="pv-cable-name">—</div>
+          <div class="pv-hero-row">
+            <span class="pv-proto-chip" id="pv-proto-chip">—</span>
+            <span class="pv-ep-pair">
+              <span id="pv-ep-a">—</span>
+              <span class="pv-ep-arr">→</span>
+              <span id="pv-ep-b">—</span>
+            </span>
+          </div>
+        </div>
+        <!-- Trilha de pacotes: envio + ACK -->
+        <div class="pv-wrap">
+          <div class="pv-track-section">
+            <span class="pv-tdir">SEND</span>
+            <div class="pv-track">
+              <div class="pv-line"></div>
+              <div class="pv-node pv-node-left"></div>
+              <div class="pv-node pv-node-right"></div>
+              <div class="pv-pkt pv-pkt-1"><span class="pv-ptag" id="pv-ptag-1"></span></div>
+              <div class="pv-pkt pv-pkt-2"><span class="pv-ptag" id="pv-ptag-2"></span></div>
+              <div class="pv-pkt pv-pkt-3"><span class="pv-ptag" id="pv-ptag-3"></span></div>
+            </div>
+          </div>
+          <div class="pv-track-section">
+            <span class="pv-tdir pv-tdir-ack">ACK</span>
+            <div class="pv-track">
+              <div class="pv-line pv-line-ack"></div>
+              <div class="pv-node pv-node-left pv-node-ack"></div>
+              <div class="pv-node pv-node-right pv-node-ack"></div>
+              <div class="pv-pkt pv-pkt-back pv-pkt-b1"></div>
+              <div class="pv-pkt pv-pkt-back pv-pkt-b2"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Métricas -->
+        <div class="pv-metrics">
+          <div class="pv-m"><span class="pv-k">Latência RTT</span><span class="pv-v accent" id="pv-lat">—</span></div>
+          <div class="pv-m"><span class="pv-k">Protocolo</span><span class="pv-v" id="pv-proto">—</span></div>
+          <div class="pv-m"><span class="pv-k">Pacotes</span><span class="pv-v mono"><span id="pv-pkt-n">0</span><span class="pv-muted">/100</span></span></div>
+          <div class="pv-m"><span class="pv-k">Portas</span><span class="pv-v mono" id="pv-ports">—</span></div>
+          <div class="pv-m"><span class="pv-k">Saltos (hops)</span><span class="pv-v mono pv-hop-accent" id="pv-hop-n">—</span></div>
+          <div class="pv-m"><span class="pv-k">Comutadores geo</span><span class="pv-v mono" id="pv-switch-n">—</span></div>
+        </div>
+      </div>
+
+      <!-- Cards de estatísticas -->
+      <div class="daily-stats" id="daily-stats">
+        <div class="dstat"><div class="dstat-v" id="dstat-total">—</div><div class="dstat-l">Cabos</div></div>
+        <div class="dstat tcp"><div class="dstat-v" id="dstat-tcp">—</div><div class="dstat-l">TCP Real</div></div>
+        <div class="dstat synth"><div class="dstat-v" id="dstat-synth">—</div><div class="dstat-l">Sintético</div></div>
+        <div class="dstat"><div class="dstat-v" id="dstat-mtr">—</div><div class="dstat-l">MTR</div></div>
+        <div class="dstat hop"><div class="dstat-v" id="dstat-switches">—</div><div class="dstat-l">Comutadores</div></div>
+        <div class="dstat warn"><div class="dstat-v" id="dstat-anomalies">—</div><div class="dstat-l">Anomalias</div></div>
+      </div>
+
+      <!-- Avisos e erros acumulados pelo bash -->
+      <div class="daily-alerts" id="daily-alerts" style="display:none">
+        <div class="da-block da-warn-block" id="da-warn-block" style="display:none">
+          <div class="da-block-title"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5L1.5 13.5h13z"/><line x1="8" y1="6" x2="8" y2="9.5"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none"/></svg> Avisos</div>
+          <ul class="da-list" id="da-warn-list"></ul>
+        </div>
+        <div class="da-block da-error-block" id="da-error-block" style="display:none">
+          <div class="da-block-title"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg> Erros</div>
+          <ul class="da-list" id="da-error-list"></ul>
+        </div>
+      </div>
+
+      <!-- Tabela live de últimas sondas -->
+      <div id="daily-table-wrap" style="display:none">
+        <div class="subhead">Últimas sondas</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Cabo</th><th>Protocolo</th><th>Latência</th><th>Hops</th></tr></thead>
+            <tbody id="daily-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="error" id="daily-error"></div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: HISTÓRICO -->
+  <section class="page" id="page-history">
+    <div class="page-inner">
+
+      <div class="hist-toolbar">
+        <select id="hist-date-sel"><option value="">— Selecione uma data —</option></select>
+        <input type="text" id="hist-filter-cable" placeholder="Filtrar por cabo…" autocomplete="off">
+        <select id="hist-filter-proto">
+          <option value="">Todos os protocolos</option>
+        </select>
+        <button class="btn primary" id="btn-hist-load">Carregar</button>
+      </div>
+
+      <div class="error" id="hist-error"></div>
+
+      <div class="hist-summary" id="hist-summary" style="display:none">
+        <div class="dstat"><div class="dstat-v" id="h-total">—</div><div class="dstat-l">Cabos</div></div>
+        <div class="dstat tcp"><div class="dstat-v" id="h-tcp">—</div><div class="dstat-l">TCP Real</div></div>
+        <div class="dstat synth"><div class="dstat-v" id="h-synth">—</div><div class="dstat-l">Sintético</div></div>
+        <div class="dstat mtr"><div class="dstat-v" id="h-mtr">—</div><div class="dstat-l">MTR</div></div>
+        <div class="dstat http"><div class="dstat-v" id="h-http">—</div><div class="dstat-l">HTTP</div></div>
+        <div class="dstat warn"><div class="dstat-v" id="h-anomalies">—</div><div class="dstat-l">Anomalias</div></div>
+        <div class="dstat"><div class="dstat-v" id="h-completed">—</div><div class="dstat-l">Concluído</div></div>
+      </div>
+
+      <div class="table-wrap" id="hist-table-wrap" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Cabo</th>
+              <th>Protocolo</th>
+              <th>Latência</th>
+              <th>Tipo</th>
+            </tr>
+          </thead>
+          <tbody id="hist-tbody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- ── MODAL: RESULTADO DA SONDA ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="probe-modal">
+  <div class="modal-box" id="probe-modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Resultado da Sonda</span>
+      <button class="modal-close" id="modal-close">X</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

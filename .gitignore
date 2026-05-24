@@ -1,0 +1,36 @@
+# ── Ambientes Python ──────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.vscode
+.venv
+.claude
+
+# ── Build C (artefatos compilados) ────────────────────────────────────────────
+*.o
+terminal/rmifo
+dashboard/dist/
+
+# ── Runtime PostgreSQL local ──────────────────────────────────────────────────
+.local/
+global-network-resilience/.local/
+
+# ── Dados de runtime e logs ───────────────────────────────────────────────────
+data/local/
+
+# ── Dados externos volumosos (GeoIP) ─────────────────────────────────────────
+global-network-resilience/data/external/geoip_database.csv
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Resultados de simulações ──────────────────────────────────────────────────
+results/
+outputs/

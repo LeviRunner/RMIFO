@@ -1,0 +1,19 @@
+[phases.setup]
+nixPkgs = [
+  "php82",
+  "php82Extensions.pdo_pgsql",
+  "php82Extensions.pgsql",
+  "postgresql",
+  "nodejs_20",
+  "curl",
+  "mtr",
+  "iputils"
+]
+
+[phases.install]
+cmds = [
+  "npm install --omit=dev"
+]
+
+[start]
+cmd = "bash start.sh"

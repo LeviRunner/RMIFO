@@ -1,0 +1,189 @@
+{
+  "gerado_em": "2026-05-15T17:58:50",
+  "servidor": "http://localhost:8089/api.php",
+  "resumo": {
+    "conexao": 21,
+    "falha_de_conexao": 1
+  },
+  "conexao": [
+    {
+      "rota": "all",
+      "descricao": "Lista todos os cabos",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=all",
+      "registros": 699,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "countries",
+      "descricao": "Lista países com cabos",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=countries",
+      "registros": 188,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "name",
+      "descricao": "Busca cabo por nome parcial",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=name&q=south",
+      "registros": 24,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "owners",
+      "descricao": "Busca cabo por proprietário",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=owners&q=google",
+      "registros": 34,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "suppliers",
+      "descricao": "Busca cabo por fornecedor",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=suppliers&q=alcatel",
+      "registros": 6,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "year",
+      "descricao": "Busca cabo por ano de operação",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=year&q=2020",
+      "registros": 24,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "operational",
+      "descricao": "Filtra cabos por status operacional",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=operational&q=true",
+      "registros": 603,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "landing",
+      "descricao": "Busca cabos com N landing points",
+      "nota": "q deve ser número inteiro",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=landing&q=4",
+      "registros": 83,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "endpoint",
+      "descricao": "Busca cabos por nome de endpoint",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=endpoint&q=luanda",
+      "registros": 3,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "country",
+      "descricao": "Busca cabos por país",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=country&q=Albania",
+      "registros": 4,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "detail",
+      "descricao": "Detalhes de cabo (alias detail)",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=detail&q=2africa",
+      "registros": 54,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "details",
+      "descricao": "Detalhes de cabo (alias details)",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=details&q=2africa",
+      "registros": 54,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "top_routes",
+      "descricao": "Top 3 rotas entre dois países",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=top_routes&countryA=Albania&countryB=Bahamas",
+      "registros": 3,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "critical_cuts",
+      "descricao": "Cortes críticos entre países",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=critical_cuts&countryA=Albania&countryB=Bahamas",
+      "registros": 1,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "critical_cables",
+      "descricao": "Alias de critical_cuts",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=critical_cables&countryA=Albania&countryB=Bahamas",
+      "registros": 1,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "endpoint_risk",
+      "descricao": "Risco de endpoints de um país",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=endpoint_risk&q=Albania",
+      "registros": 2,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "telemetry",
+      "descricao": "Telemetria de cabo (24h)",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=telemetry&q=2africa&hours=24",
+      "registros": 1,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "alerts",
+      "descricao": "Alertas ativos",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=alerts",
+      "registros": 4,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "globe_data",
+      "descricao": "Paths e pontos do globo 3D",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=globe_data",
+      "registros": 1908,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "endpoints",
+      "descricao": "Endpoints de um cabo específico",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=endpoints&q=2africa",
+      "registros": 54,
+      "timestamp": "2026-05-15T17:58:50"
+    },
+    {
+      "rota": "probe",
+      "descricao": "Sonda de rede em endpoint",
+      "nota": "",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=probe&q=luanda-angola&cable_id=2africa",
+      "registros": 1,
+      "timestamp": "2026-05-15T17:58:50"
+    }
+  ],
+  "falha de conexao": [
+    {
+      "rota": "cable_id",
+      "descricao": "Busca binária (frontend only)",
+      "nota": "modo exclusivo do frontend, sem rota de API",
+      "url_testada": "http://localhost:8089/api.php?api=1&mode=cable_id&q=2africa",
+      "registros": null,
+      "timestamp": "2026-05-15T17:58:50",
+      "erro": "HTTP 400: Modo desconhecido."
+    }
+  ]
+}

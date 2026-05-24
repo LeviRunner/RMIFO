@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#000000"/>
+
+  <!-- Globe sphere -->
+  <circle cx="256" cy="256" r="200" fill="#3a3a3a"/>
+
+  <!-- Globe grid lines (clipped to sphere) -->
+  <defs>
+    <clipPath id="globe-clip">
+      <circle cx="256" cy="256" r="200"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#globe-clip)" fill="none" stroke="#c0c0c0" stroke-width="1.5" opacity="0.7">
+    <!-- Equator -->
+    <ellipse cx="256" cy="256" rx="200" ry="200"/>
+    <!-- Latitude lines -->
+    <ellipse cx="256" cy="190" rx="173" ry="60"/>
+    <ellipse cx="256" cy="322" rx="173" ry="60"/>
+    <ellipse cx="256" cy="130" rx="114" ry="38"/>
+    <ellipse cx="256" cy="382" rx="114" ry="38"/>
+    <!-- Longitude lines (vertical ellipses) -->
+    <ellipse cx="256" cy="256" rx="200" ry="200"/>
+    <ellipse cx="256" cy="256" rx="90"  ry="200"/>
+    <ellipse cx="256" cy="256" rx="160" ry="200" transform="rotate(45 256 256)"/>
+    <ellipse cx="256" cy="256" rx="160" ry="200" transform="rotate(-45 256 256)"/>
+  </g>
+
+  <!-- Globe outline -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#d0d0d0" stroke-width="2.5"/>
+
+  <!-- Node positions:
+       center: 256,256
+       top: 256,88
+       top-right: 388,118
+       right: 432,256
+       bottom-right: 388,394
+       bottom: 256,424
+       bottom-left: 124,394
+       left: 80,256
+       top-left: 124,118
+  -->
+
+  <!-- Connection lines (white, behind dots) -->
+  <g stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.92">
+    <!-- center to all outer nodes -->
+    <line x1="256" y1="256" x2="256" y2="88"/>
+    <line x1="256" y1="256" x2="388" y2="118"/>
+    <line x1="256" y1="256" x2="432" y2="256"/>
+    <line x1="256" y1="256" x2="388" y2="394"/>
+    <line x1="256" y1="256" x2="256" y2="424"/>
+    <line x1="256" y1="256" x2="124" y2="394"/>
+    <line x1="256" y1="256" x2="80"  y2="256"/>
+    <line x1="256" y1="256" x2="124" y2="118"/>
+  </g>
+
+  <!-- Nodes — outer ring -->
+  <g fill="#cc00ff">
+    <circle cx="256" cy="88"  r="22"/>
+    <circle cx="388" cy="118" r="22"/>
+    <circle cx="432" cy="256" r="22"/>
+    <circle cx="388" cy="394" r="22"/>
+    <circle cx="256" cy="424" r="22"/>
+    <circle cx="124" cy="394" r="22"/>
+    <circle cx="80"  cy="256" r="22"/>
+    <circle cx="124" cy="118" r="22"/>
+  </g>
+
+  <!-- Center node (larger) -->
+  <circle cx="256" cy="256" r="28" fill="#cc00ff"/>
+
+</svg>
