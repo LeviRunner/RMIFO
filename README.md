@@ -92,7 +92,7 @@ RMIFO/
 - Status ao vivo: PostgreSQL, API PHP, alertas ativos, hops de rota
 - Última medição registrada no banco
 
-### Mapa Global (Globo 3D)
+### Mapa Global
 
 - Globo interativo **MapLibre GL JS 4.7.1** com projeção `globe` (WebGL)
 - Cabos como `LineString` GeoJSON — cor por status:
