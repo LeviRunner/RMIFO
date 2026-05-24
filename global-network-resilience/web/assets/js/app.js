@@ -548,27 +548,55 @@ function initWelcomeCard() {
   const btn  = document.getElementById('welcome-dismiss');
   if (!card) return;
 
-  // Sempre mostra na carga inicial da página
   card.classList.add('visible');
 
-  // Busca estatísticas reais do banco e popula os cards
+  const $ = sel => card.querySelector(sel);
+  const setDot = (dotEl, cls) => { dotEl && (dotEl.className = 'wc-status-dot ' + cls); };
+
   fetch('api.php?action=summary')
     .then(r => r.ok ? r.json() : null)
     .then(d => {
-      if (!d) return;
-      const cablesEl  = card.querySelector('[data-stat="cables"]');
-      const samplesEl = card.querySelector('[data-stat="samples"]');
-      const opEl      = card.querySelector('[data-stat="operational"]');
-      const lastEl    = card.querySelector('[data-stat="last"]');
+      const cablesEl  = $('[data-stat="cables"]');
+      const samplesEl = $('[data-stat="samples"]');
+      const opEl      = $('[data-stat="operational"]');
+      const lastEl    = $('[data-stat="last"]');
+      const dbDot     = $('[data-stat="db-dot"]');
+      const dbStatus  = $('[data-stat="db-status"]');
+      const alertDot  = $('[data-stat="alert-dot"]');
+      const alertsEl  = $('[data-stat="alerts"]');
+      const geojsonEl = $('[data-stat="geojson-cables"]');
+
+      if (!d || d.error) {
+        setDot(dbDot, 'wc-dot-err');
+        if (dbStatus) dbStatus.textContent = 'offline';
+        setDot(alertDot, 'wc-dot-warn');
+        if (alertsEl) alertsEl.textContent = '—';
+        return;
+      }
+
+      setDot(dbDot, 'wc-dot-ok');
+      if (dbStatus) dbStatus.textContent = 'online';
+
       if (cablesEl  && d.cables_total       > 0) rmifoCount(cablesEl,  d.cables_total,       900);
       if (samplesEl && d.telemetry_samples  > 0) rmifoCount(samplesEl, d.telemetry_samples,  900);
       if (opEl      && d.cables_operational > 0) rmifoCount(opEl,      d.cables_operational, 900);
-      if (lastEl    && d.last_measured_at) {
+      if (geojsonEl && d.cables_total       > 0) geojsonEl.textContent = d.cables_total;
+
+      if (lastEl && d.last_measured_at) {
         const dt = new Date(d.last_measured_at);
         lastEl.textContent = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
       }
+
+      const alerts = d.alerts_active ?? d.active_alerts ?? null;
+      if (alertsEl) alertsEl.textContent = alerts !== null ? alerts : '0';
+      setDot(alertDot, alerts > 0 ? 'wc-dot-warn' : 'wc-dot-ok');
     })
-    .catch(() => {/* BD indisponível — valores fixos já estão no HTML */});
+    .catch(() => {
+      const dbDot    = $('[data-stat="db-dot"]');
+      const dbStatus = $('[data-stat="db-status"]');
+      setDot(dbDot, 'wc-dot-err');
+      if (dbStatus) dbStatus.textContent = 'offline';
+    });
 
   if (btn) btn.addEventListener('click', () => {
     card.classList.remove('visible');

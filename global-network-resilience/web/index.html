@@ -55,138 +55,29 @@
       </div>
     </div>
 
-    <!-- ARCHITECTURE FLOW -->
-    <section class="wc-arch" aria-label="Fluxo de comunicação">
-      <h2 class="wc-section-title">Como o projeto se interliga</h2>
-      <div class="wc-flow">
-
-        <!-- 1 · Scripts Python -->
-        <div class="wc-flow-step">
-          <div class="wc-flow-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-          </div>
-          <div class="wc-flow-body">
-            <strong>Scripts Python — coleta de dados</strong>
-            <p>Executam varredura TCP (múltiplas portas), ICMP ping e traceroute MTR em paralelo contra os endpoints de aterrissagem de cada cabo. <strong>Uso real:</strong> ao rodar a Sonda Diária, o script itera todos os cabos ativos, testa conectividade, mede latência/jitter/perda de pacotes e salva os resultados em arquivos JSON de checkpoint — que depois são importados para o banco via UPSERT.</p>
-            <div class="wc-flow-tags">
-              <span>run_daily_telemetry_tasks.sh</span><span>checkpoint_*.json</span><span>probe_full_*.json</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="wc-flow-arrow" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-          <span>grava JSON · importa para BD</span>
-        </div>
-
-        <!-- 2 · PostgreSQL -->
-        <div class="wc-flow-step">
-          <div class="wc-flow-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
-          </div>
-          <div class="wc-flow-body">
-            <strong>PostgreSQL (Railway) — persistência</strong>
-            <p>Armazena a topologia de cabos, pontos de aterrissagem, amostras de telemetria e hops de rota em 12 tabelas relacionadas. <strong>Uso real:</strong> <code>cable_telemetry_samples</code> recebe cada medição com UPSERT; views <code>rollup_1h</code> e <code>rollup_5m</code> calculam médias, p95 e pico sem tabelas físicas redundantes — qualquer query ao Explorador DB lê diretamente dessas views.</p>
-            <div class="wc-flow-tags">
-              <span>cables</span><span>landing_points</span><span>cable_telemetry_samples</span><span>cable_telemetry_hops</span><span>telemetry_alerts</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="wc-flow-arrow" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-          <span>consulta SQL · serve JSON</span>
-        </div>
-
-        <!-- 3 · API PHP -->
-        <div class="wc-flow-step">
-          <div class="wc-flow-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          </div>
-          <div class="wc-flow-body">
-            <strong>API PHP (api.php) — camada de serviço</strong>
-            <p>Único ponto de entrada entre o frontend e o banco. <strong>Uso real:</strong> cada aba do site dispara um <code>fetch()</code> diferente — o Mapa chama <code>?action=all</code> para listar cabos com coordenadas; a Sonda chama <code>?action=probe</code> para testar um endpoint ao vivo; o Explorador DB chama <code>?action=db_browse</code> com paginação. Rate limiting por SHA-256 do IP previne abuso.</p>
-            <div class="wc-flow-tags">
-              <span>?action=all</span><span>?action=probe</span><span>?action=db_browse</span><span>?action=summary</span><span>?action=daily_start</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="wc-flow-arrow" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-          <span>fetch() · renderiza no cliente</span>
-        </div>
-
-        <!-- 4 · Frontend -->
-        <div class="wc-flow-step">
-          <div class="wc-flow-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          </div>
-          <div class="wc-flow-body">
-            <strong>Frontend Vanilla JS — visualização</strong>
-            <p>SPA sem bundler ou framework. <strong>Uso real:</strong> ao abrir o Mapa, <code>MapLibre GL 4</code> renderiza o globo 3D via WebGL com projeção globe — cada cabo submarino aparece como linha colorida sobre a esfera (verde = operacional, amarelo = alerta, vermelho = inativo). O <em>Explorador DB</em> mostra tabelas paginadas com filtros. A <em>Sonda ao Vivo</em> testa um endpoint e exibe latência, jitter e hops de rota em tempo real. O app é instalável como PWA via service worker.</p>
-            <div class="wc-flow-tags">
-              <span>MapLibre GL 4</span><span>WebGL</span><span>Canvas 2D</span><span>PWA · sw.js</span><span>requestAnimationFrame</span>
-            </div>
-          </div>
-        </div>
-
+    <!-- STATUS AO VIVO -->
+    <div class="wc-status-grid" aria-label="Status do sistema">
+      <div class="wc-status-item">
+        <span class="wc-status-dot" data-stat="db-dot"></span>
+        <span class="wc-status-key">Banco de dados</span>
+        <span class="wc-status-val" data-stat="db-status">verificando…</span>
       </div>
-    </section>
-
-    <!-- SCHEMA ERD -->
-    <section class="wc-schema" aria-label="Esquema do banco de dados">
-      <h2 class="wc-section-title">Esquema do banco — 12 tabelas</h2>
-      <p class="wc-schema-label">Relações por chave estrangeira: topologia de cabos → pontos de aterrissagem → telemetria → alertas.</p>
-      <svg class="wc-schema-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" aria-hidden="true">
-        <defs>
-          <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L6,3 z" fill="#a871ff" opacity="0.7"/>
-          </marker>
-        </defs>
-        <rect x="10"  y="130" width="100" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="60"  y="154" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="11" fill="#a871ff">nodes</text>
-        <rect x="160" y="40"  width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="2"/>
-        <text x="215" y="64"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="11" fill="#c49dff" font-weight="600">cables</text>
-        <rect x="160" y="130" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="215" y="154" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">cable_metadata</text>
-        <rect x="160" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="215" y="244" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">landing_points</text>
-        <rect x="330" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="385" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_landing</text>
-        <text x="385" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_points</text>
-        <rect x="330" y="295" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
-        <text x="385" y="311" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">endpoint_ip</text>
-        <text x="385" y="325" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_samples</text>
-        <rect x="10"  y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
-        <text x="65"  y="244" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">geoip_mapping</text>
-        <rect x="330" y="40"  width="130" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="2"/>
-        <text x="395" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#c49dff" font-weight="600">cable_telemetry</text>
-        <text x="395" y="70"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#c49dff" font-weight="600">_samples</text>
-        <rect x="500" y="40"  width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="555" y="55"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_telemetry</text>
-        <text x="555" y="69"  text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_hops</text>
-        <rect x="500" y="130" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="555" y="145" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">cable_telemetry</text>
-        <text x="555" y="159" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_reference</text>
-        <rect x="500" y="220" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.7"/>
-        <text x="555" y="236" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">telemetry</text>
-        <text x="555" y="250" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="#a871ff">_alerts</text>
-        <rect x="500" y="295" width="110" height="38" rx="6" fill="none" stroke="#a871ff" stroke-width="1.5" opacity="0.65"/>
-        <text x="555" y="319" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" fill="#a871ff">api_rate_limit</text>
-        <g stroke="#a871ff" stroke-width="1.2" fill="none" opacity="0.6" marker-end="url(#arr)">
-          <line x1="110" y1="145" x2="158" y2="69"/>
-          <line x1="215" y1="78"  x2="215" y2="128"/>
-          <path d="M270,59 Q310,59 330,230"/>
-          <line x1="270" y1="239" x2="328" y2="239"/>
-          <line x1="270" y1="258" x2="328" y2="310"/>
-          <line x1="270" y1="59"  x2="328" y2="59"/>
-          <line x1="460" y1="59"  x2="498" y2="59"/>
-          <path d="M270,78 Q290,149 498,149"/>
-          <path d="M270,68 Q300,239 498,239"/>
-        </g>
-      </svg>
-    </section>
+      <div class="wc-status-item">
+        <span class="wc-status-dot wc-dot-ok"></span>
+        <span class="wc-status-key">API</span>
+        <span class="wc-status-val">online</span>
+      </div>
+      <div class="wc-status-item">
+        <span class="wc-status-dot wc-dot-ok"></span>
+        <span class="wc-status-key">Cabos no GeoJSON</span>
+        <span class="wc-status-val" data-stat="geojson-cables">—</span>
+      </div>
+      <div class="wc-status-item">
+        <span class="wc-status-dot" data-stat="alert-dot"></span>
+        <span class="wc-status-key">Alertas ativos</span>
+        <span class="wc-status-val" data-stat="alerts">—</span>
+      </div>
+    </div>
 
     <!-- ÚLTIMA MEDIÇÃO -->
     <p class="wc-last-measured">Última medição registrada: <strong data-stat="last">carregando…</strong></p>
