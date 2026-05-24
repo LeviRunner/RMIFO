@@ -32,11 +32,11 @@
     <header class="wc-hero">
       <div class="wc-logo">RMIFO</div>
       <h1 class="wc-title">Global Network Resilience</h1>
-      <p class="wc-subtitle">Plataforma open-source de monitoramento de cabos submarinos — coleta telemetria TCP/MTR, persiste em PostgreSQL e exibe em globo 3D interativo em tempo real.</p>
+      <p class="wc-subtitle">Plataforma open-source de monitoramento de cabos submarinos — coleta telemetria TCP/MTR, persiste em PostgreSQL e exibe em globo 3D interativo.</p>
     </header>
 
-    <!-- STATS LIVE -->
-    <div class="wc-stats" aria-label="Estatísticas do sistema">
+    <!-- STATS DO BD (6 contadores reais) -->
+    <div class="wc-stats" aria-label="Estatísticas do banco de dados">
       <div class="wc-stat">
         <span class="wc-stat-n" data-stat="cables">—</span>
         <span class="wc-stat-l">cabos catalogados</span>
@@ -50,8 +50,53 @@
         <span class="wc-stat-l">amostras de telemetria</span>
       </div>
       <div class="wc-stat">
-        <span class="wc-stat-n">12</span>
+        <span class="wc-stat-n" data-stat="landing-points">—</span>
+        <span class="wc-stat-l">pontos de aterrissagem</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="countries">—</span>
+        <span class="wc-stat-l">países monitorados</span>
+      </div>
+      <div class="wc-stat">
+        <span class="wc-stat-n" data-stat="tables">—</span>
         <span class="wc-stat-l">tabelas PostgreSQL</span>
+      </div>
+    </div>
+
+    <!-- COMO FUNCIONA -->
+    <div class="wc-how" aria-label="Como o projeto funciona">
+      <div class="wc-how-step">
+        <div class="wc-how-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </div>
+        <div class="wc-how-body">
+          <strong>Sonda Diária</strong>
+          <p>Scripts Python varrem TCP, ICMP e MTR em todos os cabos ativos e salvam resultados em JSON.</p>
+        </div>
+      </div>
+      <div class="wc-how-arrow" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </div>
+      <div class="wc-how-step">
+        <div class="wc-how-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+        </div>
+        <div class="wc-how-body">
+          <strong>PostgreSQL</strong>
+          <p>Telemetria e topologia persistidas em <span data-stat="tables-inline">—</span> tabelas relacionais via UPSERT com rollups por hora.</p>
+        </div>
+      </div>
+      <div class="wc-how-arrow" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </div>
+      <div class="wc-how-step">
+        <div class="wc-how-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <div class="wc-how-body">
+          <strong>Globo 3D</strong>
+          <p>MapLibre GL 4 renderiza cabos e alertas em tempo real via WebGL. PWA instalável offline.</p>
+        </div>
       </div>
     </div>
 
@@ -59,23 +104,23 @@
     <div class="wc-status-grid" aria-label="Status do sistema">
       <div class="wc-status-item">
         <span class="wc-status-dot" data-stat="db-dot"></span>
-        <span class="wc-status-key">Banco de dados</span>
+        <span class="wc-status-key">PostgreSQL</span>
         <span class="wc-status-val" data-stat="db-status">verificando…</span>
       </div>
       <div class="wc-status-item">
         <span class="wc-status-dot wc-dot-ok"></span>
-        <span class="wc-status-key">API</span>
+        <span class="wc-status-key">API PHP</span>
         <span class="wc-status-val">online</span>
-      </div>
-      <div class="wc-status-item">
-        <span class="wc-status-dot wc-dot-ok"></span>
-        <span class="wc-status-key">Cabos no GeoJSON</span>
-        <span class="wc-status-val" data-stat="geojson-cables">—</span>
       </div>
       <div class="wc-status-item">
         <span class="wc-status-dot" data-stat="alert-dot"></span>
         <span class="wc-status-key">Alertas ativos</span>
         <span class="wc-status-val" data-stat="alerts">—</span>
+      </div>
+      <div class="wc-status-item">
+        <span class="wc-status-dot wc-dot-ok"></span>
+        <span class="wc-status-key">Hops de rota</span>
+        <span class="wc-status-val" data-stat="hops">—</span>
       </div>
     </div>
 

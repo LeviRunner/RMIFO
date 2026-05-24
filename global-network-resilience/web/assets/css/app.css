@@ -259,38 +259,114 @@ ul {
   margin: 0 auto;
 }
 
-/* ── Stats row ── */
+/* ── Stats row (6 contadores do BD) ── */
 .wc-stats {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 32px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
 }
 
 .wc-stat {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 16px 8px;
+  padding: 14px 8px;
   background: rgba(168,113,255,0.06);
   border: 1px solid rgba(168,113,255,0.18);
   border-radius: var(--radius-md);
+  transition: border-color 160ms, background 160ms;
+}
+
+.wc-stat:hover {
+  border-color: rgba(168,113,255,0.35);
+  background: rgba(168,113,255,0.1);
 }
 
 .wc-stat-n {
   font-family: "Oxanium", monospace;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--accent-light);
   line-height: 1;
 }
 
 .wc-stat-l {
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--text-soft);
   text-align: center;
   line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Como funciona (3 passos horizontais) ── */
+.wc-how {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 20px;
+  border: 1px solid rgba(168,113,255,0.16);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wc-how-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: rgba(17,10,34,0.5);
+  transition: background 160ms;
+}
+
+.wc-how-step:hover { background: rgba(168,113,255,0.07); }
+
+.wc-how-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(168,113,255,0.14);
+  border-radius: 10px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.wc-how-body strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.wc-how-body p {
+  font-size: 11px;
+  color: var(--text-soft);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.wc-how-body p span[data-stat] {
+  font-family: "Oxanium", monospace;
+  font-weight: 700;
+  color: var(--accent-light);
+}
+
+.wc-how-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  color: rgba(168,113,255,0.35);
+  background: rgba(17,10,34,0.5);
+  flex-shrink: 0;
 }
 
 /* ── Live status grid ── */

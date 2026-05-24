@@ -550,57 +550,65 @@ function initWelcomeCard() {
 
   card.classList.add('visible');
 
-  const $ = sel => card.querySelector(sel);
+  const $    = sel => card.querySelector(sel);
   const setDot = (dotEl, cls) => { dotEl && (dotEl.className = 'wc-status-dot ' + cls); };
+  const setText = (sel, v) => { const el = $(sel); if (el) el.textContent = v; };
+  const countEl = (sel, n, ms) => { const el = $(sel); if (el && n > 0) rmifoCount(el, n, ms); };
 
   fetch('api.php?action=summary')
     .then(r => r.ok ? r.json() : null)
     .then(d => {
-      const cablesEl  = $('[data-stat="cables"]');
-      const samplesEl = $('[data-stat="samples"]');
-      const opEl      = $('[data-stat="operational"]');
-      const lastEl    = $('[data-stat="last"]');
-      const dbDot     = $('[data-stat="db-dot"]');
-      const dbStatus  = $('[data-stat="db-status"]');
-      const alertDot  = $('[data-stat="alert-dot"]');
-      const alertsEl  = $('[data-stat="alerts"]');
-      const geojsonEl = $('[data-stat="geojson-cables"]');
+      const dbDot    = $('[data-stat="db-dot"]');
+      const dbStatus = $('[data-stat="db-status"]');
+      const alertDot = $('[data-stat="alert-dot"]');
 
-      if (!d || d.error) {
+      if (!d || d.error || !d.db_ok) {
         setDot(dbDot, 'wc-dot-err');
-        if (dbStatus) dbStatus.textContent = 'offline';
+        setText('[data-stat="db-status"]', d?.db_ok === false ? 'offline' : 'verificando…');
         setDot(alertDot, 'wc-dot-warn');
-        if (alertsEl) alertsEl.textContent = '—';
         return;
       }
 
+      // DB online
       setDot(dbDot, 'wc-dot-ok');
-      if (dbStatus) dbStatus.textContent = 'online';
+      setText('[data-stat="db-status"]', 'online');
 
-      if (cablesEl  && d.cables_total       > 0) rmifoCount(cablesEl,  d.cables_total,       900);
-      if (samplesEl && d.telemetry_samples  > 0) rmifoCount(samplesEl, d.telemetry_samples,  900);
-      if (opEl      && d.cables_operational > 0) rmifoCount(opEl,      d.cables_operational, 900);
-      if (geojsonEl && d.cables_total       > 0) geojsonEl.textContent = d.cables_total;
+      // Contadores animados
+      countEl('[data-stat="cables"]',         d.cables_total,       900);
+      countEl('[data-stat="operational"]',    d.cables_operational, 900);
+      countEl('[data-stat="samples"]',        d.telemetry_samples,  1100);
+      countEl('[data-stat="landing-points"]', d.landing_points,     800);
+      countEl('[data-stat="countries"]',      d.countries,          700);
+      countEl('[data-stat="tables"]',         d.tables,             500);
 
-      if (lastEl && d.last_measured_at) {
+      // Inline na seção "Como funciona"
+      const inlineTablesEl = $('[data-stat="tables-inline"]');
+      if (inlineTablesEl) inlineTablesEl.textContent = d.tables || '—';
+
+      // Última medição
+      if (d.last_measured_at) {
         const dt = new Date(d.last_measured_at);
-        lastEl.textContent = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+        setText('[data-stat="last"]',
+          dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+          + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        );
       }
 
-      const alerts = d.alerts_active ?? d.active_alerts ?? null;
-      if (alertsEl) alertsEl.textContent = alerts !== null ? alerts : '0';
+      // Alertas
+      const alerts = d.alerts_active ?? 0;
+      setText('[data-stat="alerts"]', alerts);
       setDot(alertDot, alerts > 0 ? 'wc-dot-warn' : 'wc-dot-ok');
+
+      // Hops de rota
+      const hopsEl = $('[data-stat="hops"]');
+      if (hopsEl && d.cable_hops > 0) rmifoCount(hopsEl, d.cable_hops, 1200);
     })
     .catch(() => {
-      const dbDot    = $('[data-stat="db-dot"]');
-      const dbStatus = $('[data-stat="db-status"]');
-      setDot(dbDot, 'wc-dot-err');
-      if (dbStatus) dbStatus.textContent = 'offline';
+      setDot($('[data-stat="db-dot"]'), 'wc-dot-err');
+      setText('[data-stat="db-status"]', 'offline');
     });
 
-  if (btn) btn.addEventListener('click', () => {
-    card.classList.remove('visible');
-  });
+  if (btn) btn.addEventListener('click', () => card.classList.remove('visible'));
 }
 
 // CARTO dark-matter: estilo completo e mantido, sem source-layers customizados

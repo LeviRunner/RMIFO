@@ -1225,7 +1225,18 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
 
     // ── summary: estatísticas gerais para homepage ────────────────────────────
     if ($_modeNow === 'summary') {
-        $out = ['cables_total' => 0, 'cables_operational' => 0, 'telemetry_samples' => 0, 'last_measured_at' => null, 'tables' => 12];
+        $out = [
+            'cables_total'       => 0,
+            'cables_operational' => 0,
+            'telemetry_samples'  => 0,
+            'last_measured_at'   => null,
+            'tables'             => 0,
+            'landing_points'     => 0,
+            'countries'          => 0,
+            'alerts_active'      => 0,
+            'cable_hops'         => 0,
+            'db_ok'              => false,
+        ];
         if (extension_loaded('pdo_pgsql')) {
             try {
                 $pdoS = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
@@ -1234,6 +1245,14 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $out['telemetry_samples']  = (int) $pdoS->query("SELECT COUNT(*) FROM cable_telemetry_samples")->fetchColumn();
                 $last = $pdoS->query("SELECT MAX(measured_at) FROM cable_telemetry_samples")->fetchColumn();
                 $out['last_measured_at']   = $last ?: null;
+                $out['landing_points']     = (int) $pdoS->query("SELECT COUNT(*) FROM landing_points")->fetchColumn();
+                $out['countries']          = (int) $pdoS->query("SELECT COUNT(DISTINCT country_code) FROM landing_points WHERE country_code IS NOT NULL")->fetchColumn();
+                $out['alerts_active']      = (int) $pdoS->query("SELECT COUNT(*) FROM telemetry_alerts WHERE resolved_at IS NULL")->fetchColumn();
+                $out['cable_hops']         = (int) $pdoS->query("SELECT COUNT(*) FROM cable_telemetry_hops")->fetchColumn();
+                $out['tables']             = (int) $pdoS->query(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"
+                )->fetchColumn();
+                $out['db_ok'] = true;
             } catch (Throwable) { /* retorna zeros se BD indisponível */ }
         }
         jsonResponse($out);
