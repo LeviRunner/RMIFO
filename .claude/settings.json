@@ -73,7 +73,8 @@
       "Bash(php -m)",
       "Bash(php8.3 -m)",
       "Read(//usr/**)",
-      "Bash(php -i)"
+      "Bash(php -i)",
+      "Bash(grep -n 'globe_data\\\\|pathPts\\\\|$startLat\\\\|$startLng\\\\|$endLat\\\\|$endLng' /workspaces/RMIFO/global-network-resilience/web/api.php)"
     ]
   }
 }
