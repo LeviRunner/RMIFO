@@ -2,9 +2,17 @@ psycopg2-binary>=2.9
 requests>=2.31
 
 # Sonda SNMP — fork ativo compatível com Python 3.12+
-# (pysnmp original está em modo de manutenção)
 pysnmp-lextudio>=6.2
 
 # Captura passiva LLDP/NetFlow — requer root no host
-# Opcional: o script detecta automaticamente se está disponível
 scapy>=2.5
+
+# rmifo_advanced_reach.py — vetores avançados de descoberta de comutadores
+# NETCONF/RESTCONF (Vetor B) — requer credenciais NETCONF_USER/NETCONF_PASS
+ncclient>=0.6
+
+# RouteViews MRT dump parsing (Vetor C) — arquivos BGP públicos ~100 MB
+mrtparse>=2.2
+
+# Shodan (Vetor E) — requer SHODAN_API_KEY
+# shodan>=1.31   # descomente se tiver API key
