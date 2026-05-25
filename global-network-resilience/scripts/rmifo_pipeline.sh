@@ -2,20 +2,28 @@
 # RMIFO — Orquestrador Unificado de Pipeline
 #
 # Subcomandos:
-#   daily      Ciclo diário completo: pre-flight + conectividade + DNS + sonda Node.js
+#   daily      Ciclo diário completo: pre-flight + sonda Node.js + enriquecimento nativo
 #   pipeline   Ingestão Python: telemetria → rollup → histórico JSON → BD
-#   all        daily + pipeline em sequência
+#   enrich     Enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS) via rmifo_ip_enrich.py
+#   reach      Descoberta avançada de switches (Vetores A-G) via rmifo_advanced_reach.py
+#   all        daily + pipeline + enrich em sequência
 #
 # Uso:
-#   bash rmifo_pipeline.sh daily                     # produção (Railway)
-#   bash rmifo_pipeline.sh pipeline [--limit 50]     # pipeline Python
-#   bash rmifo_pipeline.sh pipeline --full           # full scan
+#   bash rmifo_pipeline.sh daily                      # produção (Railway)
+#   bash rmifo_pipeline.sh pipeline [--limit 50]      # pipeline Python
+#   bash rmifo_pipeline.sh pipeline --full            # full scan
 #   bash rmifo_pipeline.sh pipeline import --hours 24
+#   bash rmifo_pipeline.sh enrich [--stale 7]         # enriquece IPs novos ou stale
+#   bash rmifo_pipeline.sh enrich --field hostname,whois  # só campos selecionados
+#   bash rmifo_pipeline.sh reach [--mode banner]      # descoberta avançada
 #   bash rmifo_pipeline.sh all
 #
 # Variáveis de ambiente:
 #   FULL_SCAN, MTR_CYCLES, TIMEOUT, RETRY_ATTEMPTS, WORKSPACE_ROOT,
-#   PG_SOCKET, PG_PORT, PGDATABASE, PGUSER
+#   PG_SOCKET, PG_PORT, PGDATABASE, PGUSER,
+#   ENRICH_LIMIT (padrão 200), ENRICH_STALE_DAYS (padrão 7),
+#   ENRICH_FIELDS (padrão hostname,whois,privacy,tls),
+#   REACH_MODE (padrão banner), REACH_SKIP (1 para pular reach no all)
 
 set -uo pipefail
 
@@ -246,9 +254,31 @@ run_daily() {
             --probe-report "${PROBE_REPORT}" || true
     fi
 
+    # ── 5. Enriquecimento nativo de IPs ──────────────────────────────────────
+    # Roda após sonda.js porque ela insere novos hop IPs em hop_switch_geolocations.
+    # Enriquece apenas IPs sem enriched_at (novos) ou mais antigos que ENRICH_STALE_DAYS.
+    log ""
+    log "=== [5/5] Enriquecimento nativo de IPs ==="
+    ENRICH_LIMIT="${ENRICH_LIMIT:-200}"
+    ENRICH_STALE="${ENRICH_STALE_DAYS:-7}"
+    ENRICH_FIELDS="${ENRICH_FIELDS:-hostname,whois,privacy,tls}"
+
+    if [[ -n "$PY" ]]; then
+        log "  Enriquecendo até ${ENRICH_LIMIT} IPs (stale > ${ENRICH_STALE}d) | campos: ${ENRICH_FIELDS}"
+        "$PY" "$SCRIPT_DIR/rmifo_ip_enrich.py" \
+            --stale "${ENRICH_STALE}" \
+            --limit "${ENRICH_LIMIT}" \
+            --field "${ENRICH_FIELDS}" \
+            --workers 15 \
+            && ok "  Enriquecimento concluído." \
+            || warn "  Enriquecimento com erros parciais (não crítico)."
+    else
+        warn "  Python não disponível — enriquecimento pulado."
+    fi
+
     # ── 6. Sumário ────────────────────────────────────────────────────────────
     log ""
-    log "=== [5/5] Sumário do Ciclo ==="
+    log "=== [6/6] Sumário do Ciclo ==="
     log "    Endpoints alcançáveis : ${REACHABLE_COUNT}/${#PROBE_TARGETS[@]}"
     log "    Avisos                : ${#WARNINGS[@]}"
     log "    Erros                 : ${#ERRORS[@]}"
@@ -314,6 +344,70 @@ run_pipeline() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SUBCOMANDO: enrich — enriquecimento nativo de IPs (standalone)
+# ─────────────────────────────────────────────────────────────────────────────
+
+run_enrich() {
+    local args=("$@")
+    local stale="${ENRICH_STALE_DAYS:-7}"
+    local limit="${ENRICH_LIMIT:-500}"
+    local fields="${ENRICH_FIELDS:-hostname,whois,privacy,tls}"
+    local workers=15
+
+    # Parse args: --stale N, --limit N, --field X, --workers N
+    while [[ ${#args[@]} -gt 0 ]]; do
+        case "${args[0]}" in
+            --stale)   stale="${args[1]}";   args=("${args[@]:2}") ;;
+            --limit)   limit="${args[1]}";   args=("${args[@]:2}") ;;
+            --field)   fields="${args[1]}";  args=("${args[@]:2}") ;;
+            --workers) workers="${args[1]}"; args=("${args[@]:2}") ;;
+            *)         args=("${args[@]:1}") ;;
+        esac
+    done
+
+    sep
+    log "=== Enriquecimento nativo de IPs ==="
+    log "  stale=${stale}d | limit=${limit} | campos=${fields} | workers=${workers}"
+
+    if [[ -z "$PY" ]]; then
+        fail "Python não disponível."; return 1
+    fi
+
+    "$PY" "$SCRIPT_DIR/rmifo_ip_enrich.py" \
+        --stale   "${stale}" \
+        --limit   "${limit}" \
+        --field   "${fields}" \
+        --workers "${workers}"
+    ok "Enriquecimento concluído."
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUBCOMANDO: reach — descoberta avançada de switches (Vetores A-G)
+# ─────────────────────────────────────────────────────────────────────────────
+
+run_reach() {
+    local args=("$@")
+    local mode="${REACH_MODE:-banner}"
+
+    while [[ ${#args[@]} -gt 0 ]]; do
+        case "${args[0]}" in
+            --mode) mode="${args[1]}"; args=("${args[@]:2}") ;;
+            *)      args=("${args[@]:1}") ;;
+        esac
+    done
+
+    sep
+    log "=== Descoberta Avançada de Switches — modo: ${mode} ==="
+
+    if [[ -z "$PY" ]]; then
+        fail "Python não disponível."; return 1
+    fi
+
+    "$PY" "$SCRIPT_DIR/rmifo_advanced_reach.py" --mode "${mode}" "$@"
+    ok "Reach (${mode}) concluído."
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Dispatcher principal
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -327,34 +421,66 @@ case "$SUBCMD" in
     pipeline)
         run_pipeline "$@"
         ;;
+    enrich)
+        run_enrich "$@"
+        ;;
+    reach)
+        run_reach "$@"
+        ;;
     all)
         run_daily
         sep
         run_pipeline "$@"
+        sep
+        # Enriquecimento após pipeline (novos hops já persistidos)
+        run_enrich
+        # Descoberta avançada opcional (banner scan — leve e sem credenciais)
+        if [[ "${REACH_SKIP:-0}" != "1" ]]; then
+            run_reach --mode banner || warn "Reach com erros (não crítico)."
+        fi
+        sep
+        log "=== Pipeline completo: daily + pipeline + enrich + reach ==="
         ;;
     -h|--help|help)
         cat <<'EOF'
 Uso: bash rmifo_pipeline.sh <subcomando> [opções]
 
 Subcomandos:
-  daily                   Ciclo diário: pre-flight + conectividade + sonda Node.js
-  pipeline [alvo] [opts]  Pipeline Python (alvos: all|ingest|rollup|import)
-  all      [opts]         daily + pipeline em sequência
+  daily                     Ciclo diário: pre-flight + sonda Node.js + enriquecimento
+  pipeline [alvo] [opts]    Pipeline Python (alvos: all|ingest|rollup|import)
+  enrich   [opts]           Enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS)
+  reach    [--mode M]       Descoberta avançada Vetores A-G
+  all      [opts]           daily + pipeline + enrich + reach em sequência
 
 Opções do pipeline:
-  --limit N    Sonda apenas N cabos
-  --full       Full scan (gera probe_full)
-  --hours N    Import apenas últimas N horas
+  --limit N     Sonda apenas N cabos
+  --full        Full scan (MTR completo)
+  --hours N     Import apenas últimas N horas
+
+Opções do enrich:
+  --stale N     Re-enriquece IPs com enriched_at > N dias (padrão: 7)
+  --limit N     Máximo de IPs (padrão: 500)
+  --field X     Grupos: hostname,whois,privacy,tls (padrão: todos)
+  --workers N   Paralelismo (padrão: 15)
+
+Opções do reach:
+  --mode M      Vetor: banner|netconf|mrt|ris|lg|whois|mpls|ixp|gnmi|atlas|full
+
+Variáveis de ambiente:
+  ENRICH_LIMIT=200      ENRICH_STALE_DAYS=7    ENRICH_FIELDS=hostname,whois,privacy,tls
+  REACH_MODE=banner     REACH_SKIP=1           (pula reach no 'all')
 
 Exemplos:
   bash rmifo_pipeline.sh daily
   bash rmifo_pipeline.sh pipeline --limit 50 --full
-  bash rmifo_pipeline.sh pipeline import --hours 24
+  bash rmifo_pipeline.sh enrich --stale 3 --field hostname,whois
+  bash rmifo_pipeline.sh reach --mode atlas
   bash rmifo_pipeline.sh all
+  REACH_SKIP=1 bash rmifo_pipeline.sh all   # sem reach
 EOF
         ;;
     *)
-        echo "Subcomando desconhecido: $SUBCMD  (use: daily | pipeline | all)"
+        echo "Subcomando desconhecido: $SUBCMD  (use: daily | pipeline | enrich | reach | all)"
         exit 1
         ;;
 esac
