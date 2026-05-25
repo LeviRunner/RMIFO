@@ -2198,7 +2198,7 @@ tr.bs-found {
 .tel-proto-chip.active        { border-color: rgba(168,113,255,0.7); color: #fff; background: rgba(168,113,255,0.2); }
 .tel-proto-chip.tpc           { border-color: rgba(168,113,255,0.3); color: #c49dff; }
 .tel-proto-chip.mtr           { border-color: rgba(240,178,79,0.3);  color: #f0b24f; }
-.tel-proto-chip.icm           { border-color: rgba(94,234,212,0.3);  color: #5eead4; }
+.tel-proto-chip.icm           { border-color: rgba(94,234,212,0.3);  color: #ff912a; }
 .tel-proto-chip.htp           { border-color: rgba(45,180,220,0.3);  color: #2db4dc; }
 .tel-proto-chip.syn           { border-color: rgba(65,218,140,0.3);  color: #41da8c; }
 
