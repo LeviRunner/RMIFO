@@ -2729,8 +2729,10 @@ function initDailyPage() {
 
     // live table (last 15 rows)
     const proto = p.proto || '—';
-    const isTcp = proto.includes('tcp');
-    tableRows.unshift({ index: p.current, cable: p.cable, proto, lat: p.latency_ms, isTcp, hops: p.hop_count || 0, switches: p.switch_count || 0 });
+    const protoInfo = parseProto(proto);
+    const protoLabel = protoInfo.label !== '—' ? protoInfo.label : 'Sint.';
+    const protoReal  = !proto.includes('heuristic') && !proto.includes('synthetic') && proto !== '—';
+    tableRows.unshift({ index: p.current, cable: p.cable, proto, protoLabel, protoReal, protoChipCls: protoInfo.chipCls, lat: p.latency_ms, hops: p.hop_count || 0, switches: p.switch_count || 0 });
     if (tableRows.length > 15) tableRows.pop();
     if (tableWrap) tableWrap.style.display = '';
     if (tbody) {
@@ -2738,7 +2740,7 @@ function initDailyPage() {
       tbody.innerHTML = tableRows.map((r, i) => `<tr data-idx="${r.index}" class="${i === 0 && String(r.index) !== prevFirst ? 'probe-row-new' : ''}">
         <td>${r.index}</td>
         <td class="mono">${esc(r.cable)}</td>
-        <td><span class="badge ${r.isTcp ? 'yes' : ''}">${esc(r.isTcp ? 'TCP' : 'Sintético')}</span></td>
+        <td><span class="badge ${r.protoReal ? 'yes' : ''} ${r.protoChipCls || ''}">${esc(r.protoLabel)}</span></td>
         <td class="${r.lat > 200 ? 'danger-text' : 'ok-text'}">${r.lat} ms</td>
         <td class="mono">${r.hops > 0 ? r.hops : '—'}</td>
         <td class="mono">${r.switches > 0 ? r.switches : '—'}</td>

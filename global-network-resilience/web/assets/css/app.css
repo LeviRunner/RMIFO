@@ -2518,6 +2518,9 @@ tr.bs-found {
   background: rgba(65, 218, 140, 0.14);
   border-color: rgba(65, 218, 140, 0.55);
 }
+.badge.mtr    { color: #93c5fd; background: rgba(59,130,246,.12);  border-color: rgba(59,130,246,.40); }
+.badge.http   { color: #c4b5fd; background: rgba(139,92,246,.12);  border-color: rgba(139,92,246,.40); }
+.badge.jitter { color: #fdba74; background: rgba(249,115,22,.12);  border-color: rgba(249,115,22,.40); }
 
 .no {
   color: #ffe3ea;
