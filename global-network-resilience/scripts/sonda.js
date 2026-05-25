@@ -215,6 +215,29 @@ async function ensureSchema(db) {
             )
         `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_hop_geo_ip ON hop_switch_geolocations(hop_ip)`);
+        // Migration idempotente — adiciona colunas de enriquecimento se ainda não existem
+        const enrichCols = [
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS hostname        VARCHAR(255)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS timezone        VARCHAR(60)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS asn_route       CIDR`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS asn_domain      VARCHAR(120)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS asn_type        VARCHAR(20)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS company_domain  VARCHAR(120)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS company_type    VARCHAR(20)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS abuse_email     VARCHAR(200)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS abuse_network   VARCHAR(50)`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_vpn     BOOLEAN NOT NULL DEFAULT false`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_proxy   BOOLEAN NOT NULL DEFAULT false`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_tor     BOOLEAN NOT NULL DEFAULT false`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_relay   BOOLEAN NOT NULL DEFAULT false`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_hosting BOOLEAN NOT NULL DEFAULT false`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS tls_san_count   INTEGER`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS tls_san_sample  TEXT[]`,
+            `ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS enriched_at     TIMESTAMPTZ`,
+        ];
+        for (const sql of enrichCols) {
+            await db.query(sql).catch(() => {}); // IF NOT EXISTS torna idempotente
+        }
     } catch (e) { warn('Schema hop_geo:', e.message); }
     try {
         await db.query(`

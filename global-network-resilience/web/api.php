@@ -1265,29 +1265,53 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
     // ── hop_geo_points: GeoJSON de comutadores geolocalizados ────────────────
     if ($_modeNow === 'hop_geo_points') {
         try {
-            $pdoGeo  = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
-            $rows    = $pdoGeo->query("
-                SELECT hg.hop_ip::text AS ip, hg.lat, hg.lng,
-                       hg.city, hg.region, hg.country, hg.country_code,
-                       hg.isp, hg.org, hg.as_number, hg.as_name,
-                       hg.hostname, hg.timezone, hg.asn_route::text AS asn_route,
-                       hg.asn_domain, hg.asn_type, hg.company_domain, hg.company_type,
-                       hg.abuse_email, hg.abuse_network,
-                       hg.privacy_vpn, hg.privacy_proxy, hg.privacy_tor,
-                       hg.privacy_relay, hg.privacy_hosting,
-                       hg.tls_san_count,
-                       COUNT(DISTINCT cth.cable_id)::int AS cable_count
-                FROM hop_switch_geolocations hg
-                LEFT JOIN cable_telemetry_hops cth ON cth.hop_ip = hg.hop_ip
-                WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
-                GROUP BY hg.hop_ip, hg.lat, hg.lng, hg.city, hg.region,
-                         hg.country, hg.country_code, hg.isp, hg.org, hg.as_number, hg.as_name,
-                         hg.hostname, hg.timezone, hg.asn_route, hg.asn_domain, hg.asn_type,
-                         hg.company_domain, hg.company_type, hg.abuse_email, hg.abuse_network,
-                         hg.privacy_vpn, hg.privacy_proxy, hg.privacy_tor,
-                         hg.privacy_relay, hg.privacy_hosting, hg.tls_san_count
-                ORDER BY cable_count DESC
-            ")->fetchAll();
+            $pdoGeo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+
+            // Detecta se as colunas de enriquecimento já existem (migration pode não ter rodado)
+            $hasEnrich = (bool) $pdoGeo->query("
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'hop_switch_geolocations' AND column_name = 'privacy_hosting'
+                LIMIT 1
+            ")->fetchColumn();
+
+            if ($hasEnrich) {
+                $rows = $pdoGeo->query("
+                    SELECT hg.hop_ip::text AS ip, hg.lat, hg.lng,
+                           hg.city, hg.region, hg.country, hg.country_code,
+                           hg.isp, hg.org, hg.as_number, hg.as_name,
+                           hg.hostname, hg.timezone, hg.asn_route::text AS asn_route,
+                           hg.asn_domain, hg.asn_type, hg.company_domain, hg.company_type,
+                           hg.abuse_email, hg.abuse_network,
+                           hg.privacy_vpn, hg.privacy_proxy, hg.privacy_tor,
+                           hg.privacy_relay, hg.privacy_hosting,
+                           hg.tls_san_count,
+                           COUNT(DISTINCT cth.cable_id)::int AS cable_count
+                    FROM hop_switch_geolocations hg
+                    LEFT JOIN cable_telemetry_hops cth ON cth.hop_ip = hg.hop_ip
+                    WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
+                    GROUP BY hg.hop_ip, hg.lat, hg.lng, hg.city, hg.region,
+                             hg.country, hg.country_code, hg.isp, hg.org, hg.as_number, hg.as_name,
+                             hg.hostname, hg.timezone, hg.asn_route, hg.asn_domain, hg.asn_type,
+                             hg.company_domain, hg.company_type, hg.abuse_email, hg.abuse_network,
+                             hg.privacy_vpn, hg.privacy_proxy, hg.privacy_tor,
+                             hg.privacy_relay, hg.privacy_hosting, hg.tls_san_count
+                    ORDER BY cable_count DESC
+                ")->fetchAll();
+            } else {
+                // Fallback: schema pré-enriquecimento (colunas originais apenas)
+                $rows = $pdoGeo->query("
+                    SELECT hg.hop_ip::text AS ip, hg.lat, hg.lng,
+                           hg.city, hg.region, hg.country, hg.country_code,
+                           hg.isp, hg.org, hg.as_number, hg.as_name,
+                           COUNT(DISTINCT cth.cable_id)::int AS cable_count
+                    FROM hop_switch_geolocations hg
+                    LEFT JOIN cable_telemetry_hops cth ON cth.hop_ip = hg.hop_ip
+                    WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
+                    GROUP BY hg.hop_ip, hg.lat, hg.lng, hg.city, hg.region,
+                             hg.country, hg.country_code, hg.isp, hg.org, hg.as_number, hg.as_name
+                    ORDER BY cable_count DESC
+                ")->fetchAll();
+            }
 
             $features = array_map(fn($r) => [
                 'type'       => 'Feature',
@@ -1302,21 +1326,21 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'org'             => $r['org'],
                     'as_number'       => $r['as_number'],
                     'as_name'         => $r['as_name'],
-                    'hostname'        => $r['hostname'],
-                    'timezone'        => $r['timezone'],
-                    'asn_route'       => $r['asn_route'],
-                    'asn_domain'      => $r['asn_domain'],
-                    'asn_type'        => $r['asn_type'],
-                    'company_domain'  => $r['company_domain'],
-                    'company_type'    => $r['company_type'],
-                    'abuse_email'     => $r['abuse_email'],
-                    'abuse_network'   => $r['abuse_network'],
-                    'privacy_vpn'     => (bool)$r['privacy_vpn'],
-                    'privacy_proxy'   => (bool)$r['privacy_proxy'],
-                    'privacy_tor'     => (bool)$r['privacy_tor'],
-                    'privacy_relay'   => (bool)$r['privacy_relay'],
-                    'privacy_hosting' => (bool)$r['privacy_hosting'],
-                    'tls_san_count'   => (int)($r['tls_san_count'] ?? 0),
+                    'hostname'        => $r['hostname']        ?? null,
+                    'timezone'        => $r['timezone']        ?? null,
+                    'asn_route'       => $r['asn_route']       ?? null,
+                    'asn_domain'      => $r['asn_domain']      ?? null,
+                    'asn_type'        => $r['asn_type']        ?? null,
+                    'company_domain'  => $r['company_domain']  ?? null,
+                    'company_type'    => $r['company_type']    ?? null,
+                    'abuse_email'     => $r['abuse_email']     ?? null,
+                    'abuse_network'   => $r['abuse_network']   ?? null,
+                    'privacy_vpn'     => (bool)($r['privacy_vpn']     ?? false),
+                    'privacy_proxy'   => (bool)($r['privacy_proxy']   ?? false),
+                    'privacy_tor'     => (bool)($r['privacy_tor']     ?? false),
+                    'privacy_relay'   => (bool)($r['privacy_relay']   ?? false),
+                    'privacy_hosting' => (bool)($r['privacy_hosting'] ?? false),
+                    'tls_san_count'   => (int)($r['tls_san_count']    ?? 0),
                     'cable_count'     => (int)$r['cable_count'],
                 ],
             ], $rows);
