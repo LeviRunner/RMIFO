@@ -780,7 +780,7 @@ async function initGlobe() {
           id: 'switch-lp-lines-layer', type: 'line', source: 'switch-lp-lines',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
-            'line-color':     '#5eead4',
+            'line-color':     '#ff912a',
             'line-width':     0.9,
             'line-opacity':   0.28,
             'line-dasharray': [2, 4],
