@@ -1,6 +1,6 @@
 # RMIFO — Resilience Map of International Fiber Optics
 
-Plataforma open-source de monitoramento e análise de cabos submarinos de fibra ótica. Coleta telemetria TCP/MTR/HTTP/BGP/SNMP e dados de descoberta avançada de roteadores e comutadores (SSH banner, TLS, gNMI, RIPE Atlas, RouteViews MRT, RIPE RIS, Looking Glass, IRR/WHOIS), persiste em PostgreSQL e exibe em globo 3D interativo via MapLibre GL JS. Implantada no Railway com suporte a PWA offline.
+Plataforma open-source de monitoramento e análise de cabos submarinos de fibra ótica. Coleta telemetria TCP/MTR/HTTP/BGP/SNMP, realiza enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS) e descoberta avançada de roteadores (SSH banner, TLS, gNMI, RIPE Atlas, RouteViews MRT, RIPE RIS, Looking Glass, IRR/WHOIS), persiste em PostgreSQL e exibe em globo 3D interativo via MapLibre GL JS. Implantada no Railway com suporte a PWA offline.
 
 ---
 
@@ -53,10 +53,12 @@ RMIFO/
     │   ├── seed.sql
     │   └── setup.sh
     └── scripts/
-        ├── rmifo_pipeline.sh          ← Orquestrador principal (daily / pipeline / all)
+        ├── rmifo_pipeline.sh          ← Orquestrador (daily / pipeline / enrich / reach / all)
         ├── sonda.js                   ← Sonda TCP/MTR/Jitter Node.js (699 cabos)
         ├── rmifo_probe.py             ← Motor unificado (telemetry / multi / validate / all)
-        ├── rmifo_advanced_reach.py    ← Descoberta avançada Vetores A-G (1 800 linhas)
+        ├── rmifo_advanced_reach.py    ← Descoberta avançada Vetores A-G (~1 800 linhas)
+        ├── rmifo_ip_enrich.py         ← Enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS)
+        ├── rmifo_realtime_probe.py    ← Medição real de latência sem APIs de terceiros
         ├── rmifo_analytics.py         ← Rollup + exportação CSV (rollup / export / all)
         ├── rmifo_catalog.py           ← Gerenciamento do catálogo (seed / import / history)
         ├── rmifo_dev.sh               ← Utilitários locais (postgres / bootstrap / web / all)
@@ -78,11 +80,34 @@ RMIFO/
 | `cable_telemetry_samples` | Amostras TCP/MTR/HTTP por cabo (UNIQUE cable_id + measured_at) |
 | `cable_telemetry_hops` | Saltos hop-by-hop de MTR por amostra |
 | `cable_telemetry_reference` | Baseline de referência por cabo |
-| `hop_switch_geolocations` | Geolocalização de comutadores de rota descobertos |
+| `hop_switch_geolocations` | Geolocalização e enriquecimento completo de comutadores descobertos |
 | `geoip_mapping` | Mapeamento IP → país/cidade para geolocalização de hops |
 | `nodes` | Nós de roteamento da topologia |
 | `telemetry_alerts` | Alertas ativos e histórico |
 | `api_rate_limit` | Controle de rate limit por IP |
+
+#### Campos de enriquecimento em `hop_switch_geolocations`
+
+Populados pelo `rmifo_ip_enrich.py` sem APIs de terceiros:
+
+| Campo | Fonte | Descrição |
+|---|---|---|
+| `hostname` | DNS PTR | Hostname reverso do IP |
+| `timezone` | Código IATA no PTR | Timezone derivada do hostname (tabela de 200 cidades) |
+| `asn_route` | WHOIS TCP/43 | Prefixo BGP anunciado (`route:`) |
+| `asn_domain` | WHOIS OrgURL / email | Domínio do operador do ASN |
+| `asn_type` | WHOIS org-type + keywords | `isp` / `hosting` / `business` / `edu` / `gov` |
+| `company_domain` | WHOIS | Domínio da empresa |
+| `company_type` | WHOIS | Tipo da empresa |
+| `abuse_email` | WHOIS abuse-mailbox | Email de abuso/incidentes |
+| `abuse_network` | WHOIS inetnum | Bloco de rede declarado |
+| `privacy_vpn` | Port scan UDP/TCP | Porta VPN aberta (WireGuard/IKE/OpenVPN/PPTP) |
+| `privacy_proxy` | Port scan + HTTP CONNECT | Proxy HTTP/SOCKS confirmado |
+| `privacy_tor` | Port scan 9001/9030 | Relay Tor (ORPort ou DirPort) |
+| `privacy_relay` | Padrão PTR | iCloud Private Relay / Cloudflare WARP |
+| `privacy_hosting` | PTR + ASN + /24 sweep | Data center / CDN edge |
+| `tls_san_count` | TLS handshake TCP/443 | Número de SANs no certificado |
+| `tls_san_sample` | TLS handshake TCP/443 | Primeiros 20 domínios do SAN |
 
 ### Tabelas de descoberta avançada — criadas por `rmifo_advanced_reach.py`
 
@@ -120,7 +145,7 @@ RMIFO/
   - Vermelho — inativo
   - Amarelo — sonda ao vivo
 - Pontos de aterrissagem como círculos coloridos
-- **Comutadores de rota** (hops geolocalizados) — pontos âmbar/vermelho por número de cabos associados
+- **Comutadores de rota** (hops geolocalizados) — pontos âmbar/vermelho por número de cabos associados; painel lateral exibe enriquecimento completo (ASN type, privacy flags, TLS SANs)
 - Linhas comutador → landing point (traçado de rota descoberta, linha tracejada ciano)
 - Hover tip throttled via `requestAnimationFrame`
 - Painel lateral: metadata do cabo/comutador, botões "Sondar" e "Ver Detalhes"
@@ -175,27 +200,96 @@ RMIFO/
 
 - Navega e filtra qualquer tabela PostgreSQL diretamente no browser
 - Filtros por coluna/operador/valor, paginação, breadcrumb
+- `hop_switch_geolocations` exibe todos os 17 campos de enriquecimento
 
 ---
 
 ## Pipeline de Sonda
 
 ```
-rmifo_pipeline.sh daily
-  ├── Pré-flight: deps + DNS + HTTP + ICMP reachability
-  ├── sonda.js  →  TCP SYN-ACK + TCP Jitter (50 pkt) + MTR (15 ciclos) + HTTP curl
-  │               → .probe_live.json (progress, var_counts, var_target)
-  └── rmifo_probe.py telemetry  →  ingestão PostgreSQL
-
-rmifo_pipeline.sh pipeline
-  ├── rmifo_probe.py telemetry   → ingestão de telemetria
-  ├── rmifo_analytics.py rollup  → rollup 1h/5m
-  └── rmifo_analytics.py export  → CSV em data/local/log/telemetry/
+bash rmifo_pipeline.sh all
+│
+├── daily
+│   ├── PRÉ-FLIGHT: deps + ping + DNS + HTTP
+│   ├── sonda.js → TCP SYN-ACK + TCP Jitter (50 pkt) + MTR (15 ciclos) + HTTP
+│   │              → .probe_live.json (progress, var_counts, var_target)
+│   │              → novos hop IPs → hop_switch_geolocations (geo básico)
+│   └── rmifo_ip_enrich.py → IPs sem enriched_at ou stale > ENRICH_STALE_DAYS
+│                            → hostname + timezone + asn_type + privacy_* + tls_san_*
+│
+├── pipeline
+│   ├── rmifo_probe.py telemetry   → cable_telemetry_samples
+│   ├── rmifo_analytics.py rollup  → rollups 5m/1h
+│   └── rmifo_catalog.py history   → histórico JSON
+│
+└── reach (banner scan — sem credenciais)
+    └── rmifo_advanced_reach.py --mode banner → switch_banners
 
 rmifo_probe.py multi --mode bgp|snmp|netflow|full
   ├── BGP mode     → RIPE STAT REST API
   ├── SNMP mode    → pysnmp-lextudio
   └── NetFlow mode → Scapy passive capture (root opcional)
+```
+
+### Subcomandos do orquestrador
+
+| Subcomando | Descrição |
+|---|---|
+| `daily` | Pré-flight + sonda Node.js + enriquecimento automático de IPs novos |
+| `pipeline` | Ingestão Python: telemetria → rollup → histórico |
+| `enrich` | Enriquecimento nativo isolado (DNS/WHOIS/TCP/TLS) |
+| `reach` | Descoberta avançada de switches (Vetores A-G) |
+| `all` | Sequência completa: daily + pipeline + enrich + reach |
+
+```bash
+bash rmifo_pipeline.sh enrich --stale 3 --field hostname,whois
+bash rmifo_pipeline.sh reach --mode atlas
+REACH_SKIP=1 bash rmifo_pipeline.sh all   # sem reach
+```
+
+---
+
+## Enriquecimento Nativo de IPs (`rmifo_ip_enrich.py`)
+
+Extrai 16 campos por IP usando apenas protocolos de rede padrão — sem APIs de terceiros:
+
+| Campo | Protocolo | Técnica |
+|---|---|---|
+| `hostname` | DNS PTR (UDP 53) | `socket.gethostbyaddr()` |
+| `timezone` | — | Código IATA no PTR → tabela de 200 cidades IATA→IANA |
+| `asn_route`, `asn_domain`, `asn_type`, `abuse_*` | WHOIS (TCP 43) | `whois` subprocess + parse de org-type e keywords |
+| `privacy_vpn` | UDP/TCP | WireGuard handshake (51820) + IKEv2 SA_INIT (500) + OpenVPN (1194) + PPTP (1723) |
+| `privacy_proxy` | TCP + HTTP | Port scan 3128/1080/8080 + HTTP CONNECT probe (detecta 407 também) |
+| `privacy_tor` | TCP | Port scan 9001 + DirPort 9030 com verificação de consenso |
+| `privacy_relay` | — | Padrão PTR (`privaterelay`, `warp.cloudflare`) |
+| `privacy_hosting` | DNS + TCP | PTR regex de CDN/cloud + ASN keywords + sweep PTR do /24 |
+| `tls_san_count/sample` | TLS (TCP 443) | Handshake TLS → `getpeercert()` → SANs do certificado |
+
+```bash
+python3 scripts/rmifo_ip_enrich.py --ip 8.8.8.8 --dry-run
+python3 scripts/rmifo_ip_enrich.py --stale 7 --limit 500
+python3 scripts/rmifo_ip_enrich.py --field hostname,whois  # sem port scan
+```
+
+---
+
+## Medição Real de Latência (`rmifo_realtime_probe.py`)
+
+Mede latência real de cabos sem depender do `public_url` (que geralmente aponta para CDN):
+
+| Protocolo | Porta | Técnica |
+|---|---|---|
+| TCP SYN timing | qualquer aberta | Handshake completo → RTT real |
+| TCP Jitter | qualquer aberta | N conexões → stdev → jitter real |
+| HTTP/HTTPS | 80/443 | DNS + TCP + TLS + TTFB |
+| STUN | UDP 3478 | Binding Request/Response RFC 5389 — UDP puro |
+| DNS | UDP 53 | Query manual via socket — mede resolver no caminho |
+| ICMP | — | Via `ping` (disponível sem root via setuid) |
+
+```bash
+python3 scripts/rmifo_realtime_probe.py --demo
+python3 scripts/rmifo_realtime_probe.py aec-1 --ips 196.200.16.1 41.203.64.1
+python3 scripts/rmifo_realtime_probe.py aec-1 --mode tcp --pkts 50
 ```
 
 ---
@@ -232,6 +326,11 @@ Sete vetores complementares que alcançam switches invisíveis a SNMP/MTR/ICMP:
 | `MTR_CYCLES` | `15` | Ciclos MTR por cabo (30 em full scan) |
 | `MTR_BUDGET` | `300` | Orçamento total de ciclos MTR por execução |
 | `TCP_JITTER_PKTS` | `50` | Pacotes por variação TCP Jitter |
+| `ENRICH_LIMIT` | `200` | Máximo de IPs enriquecidos por execução daily |
+| `ENRICH_STALE_DAYS` | `7` | Re-enriquece IPs com `enriched_at` mais antigo que N dias |
+| `ENRICH_FIELDS` | `hostname,whois,privacy,tls` | Grupos de campos a processar |
+| `REACH_MODE` | `banner` | Vetor padrão no subcomando `reach` |
+| `REACH_SKIP` | `0` | `1` para pular o reach no subcomando `all` |
 | `NETCONF_USER` / `NETCONF_PASS` | — | Credenciais NETCONF/RESTCONF (Vetor B) |
 | `GNMI_USER` / `GNMI_PASS` | — | Credenciais gNMI (Vetor F) |
 | `RIPE_ATLAS_KEY` | — | Chave de API RIPE Atlas para criar medições (Vetor G) |
