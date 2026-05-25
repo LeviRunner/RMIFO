@@ -145,22 +145,64 @@ CREATE INDEX IF NOT EXISTS idx_hops_ip        ON cable_telemetry_hops(hop_ip);
 
 -- Geolocalização de comutadores/roteadores descobertos via MTR
 CREATE TABLE IF NOT EXISTS hop_switch_geolocations (
-    id           BIGSERIAL PRIMARY KEY,
-    hop_ip       INET        NOT NULL UNIQUE,
-    lat          DOUBLE PRECISION,
-    lng          DOUBLE PRECISION,
-    city         VARCHAR(120),
-    region       VARCHAR(120),
-    country      VARCHAR(80),
-    country_code CHAR(2),
-    isp          VARCHAR(200),
-    org          VARCHAR(200),
-    as_number    VARCHAR(30),
-    as_name      VARCHAR(200),
-    queried_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id              BIGSERIAL PRIMARY KEY,
+    hop_ip          INET        NOT NULL UNIQUE,
+    lat             DOUBLE PRECISION,
+    lng             DOUBLE PRECISION,
+    city            VARCHAR(120),
+    region          VARCHAR(120),
+    country         VARCHAR(80),
+    country_code    CHAR(2),
+    isp             VARCHAR(200),
+    org             VARCHAR(200),
+    as_number       VARCHAR(30),
+    as_name         VARCHAR(200),
+    -- Enriquecimento nativo (rmifo_ip_enrich.py)
+    hostname        VARCHAR(255),                   -- PTR DNS reverso
+    timezone        VARCHAR(60),                    -- derivado do código IATA no PTR
+    asn_route       CIDR,                           -- prefixo BGP do WHOIS (route:)
+    asn_domain      VARCHAR(120),                   -- domínio do operador do ASN
+    asn_type        VARCHAR(20),                    -- isp | hosting | business | edu | gov
+    company_domain  VARCHAR(120),                   -- domínio da empresa (OrgURL / email)
+    company_type    VARCHAR(20),                    -- isp | hosting | business | edu | gov
+    abuse_email     VARCHAR(200),                   -- abuse-mailbox do WHOIS
+    abuse_network   VARCHAR(50),                    -- inetnum / NetRange do WHOIS
+    privacy_vpn     BOOLEAN NOT NULL DEFAULT false, -- porta VPN aberta (1194/51820/500)
+    privacy_proxy   BOOLEAN NOT NULL DEFAULT false, -- porta proxy aberta (3128/1080) + CONNECT
+    privacy_tor     BOOLEAN NOT NULL DEFAULT false, -- porta Tor aberta (9001/9030)
+    privacy_relay   BOOLEAN NOT NULL DEFAULT false, -- padrão PTR de relay (iCloud/Cloudflare)
+    privacy_hosting BOOLEAN NOT NULL DEFAULT false, -- ASN ou PTR de data center / CDN
+    tls_san_count   INTEGER,                        -- número de SANs no certificado TLS
+    tls_san_sample  TEXT[],                         -- primeiros 20 domínios do SAN
+    enriched_at     TIMESTAMPTZ,                    -- última execução do enriquecimento
+    queried_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_hop_geo_ip     ON hop_switch_geolocations(hop_ip);
-CREATE INDEX IF NOT EXISTS idx_hop_geo_coords ON hop_switch_geolocations(lat, lng) WHERE lat IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hop_geo_ip       ON hop_switch_geolocations(hop_ip);
+CREATE INDEX IF NOT EXISTS idx_hop_geo_coords   ON hop_switch_geolocations(lat, lng) WHERE lat IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hop_geo_asn      ON hop_switch_geolocations(as_number);
+CREATE INDEX IF NOT EXISTS idx_hop_geo_type     ON hop_switch_geolocations(asn_type);
+CREATE INDEX IF NOT EXISTS idx_hop_geo_hosting  ON hop_switch_geolocations(privacy_hosting) WHERE privacy_hosting = true;
+
+-- Migration para instalações existentes (idempotente)
+DO $$ BEGIN
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS hostname        VARCHAR(255);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS timezone        VARCHAR(60);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS asn_route       CIDR;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS asn_domain      VARCHAR(120);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS asn_type        VARCHAR(20);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS company_domain  VARCHAR(120);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS company_type    VARCHAR(20);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS abuse_email     VARCHAR(200);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS abuse_network   VARCHAR(50);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_vpn     BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_proxy   BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_tor     BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_relay   BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS privacy_hosting BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS tls_san_count   INTEGER;
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS tls_san_sample  TEXT[];
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS enriched_at     TIMESTAMPTZ;
+END $$;
 
 -- Baseline de referência por cabo (calibração 7 dias)
 CREATE TABLE IF NOT EXISTS cable_telemetry_reference (

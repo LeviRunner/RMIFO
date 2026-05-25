@@ -1270,12 +1270,22 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 SELECT hg.hop_ip::text AS ip, hg.lat, hg.lng,
                        hg.city, hg.region, hg.country, hg.country_code,
                        hg.isp, hg.org, hg.as_number, hg.as_name,
+                       hg.hostname, hg.timezone, hg.asn_route::text AS asn_route,
+                       hg.asn_domain, hg.asn_type, hg.company_domain, hg.company_type,
+                       hg.abuse_email, hg.abuse_network,
+                       hg.privacy_vpn, hg.privacy_proxy, hg.privacy_tor,
+                       hg.privacy_relay, hg.privacy_hosting,
+                       hg.tls_san_count,
                        COUNT(DISTINCT cth.cable_id)::int AS cable_count
                 FROM hop_switch_geolocations hg
                 LEFT JOIN cable_telemetry_hops cth ON cth.hop_ip = hg.hop_ip
                 WHERE hg.lat IS NOT NULL AND hg.lng IS NOT NULL
                 GROUP BY hg.hop_ip, hg.lat, hg.lng, hg.city, hg.region,
-                         hg.country, hg.country_code, hg.isp, hg.org, hg.as_number, hg.as_name
+                         hg.country, hg.country_code, hg.isp, hg.org, hg.as_number, hg.as_name,
+                         hg.hostname, hg.timezone, hg.asn_route, hg.asn_domain, hg.asn_type,
+                         hg.company_domain, hg.company_type, hg.abuse_email, hg.abuse_network,
+                         hg.privacy_vpn, hg.privacy_proxy, hg.privacy_tor,
+                         hg.privacy_relay, hg.privacy_hosting, hg.tls_san_count
                 ORDER BY cable_count DESC
             ")->fetchAll();
 
@@ -1283,16 +1293,31 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 'type'       => 'Feature',
                 'geometry'   => ['type' => 'Point', 'coordinates' => [(float)$r['lng'], (float)$r['lat']]],
                 'properties' => [
-                    'ip'           => $r['ip'],
-                    'city'         => $r['city'],
-                    'region'       => $r['region'],
-                    'country'      => $r['country'],
-                    'country_code' => $r['country_code'],
-                    'isp'          => $r['isp'],
-                    'org'          => $r['org'],
-                    'as_number'    => $r['as_number'],
-                    'as_name'      => $r['as_name'],
-                    'cable_count'  => (int)$r['cable_count'],
+                    'ip'              => $r['ip'],
+                    'city'            => $r['city'],
+                    'region'          => $r['region'],
+                    'country'         => $r['country'],
+                    'country_code'    => $r['country_code'],
+                    'isp'             => $r['isp'],
+                    'org'             => $r['org'],
+                    'as_number'       => $r['as_number'],
+                    'as_name'         => $r['as_name'],
+                    'hostname'        => $r['hostname'],
+                    'timezone'        => $r['timezone'],
+                    'asn_route'       => $r['asn_route'],
+                    'asn_domain'      => $r['asn_domain'],
+                    'asn_type'        => $r['asn_type'],
+                    'company_domain'  => $r['company_domain'],
+                    'company_type'    => $r['company_type'],
+                    'abuse_email'     => $r['abuse_email'],
+                    'abuse_network'   => $r['abuse_network'],
+                    'privacy_vpn'     => (bool)$r['privacy_vpn'],
+                    'privacy_proxy'   => (bool)$r['privacy_proxy'],
+                    'privacy_tor'     => (bool)$r['privacy_tor'],
+                    'privacy_relay'   => (bool)$r['privacy_relay'],
+                    'privacy_hosting' => (bool)$r['privacy_hosting'],
+                    'tls_san_count'   => (int)($r['tls_san_count'] ?? 0),
+                    'cable_count'     => (int)$r['cable_count'],
                 ],
             ], $rows);
             jsonResponse(['type' => 'FeatureCollection', 'features' => $features]);
@@ -2248,7 +2273,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 'cable_telemetry_reference'=> ['cable_id','baseline_latency_ms','baseline_jitter_ms','baseline_packet_loss_pct','baseline_throughput_mbps','baseline_availability_pct','updated_at'],
                 'endpoint_ip_samples'      => ['endpoint_id','sample_order','country_name','country_code','region','city','latitude','longitude'],
                 'cable_telemetry_hops'     => ['hop_id','sample_id','cable_id','hop_number','hop_ip','rtt_avg_ms','rtt_best_ms','rtt_worst_ms','rtt_stdev_ms','loss_pct','recorded_at'],
-                'hop_switch_geolocations'  => ['id','hop_ip','lat','lng','city','region','country','country_code','isp','org','as_number','as_name','queried_at'],
+                'hop_switch_geolocations'  => ['id','hop_ip','lat','lng','city','region','country','country_code','isp','org','as_number','as_name','hostname','timezone','asn_route','asn_domain','asn_type','company_domain','company_type','abuse_email','abuse_network','privacy_vpn','privacy_proxy','privacy_tor','privacy_relay','privacy_hosting','tls_san_count','enriched_at','queried_at'],
             ];
 
             $table = (string) ($req['table'] ?? 'cables');
