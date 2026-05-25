@@ -571,10 +571,24 @@
 
       <!-- Barra de progresso de cabos -->
       <div id="daily-progress-wrap" style="display:none">
-        <div class="daily-progress-outer">
-          <div class="daily-progress-inner" id="daily-progress-inner"></div>
+        <div class="daily-progress-flex">
+          <svg id="daily-arc-svg" width="80" height="80" viewBox="0 0 80 80" aria-hidden="true">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="5"/>
+            <circle id="daily-arc-fill" cx="40" cy="40" r="32" fill="none"
+              stroke="#0d9488" stroke-width="5" stroke-linecap="round"
+              stroke-dasharray="0 201.1" stroke-dashoffset="50.3"/>
+            <text id="daily-arc-pct" x="40" y="36" text-anchor="middle"
+              fill="#0d9488" font-size="12" font-weight="700" font-family="monospace">0%</text>
+            <text id="daily-arc-sub" x="40" y="52" text-anchor="middle"
+              fill="rgba(255,255,255,0.35)" font-size="8">0 / 699</text>
+          </svg>
+          <div class="daily-progress-bar-col">
+            <div class="daily-progress-outer">
+              <div class="daily-progress-inner" id="daily-progress-inner"></div>
+            </div>
+            <div class="daily-progress-label" id="daily-progress-label">0 / 0 — 0%</div>
+          </div>
         </div>
-        <div class="daily-progress-label" id="daily-progress-label">0 / 0 — 0%</div>
       </div>
 
       <!-- Animação de pacote + info do cabo atual -->
@@ -625,6 +639,15 @@
           <div class="pv-m"><span class="pv-k">Saltos (hops)</span><span class="pv-v mono pv-hop-accent" id="pv-hop-n">—</span></div>
           <div class="pv-m"><span class="pv-k">Comutadores geo</span><span class="pv-v mono" id="pv-switch-n">—</span></div>
         </div>
+      </div>
+
+      <!-- Live scatter: latência RTT por cabo sondado -->
+      <div id="daily-scatter-card" style="display:none">
+        <div class="scatter-header">
+          <span class="scatter-lbl">Latência em tempo real · RTT ms</span>
+          <span id="scatter-count" class="scatter-count">0 sondas</span>
+        </div>
+        <canvas id="daily-scatter-canvas"></canvas>
       </div>
 
       <!-- Cards de estatísticas -->
@@ -713,6 +736,19 @@
         <div class="dstat"><div class="dstat-v" id="h-completed">—</div><div class="dstat-l">Concluído</div></div>
       </div>
 
+      <!-- Heatmap de latência (preenchido por ui-enhancements.js) -->
+      <div id="hist-heatmap-card" style="display:none">
+        <div class="hm-title">Heatmap de latência · RTT por cabo</div>
+        <div id="hist-heatmap-bars"></div>
+        <div class="hm-legend">
+          <span class="hm-dot" style="background:#41da8c"></span><span>&lt; 50ms</span>
+          <span class="hm-dot" style="background:#84cc16"></span><span>&lt; 100ms</span>
+          <span class="hm-dot" style="background:#f0b24f"></span><span>&lt; 150ms</span>
+          <span class="hm-dot" style="background:#f97316"></span><span>&lt; 300ms</span>
+          <span class="hm-dot" style="background:#ff6f8d"></span><span>≥ 300ms</span>
+        </div>
+      </div>
+
       <div class="table-wrap" id="hist-table-wrap" style="display:none">
         <table>
           <thead>
@@ -747,7 +783,9 @@
 
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js" defer></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ui-enhancements.js" defer></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
