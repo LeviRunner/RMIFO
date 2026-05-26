@@ -2875,21 +2875,25 @@ function initSwitchPage() {
       (!role || s.segment_type === role)
     );
     segCount.textContent = `${rows.length} linhas`;
-    segTbody.innerHTML = rows.map(s => {
-      const r = roleLabel[s.segment_type] || roleLabel.unknown;
-      return `<tr>
-        <td class="mono sw-cable-id">${esc(s.cable_id)}</td>
-        <td><span class="sw-role-chip ${r.cls}">${r.label}</span></td>
-        <td class="mono">${s.hop_number ?? '—'}</td>
-        <td class="mono sw-ip">${esc(s.hop_ip || '—')}</td>
-        <td class="sw-rtt">${fmtMs(s.rtt_avg_ms)}</td>
-        <td class="sw-rtt sw-rtt-best">${fmtMs(s.rtt_best_ms)}</td>
-        <td class="sw-rtt sw-rtt-worst">${fmtMs(s.rtt_worst_ms)}</td>
-        <td class="sw-loss ${(s.loss_pct||0) >= 10 ? 'sw-loss-high' : ''}">${s.loss_pct != null ? s.loss_pct + '%' : '—'}</td>
-        <td class="mono">${s.hop_count ?? 1}</td>
-      </tr>`;
-    }).join('');
-    segWrap.style.display = rows.length ? '' : 'none';
+    if (rows.length === 0) {
+      segTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Nenhum dado — execute a sonda MTR no servidor para popular esta tabela.</td></tr>`;
+    } else {
+      segTbody.innerHTML = rows.map(s => {
+        const r = roleLabel[s.segment_type] || roleLabel.unknown;
+        return `<tr>
+          <td class="mono sw-cable-id">${esc(s.cable_id)}</td>
+          <td><span class="sw-role-chip ${r.cls}">${r.label}</span></td>
+          <td class="mono">${s.hop_number ?? '—'}</td>
+          <td class="mono sw-ip">${esc(s.hop_ip || '—')}</td>
+          <td class="sw-rtt">${fmtMs(s.rtt_avg_ms)}</td>
+          <td class="sw-rtt sw-rtt-best">${fmtMs(s.rtt_best_ms)}</td>
+          <td class="sw-rtt sw-rtt-worst">${fmtMs(s.rtt_worst_ms)}</td>
+          <td class="sw-loss ${(s.loss_pct||0) >= 10 ? 'sw-loss-high' : ''}">${s.loss_pct != null ? s.loss_pct + '%' : '—'}</td>
+          <td class="mono">${s.hop_count ?? 1}</td>
+        </tr>`;
+      }).join('');
+    }
+    segWrap.style.display = '';
   }
 
   function renderGeo() {
@@ -2899,42 +2903,46 @@ function initSwitchPage() {
             (g.country||'').toLowerCase().includes(q) || (g.isp||'').toLowerCase().includes(q)
     );
     geoCount.textContent = `${rows.length} IPs`;
-    geoTbody.innerHTML = rows.map(g => `<tr>
-      <td class="mono sw-ip">${esc(g.hop_ip)}</td>
-      <td>${esc(g.city || '—')}</td>
-      <td>${esc(g.country || '—')} <span class="sw-cc">${esc(g.country_code || '')}</span></td>
-      <td class="sw-isp">${esc(g.isp || g.org || '—')}</td>
-      <td class="mono">${g.lat != null ? g.lat : '—'}</td>
-      <td class="mono">${g.lng != null ? g.lng : '—'}</td>
-    </tr>`).join('');
-    geoWrap.style.display = rows.length ? '' : 'none';
+    if (rows.length === 0) {
+      geoTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhum comutador geolocaliado ainda.</td></tr>`;
+    } else {
+      geoTbody.innerHTML = rows.map(g => `<tr>
+        <td class="mono sw-ip">${esc(g.hop_ip)}</td>
+        <td>${esc(g.city || '—')}</td>
+        <td>${esc(g.country || '—')} <span class="sw-cc">${esc(g.country_code || '')}</span></td>
+        <td class="sw-isp">${esc(g.isp || g.org || '—')}</td>
+        <td class="mono">${g.lat != null ? g.lat : '—'}</td>
+        <td class="mono">${g.lng != null ? g.lng : '—'}</td>
+      </tr>`).join('');
+    }
+    geoWrap.style.display = '';
   }
 
   async function loadData() {
-    errorEl.textContent = '';
+    if (errorEl) errorEl.textContent = '';
     try {
-      // Segmentos de topologia
-      const segs = await apiFetch({ action: 'switch_segments' });
-      allSegments = Array.isArray(segs) ? segs : (segs.registros || []);
-
-      // Comutadores geolocalizados
-      const geo = await apiFetch({ action: 'switch_geo' });
-      allGeo = Array.isArray(geo) ? geo : (geo.registros || []);
-
-      // Totais
-      const countries = new Set(allGeo.map(g => g.country_code).filter(Boolean));
-      document.getElementById('swt-cabos').textContent =
-        new Set(allSegments.map(s => s.cable_id)).size;
-      document.getElementById('swt-hops').textContent  = allSegments.length;
-      document.getElementById('swt-geo').textContent   = allGeo.length;
-      document.getElementById('swt-countries').textContent = countries.size;
-      totalsWrap.style.display = '';
-
-      renderSegments();
-      renderGeo();
+      const [segs, geo] = await Promise.all([
+        apiFetch({ action: 'switch_segments' }),
+        apiFetch({ action: 'switch_geo' }),
+      ]);
+      allSegments = Array.isArray(segs) ? segs : (segs?.registros || []);
+      allGeo      = Array.isArray(geo)  ? geo  : (geo?.registros  || []);
     } catch (e) {
-      errorEl.textContent = 'Erro ao carregar dados: ' + e.message;
+      if (errorEl) errorEl.textContent = 'Erro ao carregar dados: ' + e.message;
+      allSegments = [];
+      allGeo      = [];
     }
+    const countries = new Set(allGeo.map(g => g.country_code).filter(Boolean));
+    const cabosEl = document.getElementById('swt-cabos');
+    const hopsEl  = document.getElementById('swt-hops');
+    const geoEl   = document.getElementById('swt-geo');
+    const ctEl    = document.getElementById('swt-countries');
+    if (cabosEl) cabosEl.textContent = new Set(allSegments.map(s => s.cable_id)).size;
+    if (hopsEl)  hopsEl.textContent  = allSegments.length;
+    if (geoEl)   geoEl.textContent   = allGeo.length;
+    if (ctEl)    ctEl.textContent    = countries.size;
+    renderSegments();
+    renderGeo();
   }
 
   function pollLive() {
@@ -2984,6 +2992,9 @@ function initSwitchPage() {
   document.querySelectorAll('.nav-link[data-page="switch"]').forEach(a => {
     a.addEventListener('click', loadData);
   });
+
+  // Carga inicial
+  loadData();
 }
 
 // ─── History page ─────────────────────────────────────────────────────────────
