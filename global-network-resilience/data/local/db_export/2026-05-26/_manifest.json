@@ -1,5 +1,5 @@
 {
-  "exportado_em": "2026-05-26T16:16:03.356Z",
+  "exportado_em": "2026-05-26T18:48:22.838Z",
   "date": "2026-05-26",
   "tabelas": [
     {
@@ -36,13 +36,13 @@
       "tabela": "cable_telemetry_samples",
       "registros": 10389,
       "arquivo": "cable_telemetry_samples.json",
-      "tamanho_kb": 10832.2
+      "tamanho_kb": 12942.5
     },
     {
       "tabela": "cable_telemetry_hops",
       "registros": 1483,
       "arquivo": "cable_telemetry_hops.json",
-      "tamanho_kb": 528.4
+      "tamanho_kb": 563.2
     },
     {
       "tabela": "cable_telemetry_reference",
@@ -63,6 +63,12 @@
       "tamanho_kb": 221.5
     },
     {
+      "tabela": "probe_path_segments",
+      "registros": 0,
+      "arquivo": "probe_path_segments.json",
+      "tamanho_kb": 0.1
+    },
+    {
       "tabela": "telemetry_rollup_1h",
       "registros": 9774,
       "arquivo": "telemetry_rollup_1h.json",
@@ -75,9 +81,7 @@
       "tamanho_kb": 3065.8
     }
   ],
-  "total_kb": 21770.9,
+  "total_kb": 23916.1,
   "total_registros": 45951,
-  "tabelas_puladas": [
-    "probe_path_segments"
-  ]
+  "tabelas_puladas": []
 }

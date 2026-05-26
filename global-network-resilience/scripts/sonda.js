@@ -32,8 +32,9 @@ const LIVE_FILE    = path.join(histDir, '.probe_live.json');
 const CABLES_JSONL = path.join(histDir, 'cables_live.jsonl');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const MODEL      = '1.4.0';
-const AGENT      = 'RMIFO-GlobalNetworkResilience/1.4.0';
+const MODEL        = '1.4.0';
+const AGENT        = 'RMIFO-GlobalNetworkResilience/1.4.0';
+const PROBE_AGENT  = `RMIFO-Codespace/sonda.js/${MODEL}`;
 const FULL_PORTS      = [443, 80, 22, 8443, 8080];
 const STD_PORTS       = [443, 80];
 const MTR_BUDGET      = 300;
@@ -348,6 +349,11 @@ async function ensureSchema(db) {
             `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS gateway_rtt_ms      DOUBLE PRECISION`,
             `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS isp_edge_rtt_ms     DOUBLE PRECISION`,
             `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS isp_server_rtt_ms   DOUBLE PRECISION`,
+            // Campos de rastreabilidade e detalhe de sonda (equivalentes ao probe_full local)
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS open_ports          INTEGER[]`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS packets_per_route   INTEGER`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS probe_agent         VARCHAR(120)`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS mtr_hubs_raw        JSONB`,
         ];
         for (const sql of probeResultCols) await db.query(sql).catch(() => {});
     } catch (e) { warn('Schema:', e.message); }
@@ -575,19 +581,23 @@ async function main() {
         const topoByType = Object.fromEntries(topologySegments.map(s => [s.segment_type, s]));
 
         const raw = {
-            mtr_rtt:        mr           ? r3(mr.rtt)             : null,
-            mtr_hops:       (mr && mr.hubs) ? mr.hubs.length      : null,
-            tcp_ports:      results_tcp.map(r => r.port),
-            tcp_rtt:        Object.fromEntries(results_tcp.map(r => [r.port, r.rtt])),
-            jit_mean:       jitterResult  ? r1(jitterResult.mean)  : null,
-            jit_p95:        jitterResult  ? r1(jitterResult.p95)   : null,
-            jit_loss:       jitterResult  ? jitterResult.loss       : null,
-            jit_samples:    jitterResult  ? jitterResult.samples    : null,
-            http_rtt:       hrResult      ? r1(hrResult.rtt)        : null,
+            mtr_rtt:          mr             ? r3(mr.rtt)           : null,
+            mtr_hops:         (mr?.hubs)     ? mr.hubs.length       : null,
+            mtr_hubs_raw:     mr?.hubs       ?? null,
+            tcp_ports:        results_tcp.map(r => r.port),
+            tcp_rtt:          Object.fromEntries(results_tcp.map(r => [r.port, r.rtt])),
+            jit_mean:         jitterResult   ? r1(jitterResult.mean) : null,
+            jit_p95:          jitterResult   ? r1(jitterResult.p95)  : null,
+            jit_loss:         jitterResult   ? jitterResult.loss      : null,
+            jit_samples:      jitterResult   ? jitterResult.samples   : null,
+            http_rtt:         hrResult       ? r1(hrResult.rtt)       : null,
             // Resumo por segmento de topologia
-            gateway_rtt:    topoByType.gateway?.rtt_avg_ms    ?? null,
-            isp_edge_rtt:   topoByType.isp_edge?.rtt_avg_ms   ?? null,
-            isp_server_rtt: topoByType.isp_server?.rtt_avg_ms ?? null,
+            gateway_rtt:      topoByType.gateway?.rtt_avg_ms    ?? null,
+            isp_edge_rtt:     topoByType.isp_edge?.rtt_avg_ms   ?? null,
+            isp_server_rtt:   topoByType.isp_server?.rtt_avg_ms ?? null,
+            // Rastreabilidade (equivalentes ao probe_full local)
+            open_ports:       results_tcp.map(r => r.port),  // alias explícito de tcp_ports
+            packets_per_route: jitterResult ? jitterResult.samples : (results_tcp.length ? 1 : null),
         };
 
         // latency_ms: valor bruto do primeiro protocolo que respondeu (sem média ponderada)
@@ -662,8 +672,9 @@ async function main() {
                         tcp_ports_open, tcp_rtt_ms,
                         tcp_jitter_mean_ms, tcp_jitter_p95_ms, tcp_jitter_loss_pct, tcp_jitter_samples,
                         http_rtt_ms,
-                        gateway_rtt_ms, isp_edge_rtt_ms, isp_server_rtt_ms
-                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+                        gateway_rtt_ms, isp_edge_rtt_ms, isp_server_rtt_ms,
+                        open_ports, packets_per_route, probe_agent, mtr_hubs_raw
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
                     ON CONFLICT (cable_id, measured_at) DO UPDATE SET
                         latency_ms              = EXCLUDED.latency_ms,
                         jitter_ms               = EXCLUDED.jitter_ms,
@@ -689,7 +700,11 @@ async function main() {
                         http_rtt_ms             = EXCLUDED.http_rtt_ms,
                         gateway_rtt_ms          = EXCLUDED.gateway_rtt_ms,
                         isp_edge_rtt_ms         = EXCLUDED.isp_edge_rtt_ms,
-                        isp_server_rtt_ms       = EXCLUDED.isp_server_rtt_ms
+                        isp_server_rtt_ms       = EXCLUDED.isp_server_rtt_ms,
+                        open_ports              = EXCLUDED.open_ports,
+                        packets_per_route       = EXCLUDED.packets_per_route,
+                        probe_agent             = EXCLUDED.probe_agent,
+                        mtr_hubs_raw            = EXCLUDED.mtr_hubs_raw
                     RETURNING sample_id
                 `, [
                     cableId, measAt, sentAt, recvAt,
@@ -702,6 +717,10 @@ async function main() {
                     raw.jit_mean, raw.jit_p95, raw.jit_loss, raw.jit_samples,
                     raw.http_rtt,
                     raw.gateway_rtt, raw.isp_edge_rtt, raw.isp_server_rtt,
+                    raw.open_ports.length ? raw.open_ports : null,
+                    raw.packets_per_route,
+                    PROBE_AGENT,
+                    raw.mtr_hubs_raw ? JSON.stringify(raw.mtr_hubs_raw) : null,
                 ]);
 
                 const sampleId = sampleRes.rows[0]?.sample_id;
@@ -834,11 +853,14 @@ async function main() {
             confidence_score:       conf,
             estimated:              est,
             telemetry_model_version: MODEL,
-            open_ports:             openPorts,
+            // Rastreabilidade (compatível com formato probe_full legado)
+            open_ports:             raw.open_ports.length ? raw.open_ports : [],
+            packets_per_route:      raw.packets_per_route,
+            probe_agent:            PROBE_AGENT,
             // Por protocolo — dados brutos sem mesclagem
             mtr_rtt_ms:             raw.mtr_rtt,
             mtr_hops:               raw.mtr_hops,
-            mtr_hubs:               mr?.hubs ?? null,
+            mtr_hubs_raw:           raw.mtr_hubs_raw,
             tcp_ports_open:         raw.tcp_ports,
             tcp_rtt_ms:             raw.tcp_rtt,
             tcp_jitter_mean_ms:     raw.jit_mean,

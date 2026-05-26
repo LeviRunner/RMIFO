@@ -19,13 +19,32 @@ if (!DATABASE_URL) {
     process.exit(1);
 }
 
+// Colunas preferenciais por tabela — garante ordenação lógica dos campos no JSON
+// (PostgreSQL não garante ordem de colunas sem SELECT explícito)
+const SAMPLE_COLS = `
+    sample_id, cable_id, measured_at, sent_at, received_at,
+    latency_ms, jitter_ms, packet_loss_pct, throughput_mbps,
+    packets_per_second, availability_pct, route_error_count,
+    source, method, confidence_score, estimated, telemetry_model_version,
+    -- rastreabilidade (equivalente ao probe_full local)
+    open_ports, packets_per_route, probe_agent,
+    -- por protocolo bruto
+    mtr_rtt_ms, mtr_hops, mtr_hubs_raw,
+    tcp_ports_open, tcp_rtt_ms,
+    tcp_jitter_mean_ms, tcp_jitter_p95_ms, tcp_jitter_loss_pct, tcp_jitter_samples,
+    http_rtt_ms,
+    -- topologia de rede
+    gateway_rtt_ms, isp_edge_rtt_ms, isp_server_rtt_ms,
+    metadata
+`.replace(/\s*--[^\n]*/g, '').replace(/\s+/g, ' ').trim();
+
 const TABLES = [
     { name: 'cables',                    order: 'cable_id' },
     { name: 'cable_metadata',            order: 'cable_id' },
     { name: 'cable_landing_points',      order: 'cable_id, endpoint_id' },
     { name: 'landing_points',            order: 'endpoint_id' },
     { name: 'endpoints',                 order: 'cable_id, endpoint_id' },
-    { name: 'cable_telemetry_samples',   order: 'cable_id, measured_at' },
+    { name: 'cable_telemetry_samples',   order: 'cable_id, measured_at', cols: SAMPLE_COLS },
     { name: 'cable_telemetry_hops',      order: 'hop_id' },
     { name: 'cable_telemetry_reference', order: 'cable_id' },
     { name: 'endpoint_ip_samples',       order: 'endpoint_id, sample_order' },
@@ -37,7 +56,14 @@ const TABLES = [
 
 async function exportTable(db, t, now) {
     process.stdout.write('  ' + t.name.padEnd(35) + '...');
-    const res = await db.query('SELECT * FROM ' + t.name + ' ORDER BY ' + t.order);
+    const cols = t.cols || '*';
+    // Colunas com SELECT explícito podem não existir ainda (novas migrações) — fallback para *
+    let res;
+    try {
+        res = await db.query(`SELECT ${cols} FROM ${t.name} ORDER BY ${t.order}`);
+    } catch {
+        res = await db.query(`SELECT * FROM ${t.name} ORDER BY ${t.order}`);
+    }
     const out = {
         tabela:       t.name,
         exportado_em: now,

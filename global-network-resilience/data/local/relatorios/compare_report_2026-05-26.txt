@@ -1,0 +1,113 @@
+================================================================================
+  RELATÓRIO DE COMPARAÇÃO — CODESPACE vs SERVIDOR  (2026-05-26)
+================================================================================
+  Gerado em: 2026-05-26T18:39:19.693796Z
+  Datas com dados em ambas as fontes: 2026-05-16, 2026-05-17, 2026-05-21, 2026-05-26
+
+── RESUMO GERAL ────────────────────────────────────────────────────────────────
+  Métrica                                  Codespace          Servidor (DB)    
+  ----------------------------------------------------------------------------
+  Total de registros                  2105                 10389
+  Cabos únicos                        699                  699
+  Registros estimados                 1098 (52.2%)         5447 (52.4%)
+  Latência média (ms)                 53.04                42.99
+  Latência mediana (ms)               13.88                9.45
+  Latência desvio (ms)                77.81                63.03
+  Latência mín (ms)                   7.608                2.6
+  Latência máx (ms)                   767.01               1326.425
+  Hops MTR médios                     —                    —
+
+── DATAS DISPONÍVEIS ───────────────────────────────────────────────────────────
+  Data               Codespace     Servidor          Status
+  ----------------------------------------------------------------------------
+  2026-05-16               699          799           AMBOS
+  2026-05-17               699          699           AMBOS
+  2026-05-21               699          699           AMBOS
+  2026-05-23                 0         2014     só-servidor
+  2026-05-24                 0         3502     só-servidor
+  2026-05-25                 0         2285     só-servidor
+  2026-05-26                 8          391           AMBOS
+
+── DISTRIBUIÇÃO DE PROTOCOLOS ──────────────────────────────────────────────────
+  Protocolo               Codespace     (%)      Servidor     (%)
+  ----------------------------------------------------------------------------
+  MTR                             0    0.0%           242    2.3%
+  Outro                           1    0.0%             3    0.0%
+  Sintético                    1098   52.2%          5447   52.4%
+  TCP-Jitter                      5    0.2%           182    1.8%
+  TCP-SYN                      1001   47.6%          4515   43.5%
+
+── FONTES DE MEDIÇÃO (source) ──────────────────────────────────────────────────
+  Source                            Codespace      Servidor
+  ----------------------------------------------------------------------------
+  active_http_probe                         1             3
+  active_mtr                                0           242
+  active_tcp_connect                     1006          4697
+  synthetic                              1098          5447
+
+── COMPARAÇÃO POR DATA (cabos em comum) ────────────────────────────────────────
+  Data           Comuns   Só-CS   Só-SV   Δlat.média   Δlat.max  Divergências
+  ----------------------------------------------------------------------------
+  2026-05-16        699       0       0       0.0 ms     0.0 ms             0
+  2026-05-17        699       0       0       0.0 ms     0.0 ms             0
+  2026-05-21        699       0       0       0.0 ms     0.0 ms             0
+  2026-05-26          5       0     347     36.39 ms   83.81 ms             2
+
+── TOP DIVERGÊNCIAS (Δlatência > 50 ms ou protocolo diferente) ─────────────────
+  Cabo                                     Data         Proto-CS       Proto-SV            Δms
+  ----------------------------------------------------------------------------
+  ace                                      2026-05-26   TCP-Jitter     Sintético      83.81 ms
+  acs-alaska-oregon-network-akorn          2026-05-26   TCP-Jitter     TCP-Jitter      57.0 ms
+
+── CAMPOS EXCLUSIVOS POR FONTE ─────────────────────────────────────────────────
+  Só no Codespace (probe_full local):
+    + hops
+    + open_ports
+    + packets_per_route
+    + probe_agent
+
+  Só no Servidor (banco de dados):
+    + http_rtt_ms
+    + mtr_hops
+    + mtr_rtt_ms
+    + sample_id
+    + tcp_jitter_loss_pct
+    + tcp_jitter_mean_ms
+    + tcp_jitter_p95_ms
+    + tcp_jitter_samples
+    + tcp_ports_open
+    + tcp_rtt_ms
+
+  Campos em comum: 17
+
+── ANÁLISE DE HOPS MTR (apenas servidor tem tabela de hops) ────────────────────
+  total_hops                     1483
+  cabos_com_hops                 36
+  hop_max                        22
+  hop_medio                      6.7
+  roles                          {}
+  rtt_medio_ms                   52.05
+
+── CAMPOS DE TOPOLOGIA (novos — probe_full 2026-05-26+) ────────────────────────
+  Ainda não há registros com topology_segments nos probe_full locais.
+  (campo disponível a partir da próxima sonda completa com MTR/root)
+
+── CONCLUSÃO ───────────────────────────────────────────────────────────────────
+
+  Codespace:
+    • Roda sem banco de dados, salva probe_full_*.json localmente
+    • Protocolo dominante: Sintético
+    • Sem privilégios de root → MTR indisponível → mais registros sintéticos
+    • Campos adicionais por protocolo (topology_segments, mtr_hubs) no JSON local
+
+  Servidor (DB):
+    • Roda com banco de dados (Railway PostgreSQL)
+    • Protocolo dominante: Sintético
+    • MTR disponível (242 registros com MTR de 10389 total)
+    • 699 cabos únicos persistidos ao longo de 7 datas
+    • Hops individuais salvos em cable_telemetry_hops (1483 linhas)
+
+  Diferença principal: root/sudo no servidor permite MTR, gerando dados de hops
+  mais ricos. O codespace usa TCP-Jitter e HTTP como substitutos com boa precisão.
+
+================================================================================

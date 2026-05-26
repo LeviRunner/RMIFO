@@ -1,0 +1,151 @@
+{
+  "gerado_em": "2026-05-26T18:39:19.694770Z",
+  "codespace": {
+    "total": 2105,
+    "estimados": 1098,
+    "lat_media": 53.04,
+    "lat_mediana": 13.88,
+    "lat_desvio": 77.81,
+    "lat_min": 7.608,
+    "lat_max": 767.01,
+    "protocolos": {
+      "Sint\u00e9tico": 1098,
+      "TCP-SYN": 1001,
+      "TCP-Jitter": 5,
+      "Outro": 1
+    },
+    "sources": {
+      "synthetic": 1098,
+      "active_tcp_connect": 1006,
+      "active_http_probe": 1
+    },
+    "mtr_hops_media": null,
+    "cabos_unicos": 699
+  },
+  "servidor": {
+    "total": 10389,
+    "estimados": 5447,
+    "lat_media": 42.99,
+    "lat_mediana": 9.45,
+    "lat_desvio": 63.03,
+    "lat_min": 2.6,
+    "lat_max": 1326.425,
+    "protocolos": {
+      "Sint\u00e9tico": 5447,
+      "TCP-SYN": 4515,
+      "MTR": 242,
+      "TCP-Jitter": 182,
+      "Outro": 3
+    },
+    "sources": {
+      "synthetic": 5447,
+      "active_tcp_connect": 4697,
+      "active_mtr": 242,
+      "active_http_probe": 3
+    },
+    "mtr_hops_media": null,
+    "cabos_unicos": 699
+  },
+  "hops": {
+    "total_hops": 1483,
+    "cabos_com_hops": 36,
+    "hop_max": 22,
+    "hop_medio": 6.7,
+    "roles": {},
+    "rtt_medio_ms": 52.05
+  },
+  "campos": {
+    "so_codespace": [
+      "hops",
+      "open_ports",
+      "packets_per_route",
+      "probe_agent"
+    ],
+    "so_servidor": [
+      "http_rtt_ms",
+      "mtr_hops",
+      "mtr_rtt_ms",
+      "sample_id",
+      "tcp_jitter_loss_pct",
+      "tcp_jitter_mean_ms",
+      "tcp_jitter_p95_ms",
+      "tcp_jitter_samples",
+      "tcp_ports_open",
+      "tcp_rtt_ms"
+    ],
+    "comuns": [
+      "availability_pct",
+      "cable_id",
+      "confidence_score",
+      "estimated",
+      "jitter_ms",
+      "latency_ms",
+      "measured_at",
+      "metadata",
+      "method",
+      "packet_loss_pct",
+      "packets_per_second",
+      "received_at",
+      "route_error_count",
+      "sent_at",
+      "source",
+      "telemetry_model_version",
+      "throughput_mbps"
+    ]
+  },
+  "por_data": [
+    {
+      "data": "2026-05-16",
+      "cabos_comuns": 699,
+      "so_codespace": 0,
+      "so_servidor": 0,
+      "delta_lat_media": 0.0,
+      "delta_lat_max": 0.0,
+      "divergencias": []
+    },
+    {
+      "data": "2026-05-17",
+      "cabos_comuns": 699,
+      "so_codespace": 0,
+      "so_servidor": 0,
+      "delta_lat_media": 0.0,
+      "delta_lat_max": 0.0,
+      "divergencias": []
+    },
+    {
+      "data": "2026-05-21",
+      "cabos_comuns": 699,
+      "so_codespace": 0,
+      "so_servidor": 0,
+      "delta_lat_media": 0.0,
+      "delta_lat_max": 0.0,
+      "divergencias": []
+    },
+    {
+      "data": "2026-05-26",
+      "cabos_comuns": 5,
+      "so_codespace": 0,
+      "so_servidor": 347,
+      "delta_lat_media": 36.39,
+      "delta_lat_max": 83.81,
+      "divergencias": [
+        {
+          "cable_id": "ace",
+          "proto_local": "TCP-Jitter",
+          "proto_db": "Sint\u00e9tico",
+          "lat_local_ms": 91.6,
+          "lat_db_ms": 7.794,
+          "delta_ms": 83.81
+        },
+        {
+          "cable_id": "acs-alaska-oregon-network-akorn",
+          "proto_local": "TCP-Jitter",
+          "proto_db": "TCP-Jitter",
+          "lat_local_ms": 128.9,
+          "lat_db_ms": 71.9,
+          "delta_ms": 57.0
+        }
+      ]
+    }
+  ]
+}
