@@ -2128,6 +2128,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                         if (!isset($dates[$d])) {
                             $dates[$d] = ['date' => $d, 'run_count' => 0, 'samples' => (int) $row['samples'], 'source' => 'db'];
                         } else {
+                            // Complementa entradas de log com contagem real de amostras do BD
                             $dates[$d]['samples'] = (int) $row['samples'];
                         }
                     }

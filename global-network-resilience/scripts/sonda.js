@@ -344,90 +344,169 @@ async function main() {
     }
 
     // Main probe loop
-    const measAt = new Date();
+    // measAt é por cabo para evitar conflito UNIQUE (cable_id, measured_at) entre execuções
+    const sessionStart = new Date();
     const stats  = { mtr: 0, tcp_syn: 0, tcp_full: 0, tcp_jitter: 0, http: 0, synth: 0 };
     let mtrUsed  = 0;
     let inserted = 0;
     const total  = cables.length;
+
+    // Checkpoint: escreve .probe_live.json a cada CHECKPOINT_N cabos (não a cada 1)
+    const CHECKPOINT_N = 10;
+    const recentProbes = []; // últimas sondas para exibição na tabela fixa
+
+    // Fila de geo lookup — não bloqueia o loop principal
+    const geoQueue = [];
+    let geoRunning = false;
+    async function flushGeoQueue() {
+        if (geoRunning || !geoQueue.length || !db) return;
+        geoRunning = true;
+        while (geoQueue.length) {
+            const batch = geoQueue.splice(0, 20);
+            try {
+                const results = await geoLookupBatch(batch);
+                for (const r of results) {
+                    if (r.status !== 'success' || !r.lat) continue;
+                    await db.query(`
+                        INSERT INTO hop_switch_geolocations
+                            (hop_ip, lat, lng, city, region, country, country_code, isp, org, as_number, as_name)
+                        VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                        ON CONFLICT (hop_ip) DO NOTHING
+                    `, [r.query, r.lat, r.lon, r.city, r.regionName, r.country,
+                        r.countryCode, r.isp, r.org, r.as, r.asname]).catch(() => {});
+                    geoSessionCache.add(r.query);
+                    switchCount++;
+                }
+            } catch {}
+        }
+        geoRunning = false;
+    }
 
     for (const c of cables) {
         const cableId   = c.cable_id;
         const cableName = c.cable_name || cableId;
         const base      = synth(c.length_km, c.capacity_gbps, c.landing_points_count);
         const host      = extractHost(c.public_url);
+        // Timestamp único por cabo: evita conflito UNIQUE se sonda rodar duas vezes no mesmo segundo
+        const measAt    = new Date(sessionStart.getTime() + inserted);
 
-        let latMs = null, jitMs = base.jit, lossP = base.loss;
-        let tputM = base.tput, availP = base.avail;
-        let src   = 'synthetic', meth = 'heuristic', conf = 0.56, est = true;
-        let sentAt = null, recvAt = null, openPorts = [];
+        // Coletores de resultados por protocolo — sem early exit
+        const results_tcp  = []; // { rtt, port, sentAt, recvAt }
+        const results_http = null;
+        let   mr           = null;
+        let   openPorts    = [];
 
-        // Pre-scan open ports (full scan only)
-        if (host && FULL_SCAN) {
+        // 1. Scan de portas abertas (sempre — necessário para saber onde sondar)
+        if (host) {
             openPorts = await scanPorts(host, FULL_PORTS);
         }
 
-        // 1. MTR
-        let mr = null;
+        // 2. MTR — roda se orçamento disponível (fornece hops e RTT via ICMP/UDP)
         if (host && mtrUsed < MTR_BUDGET) {
             const cyc = Math.min(MTR_CYCLES, MTR_BUDGET - mtrUsed);
             mr = await mtrProbe(host, cyc, TIMEOUT_S);
-            if (mr) {
-                latMs  = r3(base.lat * 0.4 + mr.rtt * 0.6);
-                conf   = 0.90; est = false; src = 'active_mtr'; meth = 'mtr-udp';
-                sentAt = mr.sentAt; recvAt = mr.recvAt;
-                stats.mtr++; mtrUsed += cyc;
-            }
+            if (mr) { stats.mtr++; mtrUsed += cyc; }
         }
 
-        // 2. TCP
-        if (latMs === null && host) {
-            const ports = (FULL_SCAN && openPorts.length) ? openPorts : STD_PORTS;
-            const tms   = FULL_SCAN ? 2000 : TIMEOUT_S * 1000;
-            for (const p of ports) {
-                const tr = await tcpProbe(host, p, tms);
-                if (tr) {
-                    latMs  = r3(base.lat * 0.5 + tr.rtt * 0.5);
-                    conf   = 0.78; est = false; src = 'active_tcp_connect';
-                    meth   = `tcp-syn-ack-port${p}`;
-                    sentAt = tr.sentAt; recvAt = tr.recvAt;
+        // 3. TCP SYN-ACK em TODAS as portas abertas (sem break — coleta todas)
+        if (host && openPorts.length) {
+            const tms = FULL_SCAN ? 2500 : TIMEOUT_S * 1000;
+            const tcpAll = await Promise.all(openPorts.map(p => tcpProbe(host, p, tms)));
+            for (let i = 0; i < openPorts.length; i++) {
+                if (tcpAll[i]) {
+                    results_tcp.push({ rtt: tcpAll[i].rtt, port: openPorts[i],
+                                       sentAt: tcpAll[i].sentAt, recvAt: tcpAll[i].recvAt });
                     stats.tcp_syn++;
-
-                    if (FULL_SCAN && openPorts.length) {
-                        const j = await jitterPasses(host, openPorts, TCP_JITTER_PKTS, 2000);
-                        if (j) {
-                            latMs = r3(base.lat * 0.3 + j.mean * 0.7);
-                            jitMs = j.jit; lossP = j.loss ?? lossP;
-                            conf  = 0.95;
-                            meth  = `tcp-${TCP_JITTER_PKTS}pkt-ports${openPorts.join(',')}-p95=${j.p95}ms`;
-                            stats.tcp_jitter++;
-                        }
-                    }
-                    break;
+                }
+            }
+        } else if (host) {
+            // Fallback: portas padrão mesmo sem scan prévio
+            const tms = TIMEOUT_S * 1000;
+            const tcpStd = await Promise.all(STD_PORTS.map(p => tcpProbe(host, p, tms)));
+            for (let i = 0; i < STD_PORTS.length; i++) {
+                if (tcpStd[i]) {
+                    results_tcp.push({ rtt: tcpStd[i].rtt, port: STD_PORTS[i],
+                                       sentAt: tcpStd[i].sentAt, recvAt: tcpStd[i].recvAt });
+                    stats.tcp_syn++;
                 }
             }
         }
 
-        // 3. HTTP
-        if (latMs === null && c.public_url) {
-            const hr = await httpProbe(c.public_url, TIMEOUT_S * 1000);
-            if (hr) {
-                latMs  = r3(base.lat * 0.6 + hr.rtt * 0.4);
-                conf   = 0.82; est = false; src = 'active_http_probe';
-                meth   = 'curl-time-total';
-                sentAt = hr.sentAt; recvAt = hr.recvAt;
-                stats.http++;
-            }
+        // 4. TCP Jitter — em todas as portas que responderam (mede variância real)
+        let jitterResult = null;
+        if (results_tcp.length) {
+            const activePorts = results_tcp.map(r => r.port);
+            const pkts = FULL_SCAN ? TCP_JITTER_PKTS : Math.min(20, TCP_JITTER_PKTS);
+            jitterResult = await jitterPasses(host, activePorts, pkts, 2500);
+            if (jitterResult) stats.tcp_jitter++;
         }
 
-        // 4. Synthetic fallback
+        // 5. HTTP — sempre roda se public_url disponível (independente do TCP)
+        let hrResult = null;
+        if (c.public_url) {
+            hrResult = await httpProbe(c.public_url, TIMEOUT_S * 1000);
+            if (hrResult) stats.http++;
+        }
+
+        // ── Agregação de resultados — escolhe melhor fonte, usa todos os dados ──
+        let latMs  = null, jitMs = base.jit, lossP = base.loss;
+        let tputM  = base.tput, availP = base.avail;
+        let src = 'synthetic', meth = 'heuristic', conf = 0.56, est = true;
+        let sentAt = null, recvAt = null;
+        const methParts = [];
+
+        // Prioridade: MTR > TCP jitter > TCP syn > HTTP (dados mais ricos primeiro)
+        if (mr) {
+            latMs  = r3(base.lat * 0.35 + mr.rtt * 0.65);
+            src    = 'active_mtr'; conf = 0.90; est = false;
+            sentAt = mr.sentAt; recvAt = mr.recvAt;
+            methParts.push('mtr-udp');
+        }
+
+        if (jitterResult) {
+            // Jitter tem múltiplas amostras — mais preciso que RTT único
+            const jLat = jitterResult.mean;
+            latMs  = latMs !== null ? r3(latMs * 0.4 + jLat * 0.6) : r3(base.lat * 0.2 + jLat * 0.8);
+            jitMs  = jitterResult.jit;
+            lossP  = jitterResult.loss ?? lossP;
+            conf   = Math.max(conf, 0.95); est = false;
+            src    = src === 'synthetic' ? 'active_tcp_connect' : src;
+            const ports = results_tcp.map(r => r.port).join(',');
+            methParts.push(`tcp-jitter-${jitterResult.samples}pkt-p95=${jitterResult.p95}ms-ports${ports}`);
+        } else if (results_tcp.length) {
+            // Sem jitter mas TCP respondeu — usa RTT mínimo das portas
+            const bestTcp = results_tcp.reduce((a, b) => a.rtt < b.rtt ? a : b);
+            if (latMs === null) {
+                latMs  = r3(base.lat * 0.45 + bestTcp.rtt * 0.55);
+                sentAt = bestTcp.sentAt; recvAt = bestTcp.recvAt;
+            }
+            conf = Math.max(conf, 0.78); est = false;
+            src  = src === 'synthetic' ? 'active_tcp_connect' : src;
+            const ports = results_tcp.map(r => r.port).join(',');
+            methParts.push(`tcp-syn-ack-ports${ports}`);
+        }
+
+        if (hrResult) {
+            if (latMs === null) {
+                latMs  = r3(base.lat * 0.55 + hrResult.rtt * 0.45);
+                sentAt = hrResult.sentAt; recvAt = hrResult.recvAt;
+                src    = 'active_http_probe'; conf = 0.82; est = false;
+            }
+            methParts.push('http-curl');
+        }
+
+        // 6. Fallback sintético — só se nenhum protocolo respondeu
         if (latMs === null) {
             latMs = r3(base.lat * (1 + (Math.random() - 0.5) * 0.1));
+            methParts.push('heuristic-synthetic');
             stats.synth++;
         }
 
+        meth = methParts.join('+') || 'heuristic';
+
         latMs  = r3(latMs);
-        jitMs  = r3(Math.max(0.5, jitMs * (1 + (Math.random() - 0.5) * 0.35)));
-        lossP  = r3(Math.max(0.01, lossP * (1 + (Math.random() - 0.5) * 0.55)));
+        jitMs  = r3(Math.max(0.5, jitMs * (1 + (Math.random() - 0.5) * 0.2)));
+        lossP  = r3(Math.max(0.01, lossP * (1 + (Math.random() - 0.5) * 0.3)));
         tputM  = r3(tputM * (1 + (Math.random() - 0.5) * 0.16));
         availP = r3(Math.max(97.5, Math.min(100, availP - lossP * 0.03)));
         const pps  = Math.max(1000, Math.floor((tputM * 1e6) / (8 * 900)));
@@ -436,7 +515,7 @@ async function main() {
         inserted++;
         const prog = r1((inserted / total) * 100);
 
-        // DB insert
+        // DB insert — timestamp único por cabo evita conflito entre execuções
         if (db) {
             try {
                 const sampleRes = await db.query(`
@@ -448,8 +527,6 @@ async function main() {
                         telemetry_model_version, metadata
                     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
                     ON CONFLICT (cable_id, measured_at) DO UPDATE SET
-                        sent_at                 = EXCLUDED.sent_at,
-                        received_at             = EXCLUDED.received_at,
                         latency_ms              = EXCLUDED.latency_ms,
                         jitter_ms               = EXCLUDED.jitter_ms,
                         packet_loss_pct         = EXCLUDED.packet_loss_pct,
@@ -468,7 +545,11 @@ async function main() {
                     cableId, measAt, sentAt, recvAt,
                     latMs, jitMs, lossP, tputM, pps, availP, errs,
                     src, meth, conf, est, MODEL,
-                    JSON.stringify({ target_host: host, probe_protocol: meth, open_ports: openPorts }),
+                    JSON.stringify({
+                        target_host: host, open_ports: openPorts,
+                        tcp_ports_responded: results_tcp.map(r => r.port),
+                        has_mtr: !!mr, has_http: !!hrResult,
+                    }),
                 ]);
 
                 // Store per-hop data when MTR was used
@@ -480,13 +561,7 @@ async function main() {
                              rtt_last_ms, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, rtt_stdev_ms, loss_pct)
                         VALUES ($1,$2,$3,$4::inet,$5,$6,$7,$8,$9,$10)
                         ON CONFLICT (sample_id, hop_number) DO UPDATE SET
-                            hop_ip       = EXCLUDED.hop_ip,
-                            rtt_last_ms  = EXCLUDED.rtt_last_ms,
-                            rtt_avg_ms   = EXCLUDED.rtt_avg_ms,
-                            rtt_best_ms  = EXCLUDED.rtt_best_ms,
-                            rtt_worst_ms = EXCLUDED.rtt_worst_ms,
-                            rtt_stdev_ms = EXCLUDED.rtt_stdev_ms,
-                            loss_pct     = EXCLUDED.loss_pct`;
+                            hop_ip = EXCLUDED.hop_ip, rtt_avg_ms = EXCLUDED.rtt_avg_ms`;
                     for (const h of mr.hubs) {
                         const ip = h.host && h.host !== '???' ? h.host : null;
                         await db.query(hopQ, [
@@ -499,67 +574,58 @@ async function main() {
             } catch (e) { warn(`DB insert ${cableId}: ${e.message}`); }
         }
 
-        // Geo lookup for new hop IPs (MTR only)
+        // Fila de geo lookup (não bloqueia o loop — processa em background)
         let hopCount = 0;
         let hopsPreview = [];
         if (mr && mr.hubs && mr.hubs.length) {
+            hopCount    = mr.hubs.length;
+            hopsPreview = mr.hubs.slice(0, 3).map(h => h.host || '*');
             const newIps = mr.hubs
                 .map(h => h.host)
                 .filter(ip => ip && !isPrivateIp(ip) && !geoSessionCache.has(ip));
-            hopCount     = mr.hubs.length;
-            hopsPreview  = mr.hubs.slice(0, 3).map(h => h.host || '*');
-
-            if (newIps.length && db) {
-                try {
-                    const results = await geoLookupBatch(newIps.slice(0, 20));
-                    const geoQ    = db.query.bind(db);
-                    for (const r of results) {
-                        if (r.status !== 'success' || !r.lat) continue;
-                        await geoQ(`
-                            INSERT INTO hop_switch_geolocations
-                                (hop_ip, lat, lng, city, region, country, country_code, isp, org, as_number, as_name)
-                            VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                            ON CONFLICT (hop_ip) DO NOTHING
-                        `, [r.query, r.lat, r.lon, r.city, r.regionName, r.country,
-                            r.countryCode, r.isp, r.org, r.as, r.asname])
-                        .catch(() => {});
-                        geoSessionCache.add(r.query);
-                        switchCount++;
-                    }
-                } catch {}
+            if (newIps.length) {
+                // Marca como "em processamento" para não re-enfileirar
+                newIps.forEach(ip => geoSessionCache.add(ip));
+                geoQueue.push(...newIps);
+                // Processa fila de forma não-bloqueante
+                setImmediate(flushGeoQueue);
             }
         }
 
-        // Live status (read by api.php → displayed in real-time)
-        writeLive({
-            cable_id:     cableId,
-            cable_name:   cableName,
-            current:      inserted,
-            total,
-            percent:      prog,
-            proto:        meth,
-            latency_ms:   r1(latMs),
-            tcp:          stats.tcp_syn + stats.tcp_full + stats.tcp_jitter,
-            synthetic:    stats.synth,
-            mtr:          stats.mtr,
-            http:         stats.http,
-            hop_count:    hopCount,
-            switch_count: switchCount,
-            hops_preview: hopsPreview,
-            log_file:     process.env.LOG_FILE || '',
-            updated_at:   new Date().toISOString(),
-            var_counts: {
-                mtr_udp:    stats.mtr,
-                tcp_syn:    stats.tcp_syn,
-                tcp_full:   stats.tcp_full,
-                tcp_jitter: stats.tcp_jitter,
-                http_curl:  stats.http,
-                synthetic:  stats.synth,
-            },
-            var_target: varTarget(meth),
+        // Acumula últimas sondas para checkpoint (tabela fixa)
+        recentProbes.unshift({
+            n: inserted, cable_id: cableId, cable_name: cableName,
+            proto: meth.split('+')[0], latency_ms: r1(latMs),
+            hops: hopCount, switches: switchCount, src,
         });
+        if (recentProbes.length > 30) recentProbes.pop();
 
-        // Per-cable JSONL history
+        // ── Checkpoint a cada CHECKPOINT_N cabos (ou no último) ──────────────
+        if (inserted % CHECKPOINT_N === 0 || inserted === total) {
+            writeLive({
+                current:      inserted,
+                total,
+                percent:      prog,
+                tcp:          stats.tcp_syn + stats.tcp_full + stats.tcp_jitter,
+                synthetic:    stats.synth,
+                mtr:          stats.mtr,
+                http:         stats.http,
+                switch_count: switchCount,
+                log_file:     process.env.LOG_FILE || '',
+                updated_at:   new Date().toISOString(),
+                recent:       recentProbes.slice(0, 15),
+                var_counts: {
+                    mtr_udp:    stats.mtr,
+                    tcp_syn:    stats.tcp_syn,
+                    tcp_full:   stats.tcp_full,
+                    tcp_jitter: stats.tcp_jitter,
+                    http_curl:  stats.http,
+                    synthetic:  stats.synth,
+                },
+            });
+        }
+
+        // Per-cable JSONL history (append a cada cabo — I/O barato, sequencial)
         try {
             fs.appendFileSync(CABLES_JSONL, JSON.stringify({
                 cable_id: cableId, cable_name: cableName,
@@ -567,14 +633,21 @@ async function main() {
                 latency_ms: latMs, jitter_ms: jitMs,
                 packet_loss_pct: lossP, source: src, method: meth,
                 open_ports: openPorts,
+                tcp_ports_responded: results_tcp.map(r => r.port),
             }) + '\n', 'utf8');
         } catch {}
 
         // Progress line — format matched by api.php regex
         process.stdout.write(
             `  [${String(inserted).padStart(4)}/${total}] ${String(prog).padStart(5)}%  ` +
-            `${cableId.padEnd(40)} proto=${meth.padEnd(32)} lat=${String(r1(latMs)).padStart(8)}ms\n`
+            `${cableId.padEnd(40)} proto=${meth.split('+')[0].padEnd(24)} lat=${String(r1(latMs)).padStart(8)}ms\n`
         );
+    }
+
+    // Aguarda fila de geo lookup terminar antes de encerrar
+    if (geoQueue.length) {
+        log('Aguardando geo lookup finalizar...');
+        await flushGeoQueue();
     }
 
     // Post-ingest baseline

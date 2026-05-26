@@ -2654,97 +2654,30 @@ function initDailyPage() {
     if (progressBar)  progressBar.style.width = pct + '%';
     if (progressLbl)  progressLbl.textContent = `${p.current} / ${p.total} — ${pct.toFixed(1)}%`;
 
-    // packet animation panel
-    if (cablePanel) cablePanel.style.display = '';
-    if (pvLat) pvLat.textContent = p.latency_ms != null ? p.latency_ms + ' ms' : '—';
-
-    const parsed = parseProto(p.proto);
-
-    // hero: cable name with fade transition on change
-    if (pvCable) {
-      if (p.cable && p.cable !== pvLastCable && pvCable.textContent !== '—') {
-        pvCable.style.opacity = '0';
-        setTimeout(() => { pvCable.textContent = p.cable || '—'; pvCable.style.opacity = '1'; }, 220);
-      } else {
-        pvCable.textContent = p.cable || '—';
-      }
-    }
-
-    // proto chip (colored badge)
-    if (pvProtoChip) {
-      pvProtoChip.textContent = parsed.label;
-      pvProtoChip.className = 'pv-proto-chip' + (parsed.chipCls ? ' ' + parsed.chipCls : '');
-    }
-
-    // protocol text and ports
-    if (pvProto) pvProto.textContent = p.proto
-      ? p.proto.replace(/tcp-\d+pkt-ports\[([^\]]+)\]-p95=[\d.]+ms/, 'TCP [$1]')
-      : '—';
-    if (pvPorts) pvPorts.textContent = parsed.ports.length ? parsed.ports.join(', ') : '—';
-
-    // packet tags on animated dots
-    [pvPtag1, pvPtag2, pvPtag3].forEach((el, i) => { if (el) el.textContent = parsed.tags[i] || ''; });
-
-    // hop / switch counters
-    const pvHopN    = document.getElementById('pv-hop-n');
-    const pvSwitchN = document.getElementById('pv-switch-n');
-    if (pvHopN)    pvHopN.textContent    = p.hop_count    > 0 ? p.hop_count    : '—';
-    if (pvSwitchN) pvSwitchN.textContent = p.switch_count > 0 ? p.switch_count : '—';
-
-    // update dstat-switches card
+    // Comutadores descobertos
     const dstatSw = document.getElementById('dstat-switches');
     if (dstatSw && p.switch_count > 0) dstatSw.textContent = p.switch_count;
 
-    // packet counter: reset and count 0→var_target when cable changes
-    const pvTarget    = p.var_target || 100;
-    const pvPktTarget = document.getElementById('pv-pkt-target');
-    if (pvPktTarget) pvPktTarget.textContent = `/${pvTarget}`;
-    if (p.cable && p.cable !== pvLastCable) {
-      pvLastCable = p.cable;
-      clearInterval(pvCounterTimer);
-      pvPacketCount = 0;
-      if (pvPktN) pvPktN.textContent = '0';
-      pvCounterTimer = setInterval(() => {
-        pvPacketCount = Math.min(pvTarget, pvPacketCount + 1);
-        if (pvPktN) pvPktN.textContent = pvPacketCount;
-        if (pvPacketCount >= pvTarget) clearInterval(pvCounterTimer);
-      }, 30);
-    }
-
-    // endpoint coordinates from globe paths
-    if (AppState.globePaths.length) {
-      const seg = AppState.globePaths.find(pp => pp.cable_id === p.cable);
-      if (seg) {
-        const fmtCoord = (lat, lng) => `${parseFloat(lat).toFixed(1)}°, ${parseFloat(lng).toFixed(1)}°`;
-        if (pvEpA) pvEpA.textContent = fmtCoord(seg.startLat, seg.startLng);
-        if (pvEpB) pvEpB.textContent = fmtCoord(seg.endLat, seg.endLng);
-      }
-    }
-
-    // highlight cable on globe
-    if (AppState.probeActiveCable !== p.cable) {
-      AppState.probeActiveCable = p.cable;
-      if (Router.current === 'map') refreshGlobeProbeHighlight();
-    }
-
-    // live table (last 15 rows)
-    const proto = p.proto || '—';
-    const protoInfo = parseProto(proto);
-    const protoLabel = protoInfo.label !== '—' ? protoInfo.label : 'Sint.';
-    const protoReal  = !proto.includes('heuristic') && !proto.includes('synthetic') && proto !== '—';
-    tableRows.unshift({ index: p.current, cable: p.cable, proto, protoLabel, protoReal, protoChipCls: protoInfo.chipCls, lat: p.latency_ms, hops: p.hop_count || 0, switches: p.switch_count || 0 });
-    if (tableRows.length > 15) tableRows.pop();
-    if (tableWrap) tableWrap.style.display = '';
-    if (tbody) {
-      const prevFirst = tbody.firstElementChild ? tbody.firstElementChild.dataset.idx : null;
-      tbody.innerHTML = tableRows.map((r, i) => `<tr data-idx="${r.index}" class="${i === 0 && String(r.index) !== prevFirst ? 'probe-row-new' : ''}">
-        <td>${r.index}</td>
-        <td class="mono">${esc(r.cable)}</td>
-        <td><span class="badge ${r.protoReal ? 'yes' : ''} ${r.protoChipCls || ''}">${esc(r.protoLabel)}</span></td>
-        <td class="${r.lat > 200 ? 'danger-text' : 'ok-text'}">${r.lat} ms</td>
-        <td class="mono">${r.hops > 0 ? r.hops : '—'}</td>
-        <td class="mono">${r.switches > 0 ? r.switches : '—'}</td>
-      </tr>`).join('');
+    // Tabela fixa — atualizada apenas nos checkpoints (quando p.recent existir)
+    // Isso evita re-render a cada cabo e elimina a principal fonte de atraso
+    if (p.recent && p.recent.length && tbody) {
+      if (tableWrap) tableWrap.style.display = '';
+      const prevFirstIdx = tbody.firstElementChild?.dataset?.idx;
+      tbody.innerHTML = p.recent.map((r, i) => {
+        const protoFirst  = (r.proto || 'heuristic').split('+')[0];
+        const protoReal   = !protoFirst.includes('heuristic') && !protoFirst.includes('synthetic');
+        const protoInfo   = parseProto(protoFirst);
+        const protoLabel  = protoInfo.label !== '—' ? protoInfo.label : 'Sint.';
+        const isNew       = i === 0 && String(r.n) !== prevFirstIdx;
+        return `<tr data-idx="${r.n}" class="${isNew ? 'probe-row-new' : ''}">
+          <td>${r.n}</td>
+          <td class="mono">${esc(r.cable_name || r.cable_id)}</td>
+          <td><span class="badge ${protoReal ? 'yes' : ''} ${protoInfo.chipCls || ''}">${esc(protoLabel)}</span></td>
+          <td class="${r.latency_ms > 200 ? 'danger-text' : 'ok-text'}">${r.latency_ms ?? '—'} ms</td>
+          <td class="mono">${r.hops > 0 ? r.hops : '—'}</td>
+          <td class="mono">${r.switches > 0 ? r.switches : '—'}</td>
+        </tr>`;
+      }).join('');
     }
   }
 
@@ -2770,7 +2703,7 @@ function initDailyPage() {
         pollTimer = setTimeout(poll, 4000);
       } else if (data.status === 'running' || data.status === 'already_running') {
         if (!data.progress && progressLbl) progressLbl.textContent = 'Pré-flight em andamento…';
-        pollTimer = setTimeout(poll, 3000);
+        pollTimer = setTimeout(poll, 7000); // checkpoint a cada 10 cabos — 3s é excessivo
       } else if (data.status === 'idle') {
         const elapsed = probeStartTime ? (Date.now() - probeStartTime) / 1000 : 9999;
         // Mantém polling por até 15 min após start — containers Railway podem demorar na init
@@ -3069,7 +3002,9 @@ function initHistoryPage() {
       }
       dateSelect.innerHTML = '<option value="">— Selecione uma data —</option>'
         + dates.map(d => {
-            const info = d.run_count > 0 ? `${d.run_count} exec.` : `${d.samples ?? '?'} amostras BD`;
+            const info = d.run_count > 0
+              ? (d.samples ? `${d.run_count} exec. · ${d.samples} amostras` : `${d.run_count} exec.`)
+              : `${d.samples ?? '?'} amostras BD`;
             return `<option value="${esc(d.date)}">${esc(d.date)} (${info})</option>`;
           }).join('');
 
