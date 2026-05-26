@@ -114,7 +114,7 @@ async function jitterPasses(host, ports, n, ms) {
     const sorted = [...rs].sort((a, b) => a - b);
     const p95  = sorted[Math.max(0, Math.floor(rs.length * 0.95) - 1)];
     const loss = r1((1 - rs.length / all.length) * 100);
-    return { mean: r1(mean), jit: r1(jit), p95: r1(p95), loss };
+    return { mean: r1(mean), jit: r1(jit), p95: r1(p95), loss, samples: rs.length };
 }
 
 // ── HTTP probe ────────────────────────────────────────────────────────────────
@@ -268,6 +268,19 @@ async function ensureSchema(db) {
                 ADD COLUMN IF NOT EXISTS sent_at     TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ
         `);
+        // Colunas de resultado bruto por protocolo (sem mesclagem)
+        const probeResultCols = [
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS mtr_rtt_ms          DOUBLE PRECISION`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS mtr_hops            INTEGER`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_ports_open      INTEGER[]`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_rtt_ms          JSONB`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_jitter_mean_ms  DOUBLE PRECISION`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_jitter_p95_ms   DOUBLE PRECISION`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_jitter_loss_pct DOUBLE PRECISION`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_jitter_samples  INTEGER`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS http_rtt_ms         DOUBLE PRECISION`,
+        ];
+        for (const sql of probeResultCols) await db.query(sql).catch(() => {});
     } catch (e) { warn('Schema:', e.message); }
 }
 
@@ -448,66 +461,71 @@ async function main() {
             if (hrResult) stats.http++;
         }
 
-        // ── Agregação de resultados — escolhe melhor fonte, usa todos os dados ──
-        let latMs  = null, jitMs = base.jit, lossP = base.loss;
-        let tputM  = base.tput, availP = base.avail;
+        // ── Salva resultados brutos por protocolo — sem mesclagem ───────────────
+        // Cada protocolo grava seus dados na coluna dedicada; nada é descartado.
+        const raw = {
+            mtr_rtt:     mr           ? r3(mr.rtt)             : null,
+            mtr_hops:    (mr && mr.hubs) ? mr.hubs.length      : null,
+            tcp_ports:   results_tcp.map(r => r.port),
+            tcp_rtt:     Object.fromEntries(results_tcp.map(r => [r.port, r.rtt])),
+            jit_mean:    jitterResult  ? r1(jitterResult.mean)  : null,
+            jit_p95:     jitterResult  ? r1(jitterResult.p95)   : null,
+            jit_loss:    jitterResult  ? jitterResult.loss       : null,
+            jit_samples: jitterResult  ? jitterResult.samples    : null,
+            http_rtt:    hrResult      ? r1(hrResult.rtt)        : null,
+        };
+
+        // latency_ms: valor bruto do primeiro protocolo que respondeu (sem média ponderada)
+        let latMs = null, jitMs = null, lossP = null;
+        let tputM = base.tput, availP = base.avail;
         let src = 'synthetic', meth = 'heuristic', conf = 0.56, est = true;
         let sentAt = null, recvAt = null;
         const methParts = [];
 
-        // Prioridade: MTR > TCP jitter > TCP syn > HTTP (dados mais ricos primeiro)
         if (mr) {
-            latMs  = r3(base.lat * 0.35 + mr.rtt * 0.65);
+            latMs  = r3(mr.rtt);
             src    = 'active_mtr'; conf = 0.90; est = false;
             sentAt = mr.sentAt; recvAt = mr.recvAt;
             methParts.push('mtr-udp');
         }
-
         if (jitterResult) {
-            // Jitter tem múltiplas amostras — mais preciso que RTT único
-            const jLat = jitterResult.mean;
-            latMs  = latMs !== null ? r3(latMs * 0.4 + jLat * 0.6) : r3(base.lat * 0.2 + jLat * 0.8);
-            jitMs  = jitterResult.jit;
-            lossP  = jitterResult.loss ?? lossP;
-            conf   = Math.max(conf, 0.95); est = false;
-            src    = src === 'synthetic' ? 'active_tcp_connect' : src;
-            const ports = results_tcp.map(r => r.port).join(',');
-            methParts.push(`tcp-jitter-${jitterResult.samples}pkt-p95=${jitterResult.p95}ms-ports${ports}`);
+            if (latMs === null) latMs = r3(jitterResult.mean);
+            jitMs = jitterResult.jit;
+            lossP = jitterResult.loss ?? null;
+            conf  = Math.max(conf, 0.95); est = false;
+            src   = src === 'synthetic' ? 'active_tcp_connect' : src;
+            methParts.push(`tcp-jitter-${jitterResult.samples ?? '?'}pkt`);
         } else if (results_tcp.length) {
-            // Sem jitter mas TCP respondeu — usa RTT mínimo das portas
             const bestTcp = results_tcp.reduce((a, b) => a.rtt < b.rtt ? a : b);
             if (latMs === null) {
-                latMs  = r3(base.lat * 0.45 + bestTcp.rtt * 0.55);
+                latMs  = r3(bestTcp.rtt);
                 sentAt = bestTcp.sentAt; recvAt = bestTcp.recvAt;
             }
             conf = Math.max(conf, 0.78); est = false;
             src  = src === 'synthetic' ? 'active_tcp_connect' : src;
-            const ports = results_tcp.map(r => r.port).join(',');
-            methParts.push(`tcp-syn-ack-ports${ports}`);
+            methParts.push(`tcp-syn-ack-ports${results_tcp.map(r => r.port).join(',')}`);
         }
-
         if (hrResult) {
             if (latMs === null) {
-                latMs  = r3(base.lat * 0.55 + hrResult.rtt * 0.45);
+                latMs  = r3(hrResult.rtt);
                 sentAt = hrResult.sentAt; recvAt = hrResult.recvAt;
                 src    = 'active_http_probe'; conf = 0.82; est = false;
             }
             methParts.push('http-curl');
         }
-
-        // 6. Fallback sintético — só se nenhum protocolo respondeu
         if (latMs === null) {
             latMs = r3(base.lat * (1 + (Math.random() - 0.5) * 0.1));
+            jitMs = r3(base.jit);
+            lossP = r3(base.loss);
             methParts.push('heuristic-synthetic');
             stats.synth++;
         }
 
-        meth = methParts.join('+') || 'heuristic';
-
+        meth   = methParts.join('+') || 'heuristic';
         latMs  = r3(latMs);
-        jitMs  = r3(Math.max(0.5, jitMs * (1 + (Math.random() - 0.5) * 0.2)));
-        lossP  = r3(Math.max(0.01, lossP * (1 + (Math.random() - 0.5) * 0.3)));
-        tputM  = r3(tputM * (1 + (Math.random() - 0.5) * 0.16));
+        jitMs  = r3(jitMs  ?? base.jit  * (1 + (Math.random() - 0.5) * 0.2));
+        lossP  = r3(lossP  ?? base.loss * (1 + (Math.random() - 0.5) * 0.3));
+        tputM  = r3(tputM  * (1 + (Math.random() - 0.5) * 0.16));
         availP = r3(Math.max(97.5, Math.min(100, availP - lossP * 0.03)));
         const pps  = Math.max(1000, Math.floor((tputM * 1e6) / (8 * 900)));
         const errs = lossP > 0.25 ? 1 : 0;
@@ -524,8 +542,12 @@ async function main() {
                         latency_ms, jitter_ms, packet_loss_pct, throughput_mbps,
                         packets_per_second, availability_pct, route_error_count,
                         source, method, confidence_score, estimated,
-                        telemetry_model_version, metadata
-                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                        telemetry_model_version, metadata,
+                        mtr_rtt_ms, mtr_hops,
+                        tcp_ports_open, tcp_rtt_ms,
+                        tcp_jitter_mean_ms, tcp_jitter_p95_ms, tcp_jitter_loss_pct, tcp_jitter_samples,
+                        http_rtt_ms
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
                     ON CONFLICT (cable_id, measured_at) DO UPDATE SET
                         latency_ms              = EXCLUDED.latency_ms,
                         jitter_ms               = EXCLUDED.jitter_ms,
@@ -539,17 +561,27 @@ async function main() {
                         confidence_score        = EXCLUDED.confidence_score,
                         estimated               = EXCLUDED.estimated,
                         telemetry_model_version = EXCLUDED.telemetry_model_version,
-                        metadata                = EXCLUDED.metadata
+                        metadata                = EXCLUDED.metadata,
+                        mtr_rtt_ms              = EXCLUDED.mtr_rtt_ms,
+                        mtr_hops                = EXCLUDED.mtr_hops,
+                        tcp_ports_open          = EXCLUDED.tcp_ports_open,
+                        tcp_rtt_ms              = EXCLUDED.tcp_rtt_ms,
+                        tcp_jitter_mean_ms      = EXCLUDED.tcp_jitter_mean_ms,
+                        tcp_jitter_p95_ms       = EXCLUDED.tcp_jitter_p95_ms,
+                        tcp_jitter_loss_pct     = EXCLUDED.tcp_jitter_loss_pct,
+                        tcp_jitter_samples      = EXCLUDED.tcp_jitter_samples,
+                        http_rtt_ms             = EXCLUDED.http_rtt_ms
                     RETURNING sample_id
                 `, [
                     cableId, measAt, sentAt, recvAt,
                     latMs, jitMs, lossP, tputM, pps, availP, errs,
                     src, meth, conf, est, MODEL,
-                    JSON.stringify({
-                        target_host: host, open_ports: openPorts,
-                        tcp_ports_responded: results_tcp.map(r => r.port),
-                        has_mtr: !!mr, has_http: !!hrResult,
-                    }),
+                    JSON.stringify({ target_host: host, open_ports: openPorts, has_mtr: !!mr, has_http: !!hrResult }),
+                    raw.mtr_rtt, raw.mtr_hops,
+                    raw.tcp_ports.length ? raw.tcp_ports : null,
+                    raw.tcp_ports.length ? JSON.stringify(raw.tcp_rtt) : null,
+                    raw.jit_mean, raw.jit_p95, raw.jit_loss, raw.jit_samples,
+                    raw.http_rtt,
                 ]);
 
                 // Store per-hop data when MTR was used

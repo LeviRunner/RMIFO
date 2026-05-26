@@ -203,7 +203,7 @@
     <li><a href="#" class="nav-link" data-page="routes">Top 3 Rotas</a></li>
     <li><a href="#" class="nav-link" data-page="risk">Risco de Endpoints</a></li>
     <li><a href="#" class="nav-link" data-page="cuts">Cortes Críticos</a></li>
-    <li><a href="#" class="nav-link" data-page="probe">Sonda &amp; Telemetria</a></li>
+    <li><a href="#" class="nav-link" data-page="probe">Histórico de Janela</a></li>
     <li class="drawer-divider"></li>
     <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
     <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
@@ -749,19 +749,34 @@
         </div>
       </div>
 
-      <div class="table-wrap" id="hist-table-wrap" style="display:none">
-        <table>
+      <div class="table-wrap" id="hist-table-wrap" style="display:none; overflow-x:auto;">
+        <table id="hist-table" style="min-width:900px;">
           <thead>
             <tr>
               <th>#</th>
               <th>Cabo</th>
-              <th>Protocolo</th>
+              <th>MTR RTT</th>
+              <th>Hops</th>
+              <th>TCP Jitter</th>
+              <th>TCP p95</th>
+              <th>HTTP RTT</th>
               <th>Latência</th>
+              <th>Métodos</th>
               <th>Tipo</th>
             </tr>
           </thead>
           <tbody id="hist-tbody"></tbody>
         </table>
+      </div>
+
+      <!-- Painel de detalhes de rota (hop-path) — exibido ao clicar em uma linha -->
+      <div id="hist-hop-panel" style="display:none; margin-top:16px;">
+        <div class="hop-trace-header">
+          <span class="hop-trace-title">Rota Ponto a Ponto</span>
+          <span id="hist-hop-cable" class="hop-trace-meta"></span>
+          <button id="hist-hop-close" class="btn" style="margin-left:auto;padding:2px 10px;font-size:12px;">✕ Fechar</button>
+        </div>
+        <div id="hist-hop-content"></div>
       </div>
 
     </div>

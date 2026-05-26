@@ -2188,30 +2188,56 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             if (extension_loaded('pdo_pgsql')) {
                 try {
                     $pdo2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+                    // Verifica se as colunas brutas por protocolo já existem
+                    $hasRawCols = (bool) $pdo2->query("
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='cable_telemetry_samples' AND column_name='mtr_rtt_ms' LIMIT 1
+                    ")->fetchColumn();
+
+                    $extraSel = $hasRawCols ? ",
+                        mtr_rtt_ms, mtr_hops,
+                        tcp_ports_open, tcp_rtt_ms::text AS tcp_rtt_json,
+                        tcp_jitter_mean_ms, tcp_jitter_p95_ms, tcp_jitter_loss_pct, tcp_jitter_samples,
+                        http_rtt_ms" : '';
+
+                    // Uma linha por cabo — amostra mais recente do dia
                     $stmt = $pdo2->prepare("
-                        SELECT cable_id,
-                               method                              AS proto,
-                               ROUND(AVG(latency_ms)::numeric, 2) AS latency_ms,
-                               COUNT(*)                            AS samples
+                        SELECT DISTINCT ON (cable_id)
+                               cable_id,
+                               method AS proto,
+                               ROUND(latency_ms::numeric, 2) AS latency_ms,
+                               source, confidence_score, estimated, measured_at
+                               {$extraSel}
                         FROM cable_telemetry_samples
                         WHERE measured_at::date = :d
-                        GROUP BY cable_id, method
-                        ORDER BY cable_id
+                        ORDER BY cable_id, measured_at DESC
                     ");
                     $stmt->execute([':d' => $date]);
                     $idx = count($cables) + 1;
                     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
                         $cid = $row['cable_id'];
-                        if (!isset($cables[$cid])) {
-                            $cables[$cid] = [
-                                'index'      => $idx++,
-                                'cable_id'   => $cid,
-                                'proto'      => (string) $row['proto'],
-                                'latency_ms' => (float)  $row['latency_ms'],
-                                'samples'    => (int)    $row['samples'],
-                                'source'     => 'db',
-                            ];
+                        $entry = [
+                            'index'       => isset($cables[$cid]) ? $cables[$cid]['index'] : $idx++,
+                            'cable_id'    => $cid,
+                            'proto'       => (string)  $row['proto'],
+                            'latency_ms'  => (float)   ($row['latency_ms']  ?? 0),
+                            'source'      => (string)  ($row['source']      ?? 'db'),
+                            'confidence'  => (float)   ($row['confidence_score'] ?? 0.5),
+                            'estimated'   => normalizeBool($row['estimated'] ?? true),
+                            'measured_at' => $row['measured_at'] ?? null,
+                        ];
+                        if ($hasRawCols) {
+                            $entry['mtr_rtt_ms']          = $row['mtr_rtt_ms']          !== null ? (float) $row['mtr_rtt_ms']          : null;
+                            $entry['mtr_hops']             = $row['mtr_hops']             !== null ? (int)   $row['mtr_hops']             : null;
+                            $entry['tcp_ports_open']       = $row['tcp_ports_open']       !== null ? json_decode((string)$row['tcp_ports_open'], true) : null;
+                            $entry['tcp_rtt_ms']           = $row['tcp_rtt_json']         !== null ? json_decode((string)$row['tcp_rtt_json'], true)    : null;
+                            $entry['tcp_jitter_mean_ms']   = $row['tcp_jitter_mean_ms']   !== null ? (float) $row['tcp_jitter_mean_ms']   : null;
+                            $entry['tcp_jitter_p95_ms']    = $row['tcp_jitter_p95_ms']    !== null ? (float) $row['tcp_jitter_p95_ms']    : null;
+                            $entry['tcp_jitter_loss_pct']  = $row['tcp_jitter_loss_pct']  !== null ? (float) $row['tcp_jitter_loss_pct']  : null;
+                            $entry['tcp_jitter_samples']   = $row['tcp_jitter_samples']   !== null ? (int)   $row['tcp_jitter_samples']   : null;
+                            $entry['http_rtt_ms']          = $row['http_rtt_ms']          !== null ? (float) $row['http_rtt_ms']          : null;
                         }
+                        $cables[$cid] = $entry;
                     }
                 } catch (Throwable $_) { /* BD indisponível ou tabela ausente */ }
             }
@@ -2262,6 +2288,56 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             ]);
         } catch (Throwable $_e) {
             jsonResponse(['error' => $_e->getMessage()], 500);
+        }
+    }
+
+    // ── cable_hops_day: hops MTR para um cabo em um dia específico ──────────
+    if ($_modeNow === 'cable_hops_day') {
+        $cableId = trim((string) ($_reqAll['cable_id'] ?? ''));
+        $date    = preg_replace('/[^0-9\-]/', '', trim((string) ($_reqAll['date'] ?? '')));
+        if ($cableId === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            jsonResponse(['hops' => [], 'geo' => []]);
+        }
+        try {
+            $pdoH2 = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+            $stmt  = $pdoH2->prepare("
+                SELECT cth.hop_number, cth.hop_ip::text AS hop_ip,
+                       cth.rtt_avg_ms, cth.rtt_best_ms, cth.rtt_worst_ms, cth.loss_pct,
+                       hg.lat, hg.lng, hg.city, hg.country, hg.isp, hg.org,
+                       hg.as_number, hg.as_name
+                FROM cable_telemetry_hops cth
+                JOIN cable_telemetry_samples cts ON cts.sample_id = cth.sample_id
+                LEFT JOIN hop_switch_geolocations hg ON hg.hop_ip = cth.hop_ip
+                WHERE cth.cable_id = :cid AND cts.measured_at::date = :d
+                ORDER BY cts.measured_at DESC, cth.hop_number
+                LIMIT 40
+            ");
+            $stmt->execute([':cid' => $cableId, ':d' => $date]);
+            $hops = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($hops as &$h) {
+                $h['hop_number']   = (int)   ($h['hop_number']   ?? 0);
+                $h['rtt_avg_ms']   = $h['rtt_avg_ms']   !== null ? (float) $h['rtt_avg_ms']   : null;
+                $h['rtt_best_ms']  = $h['rtt_best_ms']  !== null ? (float) $h['rtt_best_ms']  : null;
+                $h['rtt_worst_ms'] = $h['rtt_worst_ms'] !== null ? (float) $h['rtt_worst_ms'] : null;
+                $h['loss_pct']     = $h['loss_pct']     !== null ? (float) $h['loss_pct']     : null;
+                $h['lat']          = $h['lat']           !== null ? (float) $h['lat']          : null;
+                $h['lng']          = $h['lng']           !== null ? (float) $h['lng']          : null;
+            }
+            unset($h);
+            // GeoJSON para o mapa de hop-path
+            $geoFeatures = array_values(array_filter(array_map(fn($h) => (
+                $h['lat'] !== null && $h['lng'] !== null ? [
+                    'type' => 'Feature',
+                    'geometry' => ['type' => 'Point', 'coordinates' => [$h['lng'], $h['lat']]],
+                    'properties' => ['hop' => $h['hop_number'], 'ip' => $h['hop_ip'],
+                                     'rtt' => $h['rtt_avg_ms'], 'loss' => $h['loss_pct'],
+                                     'city' => $h['city'], 'country' => $h['country'],
+                                     'isp' => $h['isp'] ?? $h['org'] ?? null],
+                ] : null
+            ), $hops)));
+            jsonResponse(['hops' => $hops, 'geo' => $geoFeatures]);
+        } catch (Throwable $e) {
+            jsonResponse(['hops' => [], 'geo' => [], 'error' => $e->getMessage()]);
         }
     }
 

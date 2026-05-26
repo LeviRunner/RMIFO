@@ -177,7 +177,7 @@ const Router = {
     routes:  'Top 3 Rotas',
     risk:    'Risco de Endpoints',
     cuts:    'Cortes Críticos',
-    probe:   'Sonda & Telemetria',
+    probe:   'Histórico de Janela de Conexão',
     daily:   'Sonda Diária',
     history: 'Histórico',
   },
@@ -2929,21 +2929,95 @@ function initHistoryPage() {
     return [proto, ''];
   }
 
+  function fmtMs(v) {
+    return v != null ? `${v} ms` : '<span class="muted">—</span>';
+  }
+
   function renderTable(cables) {
     if (!tbody) return;
     tbody.innerHTML = cables.map(c => {
       const [typeLabel, typeCls] = protoBadge(c.proto || '');
-      const latClass = c.latency_ms > 300 ? 'danger-text' : c.latency_ms > 150 ? '' : 'ok-text';
-      const srcIcon  = c.source === 'db' ? ' <span style="font-size:10px;color:var(--text-muted)">BD</span>' : '';
-      return `<tr>
+      const latClass   = (c.latency_ms ?? 0) > 300 ? 'danger-text' : (c.latency_ms ?? 0) > 150 ? '' : 'ok-text';
+      const hasHops    = c.mtr_hops > 0;
+      const methShort  = (c.proto || 'heuristic').split('+').map(p => p.split('-')[0]).join('+');
+      const tcpPortStr = c.tcp_ports_open ? c.tcp_ports_open.join(',') : null;
+      return `<tr class="hist-row" data-cable="${esc(c.cable_id)}" style="cursor:pointer;"
+              title="Clique para ver rota ponto a ponto">
         <td>${c.index}</td>
-        <td class="mono" style="font-size:12px;">${esc(c.cable_id)}${srcIcon}</td>
-        <td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(c.proto)}</td>
-        <td class="${latClass}">${c.latency_ms} ms</td>
+        <td class="mono" style="font-size:12px;">${esc(c.cable_id)}</td>
+        <td class="${c.mtr_rtt_ms != null ? 'ok-text' : 'muted'}">${fmtMs(c.mtr_rtt_ms)}</td>
+        <td class="mono">${hasHops ? c.mtr_hops : '<span class="muted">—</span>'}</td>
+        <td class="${c.tcp_jitter_mean_ms != null ? '' : 'muted'}">${fmtMs(c.tcp_jitter_mean_ms)}${tcpPortStr ? `<span class="muted" style="font-size:10px;"> p:${tcpPortStr}</span>` : ''}</td>
+        <td class="${(c.tcp_jitter_p95_ms ?? 0) > 200 ? 'danger-text' : ''}">${fmtMs(c.tcp_jitter_p95_ms)}</td>
+        <td class="${c.http_rtt_ms != null ? '' : 'muted'}">${fmtMs(c.http_rtt_ms)}</td>
+        <td class="${latClass}">${fmtMs(c.latency_ms)}</td>
+        <td style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${esc(c.proto || '')}">${esc(methShort)}</td>
         <td><span class="badge ${typeCls}">${typeLabel}</span></td>
       </tr>`;
     }).join('');
     if (tableWrap) tableWrap.style.display = cables.length ? '' : 'none';
+  }
+
+  // ── Hop-path panel ────────────────────────────────────────────────────────
+  const hopPanel    = document.getElementById('hist-hop-panel');
+  const hopContent  = document.getElementById('hist-hop-content');
+  const hopCableEl  = document.getElementById('hist-hop-cable');
+  const hopCloseBtn = document.getElementById('hist-hop-close');
+
+  if (hopCloseBtn) hopCloseBtn.addEventListener('click', () => {
+    if (hopPanel) hopPanel.style.display = 'none';
+  });
+
+  async function showHopPath(cableId, date) {
+    if (!hopPanel || !hopContent) return;
+    hopPanel.style.display = '';
+    if (hopCableEl) hopCableEl.textContent = `${cableId} · ${date}`;
+    hopContent.innerHTML = '<p class="muted" style="padding:12px;">Carregando rota…</p>';
+    try {
+      const data = await apiFetch({ action: 'cable_hops_day', cable_id: cableId, date });
+      const hops = data.hops || [];
+      if (!hops.length) {
+        hopContent.innerHTML = '<p class="muted" style="padding:12px;">Nenhum hop MTR registrado para este cabo nesta data.</p>';
+        return;
+      }
+      const maxRtt = Math.max(...hops.map(h => h.rtt_avg_ms || 0), 1);
+      const rows = hops.map(h => {
+        const bar  = Math.round(((h.rtt_avg_ms || 0) / maxRtt) * 100);
+        const loc  = [h.city, h.country].filter(Boolean).join(', ') || '—';
+        const isp  = h.isp || h.org || h.as_name || '—';
+        const loss = h.loss_pct > 0 ? `<span class="hop-loss ${h.loss_pct >= 10 ? 'hop-loss-high' : 'hop-loss-mid'}">${h.loss_pct}%</span>` : '';
+        return `<tr>
+          <td class="hop-n">${h.hop_number}</td>
+          <td class="mono hop-ip">${esc(h.hop_ip || '*')}</td>
+          <td class="hop-rtt-cell">
+            <div class="hop-bar-wrap"><div class="hop-bar hop-bar-ok" style="width:${bar}%"></div></div>
+            <span class="hop-rtt-val">${h.rtt_avg_ms != null ? h.rtt_avg_ms + ' ms' : '*'}</span>
+          </td>
+          <td>${esc(loc)}</td>
+          <td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(isp)}</td>
+          <td>${loss}</td>
+        </tr>`;
+      }).join('');
+      hopContent.innerHTML = `<div class="table-wrap hop-trace-table" style="margin-top:8px;">
+        <table>
+          <thead><tr><th>#</th><th>IP</th><th>RTT Médio</th><th>Localização</th><th>ISP / AS</th><th>Perda</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    } catch (err) {
+      hopContent.innerHTML = `<p class="error-text" style="padding:12px;">${esc(err.message)}</p>`;
+    }
+  }
+
+  // Click delegation on tbody for hop path
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const row = e.target.closest('.hist-row');
+      if (!row) return;
+      const cableId = row.dataset.cable;
+      const date    = dateSelect?.value || '';
+      if (cableId && date) showHopPath(cableId, date);
+    });
   }
 
   function applyFilters() {
