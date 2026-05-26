@@ -2704,7 +2704,7 @@ tr.bs-found {
   .rac-value     { font-size: 15px; }
 
   /* ── Sonda Diária / Histórico ──────────────────────────────────────── */
-  .daily-stats, .hist-summary { grid-template-columns: repeat(3, 1fr); }
+  /* .dstat-table-wrap já é responsivo — sem necessidade de override */
   .daily-header  { flex-direction: column; }
   .pv-hero-name  { font-size: 14px; }
   .pv-metrics    { gap: 14px; }
@@ -2931,41 +2931,65 @@ tr.bs-found {
 .pv-v.mono { font-variant-numeric: tabular-nums; }
 .pv-muted { color: var(--muted); font-weight: 400; }
 
-/* Stats grid */
-.daily-stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 10px; margin-bottom: 20px;
+/* Stats table (substituiu cards) */
+.dstat-table-wrap {
+  margin-bottom: 20px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  overflow: hidden;
 }
-.dstat {
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px; padding: 14px 10px; text-align: center;
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+.dstat-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px;
 }
-.dstat:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(168, 113, 255, 0.12);
+.dstat-table thead tr {
+  background: rgba(255,255,255,0.05);
 }
-.dstat.tcp   { border-color: rgba(168,113,255,0.30); }
-.dstat.synth { border-color: rgba(45,220,130,0.25); }
-.dstat.mtr   { border-color: rgba(240,178,79,0.30); }
-.dstat.hop   { border-color: rgba(245,158,11,0.30); }
-.dstat.tcp:hover   { border-color: rgba(168,113,255,0.55); }
-.dstat.synth:hover { border-color: rgba(45,220,130,0.50); }
-.dstat.mtr:hover   { border-color: rgba(240,178,79,0.55); }
-.dstat.hop:hover   { border-color: rgba(245,158,11,0.60); }
-.dstat.warn:hover  { border-color: rgba(255,185,45,0.55); }
-.dstat.jitter { border-color: rgba(249,115,22,0.30); }
-.dstat.http   { border-color: rgba(45,180,220,0.30); }
-.dstat.warn  { border-color: rgba(255,185,45,0.30); }
-.dstat-v {
-  font-size: 26px; font-weight: 700; color: var(--fg); line-height: 1.1; margin-bottom: 4px;
+.dstat-table thead th {
+  padding: 7px 14px; text-align: left;
+  font-size: 10px; font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-.dstat.tcp   .dstat-v { color: #a871ff; }
-.dstat.synth .dstat-v { color: #41da8c; }
-.dstat.mtr   .dstat-v { color: #f0b24f; }
-.dstat.jitter .dstat-v { color: #f97316; }
-.dstat.http  .dstat-v { color: #2db4dc; }
-.dstat.warn  .dstat-v { color: #ffbe3c; }
-.dstat.hop   .dstat-v { color: #f59e0b; }
+.dstat-table thead th:not(:first-child) { text-align: right; }
+.dstat-row td { padding: 7px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.dstat-row:last-child td { border-bottom: none; }
+.dstat-row:hover { background: rgba(255,255,255,0.04); }
+/* Barra colorida esquerda por tipo */
+.dstat-label {
+  position: relative; padding-left: 22px !important;
+}
+.dstat-label::before {
+  content: ''; position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 14px; border-radius: 2px;
+  background: rgba(255,255,255,0.20);
+}
+.dstat-row.tcp    .dstat-label::before { background: #a871ff; }
+.dstat-row.jitter .dstat-label::before { background: #f97316; }
+.dstat-row.mtr    .dstat-label::before { background: #f0b24f; }
+.dstat-row.http   .dstat-label::before { background: #2db4dc; }
+.dstat-row.synth  .dstat-label::before { background: #41da8c; }
+.dstat-row.hop    .dstat-label::before { background: #f59e0b; }
+.dstat-row.warn   .dstat-label::before { background: #ffbe3c; }
+/* Valores numéricos */
+.dstat-val {
+  text-align: right; font-weight: 700; font-size: 15px;
+  font-variant-numeric: tabular-nums; color: var(--fg);
+  white-space: nowrap;
+}
+.dstat-row.tcp    .dstat-val { color: #a871ff; }
+.dstat-row.jitter .dstat-val { color: #f97316; }
+.dstat-row.mtr    .dstat-val { color: #f0b24f; }
+.dstat-row.http   .dstat-val { color: #2db4dc; }
+.dstat-row.synth  .dstat-val { color: #41da8c; }
+.dstat-row.hop    .dstat-val { color: #f59e0b; }
+.dstat-row.warn   .dstat-val { color: #ffbe3c; }
+.dstat-pct {
+  text-align: right; font-size: 11px; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* Legado: .dstat/.dstat-v/.dstat-l ainda usados em lugares menores */
+.dstat-v { font-size: 26px; font-weight: 700; color: var(--fg); line-height: 1.1; margin-bottom: 4px; }
 .dstat-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
 /* ══════════════════════════════════════════════════════════════════════════

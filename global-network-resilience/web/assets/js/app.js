@@ -2623,20 +2623,26 @@ function initDailyPage() {
 
   function setStats(summary, progress, live) {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    const setPct = (id, n, base) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = (n != null && base > 0) ? `${((n / base) * 100).toFixed(1)}%` : '—';
+    };
     const vc     = progress?.var_counts ?? {};
-    const total  = summary?.inserted    ?? progress?.total   ?? null;
-    const tcp    = summary?.tcp         ?? vc.tcp_syn        ?? live?.tcp   ?? null;
-    const jitter = summary?.tcp_jitter  ?? vc.tcp_jitter     ?? null;
-    const synth  = summary?.synthetic   ?? vc.synthetic      ?? live?.synth ?? null;
-    const mtr    = summary?.mtr         ?? vc.mtr_udp        ?? null;
-    const http   = summary?.http        ?? vc.http_curl      ?? live?.http  ?? null;
-    const anom   = summary?.anomalies   ?? null;
-    set('dstat-total',     progress ? `${progress.current}/${progress.total}` : total);
-    set('dstat-tcp',       tcp);
-    set('dstat-jitter',    jitter);
-    set('dstat-synth',     synth);
-    set('dstat-mtr',       mtr);
-    set('dstat-http',      http);
+    const base   = summary?.inserted ?? progress?.total ?? null;
+    const total  = summary?.inserted ?? progress?.total ?? null;
+    const tcp    = summary?.tcp      ?? vc.tcp_syn      ?? live?.tcp   ?? null;
+    const jitter = summary?.tcp_jitter ?? vc.tcp_jitter ?? null;
+    const synth  = summary?.synthetic  ?? vc.synthetic  ?? live?.synth ?? null;
+    const mtr    = summary?.mtr        ?? vc.mtr_udp    ?? null;
+    const http   = summary?.http       ?? vc.http_curl  ?? live?.http  ?? null;
+    const anom   = summary?.anomalies  ?? null;
+    set('dstat-total',     progress ? `${progress.current} / ${progress.total}` : total);
+    set('dstat-tcp',       tcp);    setPct('dstat-pct-tcp',    tcp,    base);
+    set('dstat-jitter',    jitter); setPct('dstat-pct-jitter', jitter, base);
+    set('dstat-mtr',       mtr);    setPct('dstat-pct-mtr',    mtr,    base);
+    set('dstat-http',      http);   setPct('dstat-pct-http',   http,   base);
+    set('dstat-synth',     synth);  setPct('dstat-pct-synth',  synth,  base);
     set('dstat-anomalies', anom);
   }
 
@@ -3048,11 +3054,12 @@ function initHistoryPage() {
     if (!s || !summaryEl) return;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
     set('h-total',     s.inserted ?? allCables.length);
-    set('h-tcp',       s.tcp       ?? '—');
-    set('h-synth',     s.synthetic ?? '—');
-    set('h-mtr',       s.mtr       ?? '—');
-    set('h-http',      s.http      ?? '—');
-    set('h-anomalies', s.anomalies ?? 0);
+    set('h-tcp',       s.tcp        ?? '—');
+    set('h-jitter',    s.tcp_jitter ?? '—');
+    set('h-mtr',       s.mtr        ?? '—');
+    set('h-http',      s.http       ?? '—');
+    set('h-synth',     s.synthetic  ?? '—');
+    set('h-anomalies', s.anomalies  ?? 0);
     if (s.completed_at) {
       try {
         const d = new Date(s.completed_at);
