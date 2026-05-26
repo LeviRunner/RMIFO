@@ -1,0 +1,124 @@
+{
+  "gerado_em": "2026-05-26T13:43:04.324Z",
+  "medido_em": "2026-05-26T13:42:43.332Z",
+  "modo": "full_scan",
+  "telemetry_model": "1.4.0",
+  "totais": {
+    "cabos": 3,
+    "mtr": 0,
+    "tcp": 6,
+    "http": 2,
+    "sintetico": 1,
+    "hops": 0
+  },
+  "registros": [
+    {
+      "cable_id": "2africa",
+      "cable_name": "2africa",
+      "measured_at": "2026-05-26T13:42:43.332Z",
+      "sent_at": null,
+      "received_at": null,
+      "latency_ms": 33.4,
+      "jitter_ms": 14.1,
+      "packet_loss_pct": 0,
+      "throughput_mbps": 5185.533,
+      "packets_per_second": 720212,
+      "availability_pct": 99.967,
+      "route_error_count": 0,
+      "source": "active_tcp_connect",
+      "method": "tcp-jitter-50pkt+http-curl",
+      "confidence_score": 0.95,
+      "estimated": false,
+      "telemetry_model_version": "1.4.0",
+      "open_ports": [
+        80,
+        443
+      ],
+      "mtr_rtt_ms": null,
+      "mtr_hops": null,
+      "mtr_hubs": null,
+      "tcp_ports_open": [
+        80,
+        443
+      ],
+      "tcp_rtt_ms": {
+        "80": 8,
+        "443": 8
+      },
+      "tcp_jitter_mean_ms": 33.4,
+      "tcp_jitter_p95_ms": 53,
+      "tcp_jitter_loss_pct": 0,
+      "tcp_jitter_samples": 50,
+      "http_rtt_ms": 56
+    },
+    {
+      "cable_id": "5-villages-6-islands",
+      "cable_name": "5-villages-6-islands",
+      "measured_at": "2026-05-26T13:42:43.333Z",
+      "sent_at": null,
+      "received_at": null,
+      "latency_ms": 8.201,
+      "jitter_ms": 0.6,
+      "packet_loss_pct": 0.088,
+      "throughput_mbps": 5304.543,
+      "packets_per_second": 736742,
+      "availability_pct": 99.964,
+      "route_error_count": 0,
+      "source": "synthetic",
+      "method": "heuristic-synthetic",
+      "confidence_score": 0.56,
+      "estimated": true,
+      "telemetry_model_version": "1.4.0",
+      "open_ports": [],
+      "mtr_rtt_ms": null,
+      "mtr_hops": null,
+      "mtr_hubs": null,
+      "tcp_ports_open": [],
+      "tcp_rtt_ms": {},
+      "tcp_jitter_mean_ms": null,
+      "tcp_jitter_p95_ms": null,
+      "tcp_jitter_loss_pct": null,
+      "tcp_jitter_samples": null,
+      "http_rtt_ms": null
+    },
+    {
+      "cable_id": "ace",
+      "cable_name": "ace",
+      "measured_at": "2026-05-26T13:42:43.334Z",
+      "sent_at": null,
+      "received_at": null,
+      "latency_ms": 91.2,
+      "jitter_ms": 29.1,
+      "packet_loss_pct": 0,
+      "throughput_mbps": 5073.541,
+      "packets_per_second": 704658,
+      "availability_pct": 99.967,
+      "route_error_count": 0,
+      "source": "active_tcp_connect",
+      "method": "tcp-jitter-50pkt+http-curl",
+      "confidence_score": 0.95,
+      "estimated": false,
+      "telemetry_model_version": "1.4.0",
+      "open_ports": [
+        80,
+        443
+      ],
+      "mtr_rtt_ms": null,
+      "mtr_hops": null,
+      "mtr_hubs": null,
+      "tcp_ports_open": [
+        80,
+        443
+      ],
+      "tcp_rtt_ms": {
+        "80": 50,
+        "443": 50
+      },
+      "tcp_jitter_mean_ms": 91.2,
+      "tcp_jitter_p95_ms": 121,
+      "tcp_jitter_loss_pct": 0,
+      "tcp_jitter_samples": 50,
+      "http_rtt_ms": 57
+    }
+  ]
+}

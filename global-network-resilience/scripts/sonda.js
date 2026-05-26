@@ -17,10 +17,11 @@ const argv    = process.argv.slice(2);
 const hasFlag = (f) => argv.includes(f);
 const getArg  = (f, d) => { const i = argv.indexOf(f); return i !== -1 && argv[i + 1] ? argv[i + 1] : d; };
 
-const FULL_SCAN  = hasFlag('--full-scan');
-const MTR_CYCLES = parseInt(getArg('--mtr-cycles', '15'), 10);
-const TIMEOUT_S  = parseInt(getArg('--timeout', '8'), 10);
-const LIMIT      = parseInt(getArg('--limit', '999'), 10);
+const FULL_SCAN    = hasFlag('--full-scan');
+const MTR_CYCLES   = parseInt(getArg('--mtr-cycles', '15'), 10);
+const TIMEOUT_S    = parseInt(getArg('--timeout', '8'), 10);
+const LIMIT        = parseInt(getArg('--limit', '999'), 10);
+const CABLES_FILE  = getArg('--cables-file', ''); // carrega lista de cabos de JSON (sem DB)
 
 // ── Paths ────────────────────────────────────────────────────────────────────
 const BASE_DIR  = process.env.BASE_DIR || path.resolve(__dirname, '..');
@@ -319,9 +320,18 @@ async function main() {
 
     if (db) await ensureSchema(db);
 
-    // Cable list from DB
+    // Cable list: --cables-file JSON > DB > abort
     let cables = [];
-    if (db) {
+    if (CABLES_FILE) {
+        try {
+            const raw = fs.readFileSync(path.resolve(CABLES_FILE), 'utf8');
+            cables = JSON.parse(raw).slice(0, LIMIT);
+            log(`${cables.length} cabos carregados de ${CABLES_FILE}.`);
+        } catch (e) {
+            warn('Erro ao ler --cables-file:', e.message);
+        }
+    }
+    if (!cables.length && db) {
         try {
             const res = await db.query(`
                 SELECT c.cable_id, c.cable_name, c.length_km, c.capacity_gbps,
@@ -338,7 +348,7 @@ async function main() {
     }
 
     if (!cables.length) {
-        warn('Nenhum cabo para sondar — encerrando.');
+        warn('Nenhum cabo para sondar — use --cables-file ou configure DATABASE_URL.');
         if (db) await db.end().catch(() => {});
         return;
     }
@@ -367,6 +377,7 @@ async function main() {
     // Checkpoint: escreve .probe_live.json a cada CHECKPOINT_N cabos (não a cada 1)
     const CHECKPOINT_N = 10;
     const recentProbes = []; // últimas sondas para exibição na tabela fixa
+    const registros    = []; // acumulado completo → probe_full_*.json no final
 
     // Fila de geo lookup — não bloqueia o loop principal
     const geoQueue = [];
@@ -669,6 +680,39 @@ async function main() {
             }) + '\n', 'utf8');
         } catch {}
 
+        // Acumula registro completo para probe_full_*.json final
+        registros.push({
+            cable_id:               cableId,
+            cable_name:             cableName,
+            measured_at:            measAt.toISOString(),
+            sent_at:                sentAt?.toISOString?.() ?? null,
+            received_at:            recvAt?.toISOString?.() ?? null,
+            latency_ms:             latMs,
+            jitter_ms:              jitMs,
+            packet_loss_pct:        lossP,
+            throughput_mbps:        tputM,
+            packets_per_second:     pps,
+            availability_pct:       availP,
+            route_error_count:      errs,
+            source:                 src,
+            method:                 meth,
+            confidence_score:       conf,
+            estimated:              est,
+            telemetry_model_version: MODEL,
+            open_ports:             openPorts,
+            // Per-protocol raw data
+            mtr_rtt_ms:             raw.mtr_rtt,
+            mtr_hops:               raw.mtr_hops,
+            mtr_hubs:               mr?.hubs ?? null,
+            tcp_ports_open:         raw.tcp_ports,
+            tcp_rtt_ms:             raw.tcp_rtt,
+            tcp_jitter_mean_ms:     raw.jit_mean,
+            tcp_jitter_p95_ms:      raw.jit_p95,
+            tcp_jitter_loss_pct:    raw.jit_loss,
+            tcp_jitter_samples:     raw.jit_samples,
+            http_rtt_ms:            raw.http_rtt,
+        });
+
         // Progress line — format matched by api.php regex
         process.stdout.write(
             `  [${String(inserted).padStart(4)}/${total}] ${String(prog).padStart(5)}%  ` +
@@ -709,6 +753,30 @@ async function main() {
         } catch (e) { warn('Baseline:', e.message); }
 
         await db.end().catch(() => {});
+    }
+
+    // Escreve probe_full_HHMMSS.json com todos os registros acumulados
+    if (registros.length > 0) {
+        const startTs = sessionStart.toISOString().slice(11, 19).replace(/:/g, '');
+        const fullFile = path.join(histDir, `${dateStr}_probe_full_${startTs}.json`);
+        try {
+            fs.writeFileSync(fullFile, JSON.stringify({
+                gerado_em:       new Date().toISOString(),
+                medido_em:       sessionStart.toISOString(),
+                modo:            FULL_SCAN ? 'full_scan' : 'padrao',
+                telemetry_model: MODEL,
+                totais: {
+                    cabos:     registros.length,
+                    mtr:       stats.mtr,
+                    tcp:       stats.tcp_syn + stats.tcp_full + stats.tcp_jitter,
+                    http:      stats.http,
+                    sintetico: stats.synth,
+                    hops:      registros.reduce((s, r) => s + (r.mtr_hops ?? 0), 0),
+                },
+                registros,
+            }, null, 2), 'utf8');
+            ok(`probe_full salvo: ${path.basename(fullFile)} (${registros.length} registros)`);
+        } catch (e) { warn(`Erro ao salvar probe_full: ${e.message}`); }
     }
 
     // Summary — format matched by api.php regex patterns

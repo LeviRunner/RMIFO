@@ -1,0 +1,245 @@
+================================================================================
+  SONDA RMIFO — Requisitos e Guia de Uso em Terminal
+  Versão do modelo de telemetria: 1.4.0
+================================================================================
+
+
+1. PRÉ-REQUISITOS DO SISTEMA
+─────────────────────────────────────────────────────────────────────────────
+
+  Runtime obrigatório:
+    Node.js  >= 18.x          (testado com v24.x)
+
+  Ferramentas de sistema (usadas internamente pelo script):
+    mtr       — traceroute com estatísticas UDP por hop   (sudo apt install mtr)
+    curl      — sondagem HTTP RTT                          (sudo apt install curl)
+
+  Permissão root ou capabilities:
+    MTR requer privilégios para enviar pacotes ICMP/UDP raw.
+    Execute com `sudo` OU adicione a capability:
+      sudo setcap cap_net_raw+ep $(which mtr)
+
+  Dependência Node (instalar uma vez na pasta global-network-resilience/):
+    cd global-network-resilience
+    npm install
+    → instala: pg ^8.11.0  (driver PostgreSQL)
+
+
+2. ESTRUTURA DE ARQUIVOS ESPERADA
+─────────────────────────────────────────────────────────────────────────────
+
+  global-network-resilience/
+  ├── scripts/
+  │   └── sonda.js                   ← script principal
+  ├── data/
+  │   ├── cables_list.json           ← lista de cabos (substitui banco de dados)
+  │   └── local/
+  │       └── historico/
+  │           └── YYYY-MM-DD/        ← criado automaticamente pelo script
+  │               ├── .probe_live.json               (checkpoint a cada 10 cabos)
+  │               ├── cables_live.jsonl              (registro por linha por cabo)
+  │               └── YYYY-MM-DD_probe_full_HHMMSS.json  (resultado final completo)
+  └── package.json
+
+
+3. FORMATO DO ARQUIVO cables_list.json
+─────────────────────────────────────────────────────────────────────────────
+
+  Array JSON. Cada objeto deve conter:
+
+  [
+    {
+      "cable_id":            "nome-unico-do-cabo",     (obrigatório)
+      "cable_name":          "Nome Legível",            (opcional — usa cable_id se omitido)
+      "length_km":           12000,                     (km — usado em heurística sintética)
+      "capacity_gbps":       160,                       (Gbps — usado em heurística)
+      "landing_points_count": 3,                        (número de pontos de aterrissagem)
+      "public_url":          "https://exemplo.com"      (domínio alvo das sondas TCP/HTTP)
+    },
+    ...
+  ]
+
+  Campos mínimos para sondar apenas com heurística sintética: cable_id + length_km.
+  Para sondas reais (TCP/MTR/HTTP): public_url é obrigatório.
+
+
+4. VARIÁVEIS DE AMBIENTE
+─────────────────────────────────────────────────────────────────────────────
+
+  DATABASE_URL   (opcional)
+    URL de conexão PostgreSQL para persistir resultados no banco.
+    Formato: postgresql://usuario:senha@host:5432/banco
+    Se não definida, a sonda roda sem persistência — salva apenas arquivos locais.
+
+  BASE_DIR       (opcional)
+    Caminho base onde a pasta data/ será criada.
+    Padrão: diretório pai do script (global-network-resilience/).
+    Exemplo: BASE_DIR=/mnt/dados node scripts/sonda.js ...
+
+
+5. PARÂMETROS DA LINHA DE COMANDO
+─────────────────────────────────────────────────────────────────────────────
+
+  --cables-file <caminho>
+      Carrega lista de cabos de um arquivo JSON local (ver seção 3).
+      Substitui a consulta ao banco de dados.
+      Exemplo: --cables-file data/cables_list.json
+
+  --full-scan
+      Ativa modo de sonda completa:
+        • Escaneia portas adicionais: 443, 80, 22, 8443, 8080
+        • Envia 50 pacotes para medição de jitter TCP (padrão: 20)
+        • Timeout por operação mais generoso
+      Sem esta flag: apenas portas 443 e 80; 20 pacotes jitter.
+
+  --mtr-cycles <N>
+      Número de ciclos MTR por cabo (padrão: 15).
+      Cada ciclo dura ~1s. Menos ciclos = mais rápido, menos preciso.
+      Recomendado para testes rápidos: 3 a 5.
+      Recomendado para sonda completa:  10 a 15.
+
+  --timeout <segundos>
+      Timeout por operação de sonda individual (padrão: 8s).
+      Valor menor = execução mais rápida; cabos lentos podem falhar.
+      Recomendado: 6 a 10.
+
+  --limit <N>
+      Limita o número de cabos processados (padrão: 999 = todos).
+      Útil para testes: --limit 10
+
+
+6. EXEMPLOS DE USO
+─────────────────────────────────────────────────────────────────────────────
+
+  ── Teste rápido (10 cabos, sem banco de dados) ─────────────────────────────
+  cd global-network-resilience
+  node scripts/sonda.js \
+    --cables-file data/cables_list.json \
+    --full-scan \
+    --mtr-cycles 3 \
+    --timeout 6 \
+    --limit 10
+
+  ── Sonda completa (todos os 699 cabos) ─────────────────────────────────────
+  cd global-network-resilience
+  node scripts/sonda.js \
+    --cables-file data/cables_list.json \
+    --full-scan \
+    --mtr-cycles 5 \
+    --timeout 8
+
+  ── Com banco de dados PostgreSQL ───────────────────────────────────────────
+  cd global-network-resilience
+  DATABASE_URL="postgresql://user:pass@localhost:5432/rmifo" \
+  node scripts/sonda.js \
+    --full-scan \
+    --mtr-cycles 10 \
+    --timeout 8
+
+  ── Com sudo (para MTR funcionar sem capability) ────────────────────────────
+  cd global-network-resilience
+  sudo node scripts/sonda.js \
+    --cables-file data/cables_list.json \
+    --full-scan \
+    --mtr-cycles 5 \
+    --timeout 8
+
+  ── Salvando log em arquivo + acompanhamento ao vivo ────────────────────────
+  cd global-network-resilience
+  node scripts/sonda.js \
+    --cables-file data/cables_list.json \
+    --full-scan \
+    --mtr-cycles 5 \
+    --timeout 8 \
+    | tee data/local/historico/$(date +%F)/sonda_$(date +%F).log
+
+
+7. SAÍDAS GERADAS
+─────────────────────────────────────────────────────────────────────────────
+
+  Todas as saídas são escritas em: data/local/historico/YYYY-MM-DD/
+
+  .probe_live.json
+      Checkpoint de progresso em tempo real (atualizado a cada 10 cabos).
+      Usado pelo frontend web para exibir status ao vivo.
+
+  cables_live.jsonl
+      Registro por linha (JSONL) de cada cabo sondado.
+      Campos: cable_id, measured_at, latency_ms, jitter_ms, method, open_ports.
+
+  YYYY-MM-DD_probe_full_HHMMSS.json
+      Resultado completo ao final da sonda. Contém:
+        • Metadados: gerado_em, medido_em, modo, telemetry_model
+        • Totais: cabos, mtr, tcp, http, sintetico, hops
+        • registros[]: array com um objeto por cabo incluindo todos os campos:
+            - latency_ms, jitter_ms, packet_loss_pct, throughput_mbps
+            - mtr_rtt_ms, mtr_hops, mtr_hubs[]
+            - tcp_ports_open[], tcp_rtt_ms{porta: rtt}
+            - tcp_jitter_mean_ms, tcp_jitter_p95_ms, tcp_jitter_loss_pct, tcp_jitter_samples
+            - http_rtt_ms
+            - source, method, confidence_score, estimated
+
+  YYYY-MM-DD_checkpoint_NNNN_HHMMSS.json   (somente com banco de dados)
+      Snapshots intermediários escritos no banco a cada 50 cabos.
+
+
+8. PROTOCOLOS DE SONDA (em ordem de prioridade)
+─────────────────────────────────────────────────────────────────────────────
+
+  MTR (UDP)          mtr-udp
+      Traceroute com estatísticas por hop. Requer privilégios.
+      Mede: RTT médio, hops, perda por hop.
+      Confiança: 0.90
+
+  TCP Jitter         tcp-jitter-NNpkt
+      Envia N pacotes TCP consecutivos às portas abertas.
+      Mede: RTT médio, p95, perda, variância.
+      Confiança: 0.95
+
+  TCP SYN-ACK        tcp-syn / tcp-full
+      Handshake TCP simples (conexão + fecha).
+      Mede: RTT de estabelecimento de conexão.
+      Confiança: 0.88
+
+  HTTP curl          http-curl
+      Requisição HTTP GET ao domínio do cabo.
+      Mede: RTT total da requisição.
+      Confiança: 0.82
+
+  Heurística sintética   heuristic-synthetic
+      Estimativa baseada em comprimento do cabo e capacidade.
+      Usado quando nenhum protocolo ativo retorna resultado.
+      Confiança: 0.56
+
+
+9. LEITURA DO PROGRESSO NO TERMINAL
+─────────────────────────────────────────────────────────────────────────────
+
+  Cada linha de progresso tem o formato:
+    [  42/699]  6.0%  cable-id-aqui              proto=tcp-jitter-50pkt    lat=   45.2ms
+
+  Ao final, o resumo exibe:
+    Cabos inseridos: 699
+    TCP SYN-ACK: 120
+    TCP Jitter:  350
+    Sintetico:   229
+    mtr (hops):   85
+    HTTP curl:   310
+    0 anomalias
+    Concluido em HH:MM:SS
+
+
+10. TEMPO ESTIMADO DE EXECUÇÃO
+─────────────────────────────────────────────────────────────────────────────
+
+  Depende de quantos cabos têm URLs acessíveis e do timeout configurado.
+  Referência aproximada para 699 cabos:
+
+    --mtr-cycles 3  --timeout 6  →  ~15 a 20 minutos
+    --mtr-cycles 5  --timeout 8  →  ~25 a 35 minutos
+    --mtr-cycles 15 --timeout 10 →  ~60 a 90 minutos
+
+  Sondas em paralelo: o script processa 1 cabo por vez (sequencial).
+  O geo lookup de IPs de hops roda em background e não bloqueia.
+
+================================================================================
