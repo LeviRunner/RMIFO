@@ -2291,6 +2291,61 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
     }
 
+    // ── switch_live: progresso ao vivo da sonda de comutadores ───────────────
+    if ($_modeNow === 'switch_live') {
+        $liveFile = dirname(__DIR__) . '/data/local/historico/' . date('Y-m-d') . '/.switch_live.json';
+        if (!file_exists($liveFile)) { jsonResponse(null); }
+        $live = json_decode(file_get_contents($liveFile), true);
+        jsonResponse($live ?: null);
+    }
+
+    // ── switch_segments: segmentos de topologia de todos os cabos ────────────
+    if ($_modeNow === 'switch_segments') {
+        if (!$_pdo) { jsonResponse([]); }
+        try {
+            $limit  = max(1, min(5000, (int)($_reqAll['limit'] ?? 2000)));
+            $cable  = trim((string)($_reqAll['cable_id'] ?? ''));
+            $role   = trim((string)($_reqAll['role'] ?? ''));
+            $where  = [];
+            $params = [];
+            if ($cable !== '') { $where[] = 'cable_id = ?'; $params[] = $cable; }
+            if ($role  !== '') { $where[] = 'segment_type = ?'; $params[] = $role; }
+            $sql = 'SELECT segment_id, cable_id, measured_at, segment_type,
+                           hop_number, CAST(hop_ip AS TEXT) AS hop_ip, hop_count,
+                           rtt_avg_ms, rtt_best_ms, rtt_worst_ms, loss_pct
+                    FROM probe_path_segments'
+                 . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+                 . ' ORDER BY cable_id, segment_type LIMIT ' . $limit;
+            $stmt = $_pdo->prepare($sql);
+            $stmt->execute($params);
+            jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Exception $_e) { jsonResponse([]); }
+    }
+
+    // ── switch_geo: comutadores geolocalizados ────────────────────────────────
+    if ($_modeNow === 'switch_geo') {
+        if (!$_pdo) { jsonResponse([]); }
+        try {
+            $limit = max(1, min(5000, (int)($_reqAll['limit'] ?? 2000)));
+            $q     = trim((string)($_reqAll['q'] ?? ''));
+            $where = '';
+            $params = [];
+            if ($q !== '') {
+                $where = 'WHERE CAST(hop_ip AS TEXT) ILIKE ? OR city ILIKE ? OR country ILIKE ? OR isp ILIKE ?';
+                $like  = '%' . $q . '%';
+                $params = [$like, $like, $like, $like];
+            }
+            $stmt = $_pdo->prepare(
+                "SELECT CAST(hop_ip AS TEXT) AS hop_ip, lat, lng,
+                        city, region, country, country_code, isp, org, as_number, as_name
+                 FROM hop_switch_geolocations $where
+                 ORDER BY country, city LIMIT $limit"
+            );
+            $stmt->execute($params);
+            jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Exception $_e) { jsonResponse([]); }
+    }
+
     // ── cable_hops_day: hops MTR para um cabo em um dia específico ──────────
     if ($_modeNow === 'cable_hops_day') {
         $cableId = trim((string) ($_reqAll['cable_id'] ?? ''));

@@ -3738,3 +3738,193 @@ tbody tr:hover {
   from { opacity: 0; transform: translateY(-5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SONDA DE COMUTADORES — page-switch
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Cabeçalho */
+.sw-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.sw-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sw-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #f97316;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.sw-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  max-width: 520px;
+}
+.sw-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sw-actions input[type="text"],
+.sw-actions select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.sw-actions input[type="text"] { width: 200px; }
+.sw-actions input[type="text"]:focus,
+.sw-actions select:focus        { border-color: var(--accent); }
+
+/* Caixa de comando */
+.sw-cmd-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  font-size: 12px;
+}
+.sw-cmd-label { color: var(--muted); white-space: nowrap; }
+.sw-cmd-box code {
+  font-family: monospace;
+  color: #7dd3fc;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sw-cmd-copy {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 14px;
+  transition: color 120ms, border-color 120ms;
+}
+.sw-cmd-copy:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+/* Barra de progresso ao vivo */
+.sw-live-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.sw-live-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: sw-blink 1s ease-in-out infinite;
+}
+@keyframes sw-blink {
+  0%,100% { opacity: 1; } 50% { opacity: 0.2; }
+}
+.sw-live-pct {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #22c55e;
+}
+.sw-progress-outer {
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.sw-progress-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #86efac);
+  border-radius: 3px;
+  transition: width 400ms ease;
+  width: 0%;
+}
+
+/* Cards de totais */
+.sw-totals {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.sw-total-card {
+  flex: 1;
+  min-width: 120px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.sw-total-val {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #f97316;
+}
+.sw-total-lbl {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Badge de contagem */
+.sw-count-badge {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 8px;
+}
+
+/* Chips de papel de rede */
+.sw-role-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.sw-role-gw      { background: rgba(168,113,255,0.18); color: #c084fc; }
+.sw-role-edge    { background: rgba(249,115,22,0.18);  color: #fb923c; }
+.sw-role-transit { background: rgba(45,180,220,0.18);  color: #38bdf8; }
+.sw-role-server  { background: rgba(65,218,140,0.18);  color: #4ade80; }
+.sw-role-unk     { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+/* Colunas específicas da tabela de segmentos */
+.sw-cable-id { color: #a5b4fc; }
+.sw-ip       { color: #7dd3fc; font-size: 12px; }
+.sw-rtt      { text-align: right; font-variant-numeric: tabular-nums; }
+.sw-rtt-best  { color: #4ade80; }
+.sw-rtt-worst { color: #f87171; }
+.sw-loss      { text-align: right; }
+.sw-loss-high { color: #f87171; font-weight: 700; }
+.sw-isp       { font-size: 12px; color: var(--muted); max-width: 200px;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw-cc        { color: var(--muted); font-size: 11px; }

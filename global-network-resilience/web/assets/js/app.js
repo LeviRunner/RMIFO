@@ -179,6 +179,7 @@ const Router = {
     cuts:    'Cortes Críticos',
     probe:   'Histórico de Janela de Conexão',
     daily:   'Sonda Diária',
+    switch:  'Sonda de Comutadores',
     history: 'Histórico',
   },
   go(page) {
@@ -2830,6 +2831,161 @@ function initDailyPage() {
   });
 }
 
+// ─── Switch probe page ────────────────────────────────────────────────────────
+
+function initSwitchPage() {
+  const cableFilter  = document.getElementById('sw-cable-filter');
+  const roleFilter   = document.getElementById('sw-role-filter');
+  const refreshBtn   = document.getElementById('btn-sw-refresh');
+  const runBtn       = document.getElementById('btn-sw-run');
+  const copyBtn      = document.getElementById('btn-sw-copy');
+  const errorEl      = document.getElementById('sw-error');
+  const liveWrap     = document.getElementById('sw-live-wrap');
+  const liveLabel    = document.getElementById('sw-live-label');
+  const livePct      = document.getElementById('sw-live-pct');
+  const progressInner = document.getElementById('sw-progress-inner');
+  const totalsWrap   = document.getElementById('sw-totals');
+  const segWrap      = document.getElementById('sw-segments-wrap');
+  const segTbody     = document.getElementById('sw-segments-tbody');
+  const segCount     = document.getElementById('sw-seg-count');
+  const geoWrap      = document.getElementById('sw-geo-wrap');
+  const geoTbody     = document.getElementById('sw-geo-tbody');
+  const geoCount     = document.getElementById('sw-geo-count');
+
+  let allSegments = [];
+  let allGeo      = [];
+  let liveTimer   = null;
+
+  const roleLabel = {
+    gateway:     { label: 'Gateway',      cls: 'sw-role-gw' },
+    isp_edge:    { label: 'ISP Edge',     cls: 'sw-role-edge' },
+    isp_transit: { label: 'ISP Transit',  cls: 'sw-role-transit' },
+    isp_server:  { label: 'ISP Server',   cls: 'sw-role-server' },
+    unknown:     { label: '—',            cls: 'sw-role-unk' },
+  };
+
+  function fmtMs(v) { return v != null ? v + ' ms' : '—'; }
+  function esc(s)   { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  function renderSegments() {
+    const q     = (cableFilter?.value || '').toLowerCase();
+    const role  = roleFilter?.value || '';
+    const rows  = allSegments.filter(s =>
+      (!q    || s.cable_id?.toLowerCase().includes(q) || (s.hop_ip||'').includes(q)) &&
+      (!role || s.segment_type === role)
+    );
+    segCount.textContent = `${rows.length} linhas`;
+    segTbody.innerHTML = rows.map(s => {
+      const r = roleLabel[s.segment_type] || roleLabel.unknown;
+      return `<tr>
+        <td class="mono sw-cable-id">${esc(s.cable_id)}</td>
+        <td><span class="sw-role-chip ${r.cls}">${r.label}</span></td>
+        <td class="mono">${s.hop_number ?? '—'}</td>
+        <td class="mono sw-ip">${esc(s.hop_ip || '—')}</td>
+        <td class="sw-rtt">${fmtMs(s.rtt_avg_ms)}</td>
+        <td class="sw-rtt sw-rtt-best">${fmtMs(s.rtt_best_ms)}</td>
+        <td class="sw-rtt sw-rtt-worst">${fmtMs(s.rtt_worst_ms)}</td>
+        <td class="sw-loss ${(s.loss_pct||0) >= 10 ? 'sw-loss-high' : ''}">${s.loss_pct != null ? s.loss_pct + '%' : '—'}</td>
+        <td class="mono">${s.hop_count ?? 1}</td>
+      </tr>`;
+    }).join('');
+    segWrap.style.display = rows.length ? '' : 'none';
+  }
+
+  function renderGeo() {
+    const q    = (cableFilter?.value || '').toLowerCase();
+    const rows = allGeo.filter(g =>
+      !q || (g.hop_ip||'').includes(q) || (g.city||'').toLowerCase().includes(q) ||
+            (g.country||'').toLowerCase().includes(q) || (g.isp||'').toLowerCase().includes(q)
+    );
+    geoCount.textContent = `${rows.length} IPs`;
+    geoTbody.innerHTML = rows.map(g => `<tr>
+      <td class="mono sw-ip">${esc(g.hop_ip)}</td>
+      <td>${esc(g.city || '—')}</td>
+      <td>${esc(g.country || '—')} <span class="sw-cc">${esc(g.country_code || '')}</span></td>
+      <td class="sw-isp">${esc(g.isp || g.org || '—')}</td>
+      <td class="mono">${g.lat != null ? g.lat : '—'}</td>
+      <td class="mono">${g.lng != null ? g.lng : '—'}</td>
+    </tr>`).join('');
+    geoWrap.style.display = rows.length ? '' : 'none';
+  }
+
+  async function loadData() {
+    errorEl.textContent = '';
+    try {
+      // Segmentos de topologia
+      const segs = await apiFetch({ action: 'switch_segments' });
+      allSegments = Array.isArray(segs) ? segs : (segs.registros || []);
+
+      // Comutadores geolocalizados
+      const geo = await apiFetch({ action: 'switch_geo' });
+      allGeo = Array.isArray(geo) ? geo : (geo.registros || []);
+
+      // Totais
+      const countries = new Set(allGeo.map(g => g.country_code).filter(Boolean));
+      document.getElementById('swt-cabos').textContent =
+        new Set(allSegments.map(s => s.cable_id)).size;
+      document.getElementById('swt-hops').textContent  = allSegments.length;
+      document.getElementById('swt-geo').textContent   = allGeo.length;
+      document.getElementById('swt-countries').textContent = countries.size;
+      totalsWrap.style.display = '';
+
+      renderSegments();
+      renderGeo();
+    } catch (e) {
+      errorEl.textContent = 'Erro ao carregar dados: ' + e.message;
+    }
+  }
+
+  function pollLive() {
+    if (liveTimer) clearInterval(liveTimer);
+    liveTimer = setInterval(async () => {
+      try {
+        const live = await apiFetch({ action: 'switch_live' });
+        if (!live || !live.current) return;
+        const pct = live.percent ?? Math.round((live.current / (live.total||1)) * 100);
+        liveWrap.style.display = '';
+        liveLabel.textContent = `Sondando ${live.current} / ${live.total} cabos — ${live.switches_found ?? 0} IPs públicos descobertos`;
+        livePct.textContent   = pct + '%';
+        progressInner.style.width = pct + '%';
+        if (live.current >= live.total) {
+          clearInterval(liveTimer);
+          liveLabel.textContent = `Concluído — ${live.current} cabos sondados`;
+          loadData();
+        }
+      } catch {}
+    }, 3000);
+  }
+
+  // Botão Executar MTR → mostra comando e começa polling
+  runBtn?.addEventListener('click', () => {
+    pollLive();
+    liveWrap.style.display = '';
+    liveLabel.textContent  = 'Aguardando início da sonda…';
+  });
+
+  // Copiar comando
+  copyBtn?.addEventListener('click', () => {
+    const cmd = document.getElementById('sw-cmd-text')?.textContent || '';
+    navigator.clipboard?.writeText(cmd).then(() => {
+      copyBtn.textContent = '✔';
+      setTimeout(() => { copyBtn.textContent = '⎘'; }, 1500);
+    });
+  });
+
+  // Filtros
+  cableFilter?.addEventListener('input', () => { renderSegments(); renderGeo(); });
+  roleFilter?.addEventListener('change', renderSegments);
+
+  // Refresh manual
+  refreshBtn?.addEventListener('click', loadData);
+
+  // Carrega ao entrar na página
+  document.querySelectorAll('.nav-link[data-page="switch"]').forEach(a => {
+    a.addEventListener('click', loadData);
+  });
+}
+
 // ─── History page ─────────────────────────────────────────────────────────────
 
 function initHistoryPage() {
@@ -3218,6 +3374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTelemetryPage();
   initProbePage();
   initDailyPage();
+  initSwitchPage();
   initHistoryPage();
 
   // Periodically refresh alert badge

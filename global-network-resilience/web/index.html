@@ -206,6 +206,7 @@
     <li><a href="#" class="nav-link" data-page="probe">Histórico de Janela</a></li>
     <li class="drawer-divider"></li>
     <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
+    <li><a href="#" class="nav-link" data-page="switch">Sonda de Comutadores</a></li>
     <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
   </ul>
 </nav>
@@ -636,8 +637,6 @@
           <div class="pv-m"><span class="pv-k">Protocolo</span><span class="pv-v" id="pv-proto">—</span></div>
           <div class="pv-m"><span class="pv-k">Pacotes</span><span class="pv-v mono"><span id="pv-pkt-n">0</span><span class="pv-muted" id="pv-pkt-target">/—</span></span></div>
           <div class="pv-m"><span class="pv-k">Portas</span><span class="pv-v mono" id="pv-ports">—</span></div>
-          <div class="pv-m"><span class="pv-k">Saltos (hops)</span><span class="pv-v mono pv-hop-accent" id="pv-hop-n">—</span></div>
-          <div class="pv-m"><span class="pv-k">Comutadores geo</span><span class="pv-v mono" id="pv-switch-n">—</span></div>
         </div>
       </div>
 
@@ -685,11 +684,6 @@
               <td class="dstat-val" id="dstat-synth">—</td>
               <td class="dstat-pct" id="dstat-pct-synth">—</td>
             </tr>
-            <tr class="dstat-row hop">
-              <td class="dstat-label">Comutadores descobertos</td>
-              <td class="dstat-val" id="dstat-switches">—</td>
-              <td class="dstat-pct">—</td>
-            </tr>
             <tr class="dstat-row warn">
               <td class="dstat-label">Anomalias</td>
               <td class="dstat-val" id="dstat-anomalies">—</td>
@@ -723,6 +717,126 @@
       </div>
 
       <div class="error" id="daily-error"></div>
+    </div>
+  </section>
+
+  <!-- PÁGINA: SONDA DE COMUTADORES -->
+  <section class="page" id="page-switch">
+    <div class="page-inner">
+
+      <!-- Cabeçalho -->
+      <div class="sw-header">
+        <div>
+          <div class="sw-title">Sonda de Comutadores
+            <span class="sw-badge">MTR</span>
+          </div>
+          <div class="sw-subtitle">Mapeamento ponto a ponto da topologia de rede via traceroute (requer root/sudo no servidor)</div>
+        </div>
+        <div class="sw-actions">
+          <input id="sw-cable-filter" type="text" placeholder="Filtrar por cabo ou IP…" autocomplete="off">
+          <select id="sw-role-filter">
+            <option value="">Todos os papéis</option>
+            <option value="gateway">Gateway</option>
+            <option value="isp_edge">ISP Edge</option>
+            <option value="isp_transit">ISP Transit</option>
+            <option value="isp_server">ISP Server</option>
+          </select>
+          <button class="btn primary" id="btn-sw-run">
+            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg>
+            Executar MTR
+          </button>
+          <button class="btn" id="btn-sw-refresh">Atualizar</button>
+        </div>
+      </div>
+
+      <!-- Comando de execução -->
+      <div class="sw-cmd-box" id="sw-cmd-box">
+        <span class="sw-cmd-label">Comando no servidor:</span>
+        <code id="sw-cmd-text">sudo node scripts/sonda_switch.js --cables-file data/cables_list.json --mtr-cycles 20</code>
+        <button class="sw-cmd-copy" id="btn-sw-copy" title="Copiar">⎘</button>
+      </div>
+
+      <!-- Progresso ao vivo (quando sonda está rodando) -->
+      <div id="sw-live-wrap" style="display:none">
+        <div class="sw-live-bar">
+          <div class="sw-live-dot"></div>
+          <span id="sw-live-label">Aguardando progresso…</span>
+          <span class="sw-live-pct" id="sw-live-pct">0%</span>
+        </div>
+        <div class="sw-progress-outer">
+          <div class="sw-progress-inner" id="sw-progress-inner"></div>
+        </div>
+      </div>
+
+      <!-- Sumário de totais -->
+      <div class="sw-totals" id="sw-totals" style="display:none">
+        <div class="sw-total-card">
+          <div class="sw-total-val" id="swt-cabos">—</div>
+          <div class="sw-total-lbl">Cabos rastreados</div>
+        </div>
+        <div class="sw-total-card">
+          <div class="sw-total-val" id="swt-hops">—</div>
+          <div class="sw-total-lbl">Hops públicos</div>
+        </div>
+        <div class="sw-total-card">
+          <div class="sw-total-val" id="swt-geo">—</div>
+          <div class="sw-total-lbl">IPs geolocalizados</div>
+        </div>
+        <div class="sw-total-card">
+          <div class="sw-total-val" id="swt-countries">—</div>
+          <div class="sw-total-lbl">Países distintos</div>
+        </div>
+      </div>
+
+      <div class="error" id="sw-error"></div>
+
+      <!-- Tabela de segmentos de topologia por cabo -->
+      <div id="sw-segments-wrap" style="display:none">
+        <div class="subhead">Topologia por Cabo
+          <span class="sw-count-badge" id="sw-seg-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="sw-segments-table">
+            <thead>
+              <tr>
+                <th>Cabo</th>
+                <th>Papel</th>
+                <th>Hop #</th>
+                <th>IP</th>
+                <th>RTT avg</th>
+                <th>RTT best</th>
+                <th>RTT worst</th>
+                <th>Perda</th>
+                <th>Hops neste segmento</th>
+              </tr>
+            </thead>
+            <tbody id="sw-segments-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tabela de comutadores geolocalizados -->
+      <div id="sw-geo-wrap" style="display:none">
+        <div class="subhead">Comutadores Geolocalizados
+          <span class="sw-count-badge" id="sw-geo-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="sw-geo-table">
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Cidade</th>
+                <th>País</th>
+                <th>ISP / ASN</th>
+                <th>Lat</th>
+                <th>Lng</th>
+              </tr>
+            </thead>
+            <tbody id="sw-geo-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </section>
 
