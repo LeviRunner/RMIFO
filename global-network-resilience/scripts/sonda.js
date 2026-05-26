@@ -140,6 +140,70 @@ function isPrivateIp(ip) {
     return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|::1|fd[0-9a-f]{2}:|fc[0-9a-f]{2}:)/i.test(ip);
 }
 
+// ── Topologia de caminho de rede ──────────────────────────────────────────────
+// Classifica cada hub MTR no segmento da topologia que corresponde ao diagrama:
+//   Computador → [Comutador] → [Gateway] → [ISP Edge] → [ISP Transit] → [ISP Server]
+function classifyHopRole(hub, idx, hubs) {
+    const ip = hub.host;
+    if (!ip || ip === '???' || ip === '*') return 'unknown';
+
+    if (isPrivateIp(ip)) {
+        // Primeiro salto privado = gateway/roteador local
+        // Saltos privados posteriores = infraestrutura interna do ISP ou VPN
+        const firstPublicIdx = hubs.findIndex(
+            h => h.host && h.host !== '???' && !isPrivateIp(h.host)
+        );
+        if (firstPublicIdx === -1 || idx < firstPublicIdx) return 'gateway';
+        return 'switch_local';
+    }
+
+    // IP público — verifica se é o último hop visível (< 100% loss)
+    const remainingVisible = hubs.slice(idx + 1).some(
+        h => h.host && h.host !== '???' && (h['Loss%'] || 0) < 100
+    );
+    if (!remainingVisible) return 'isp_server';
+
+    // Contagem de IPs públicos anteriores decide se é edge ou transit
+    const prevPublic = hubs.slice(0, idx).filter(
+        h => h.host && h.host !== '???' && !isPrivateIp(h.host)
+    ).length;
+    return prevPublic === 0 ? 'isp_edge' : 'isp_transit';
+}
+
+// Agrega hubs MTR em segmentos de topologia (um registro por papel de rede)
+function buildTopologySegments(hubs) {
+    if (!hubs || !hubs.length) return [];
+    const classified = hubs.map((hub, idx) => ({ hub, role: classifyHopRole(hub, idx, hubs) }));
+
+    const pickFirst = (role) => classified.find(c => c.role === role);
+    const pickAll   = (role) => classified.filter(c => c.role === role);
+
+    const segment = (type, items, repItem) => {
+        if (!repItem) return null;
+        const { hub } = repItem;
+        const rtts = items.map(c => c.hub.Avg).filter(Boolean);
+        const bests = items.map(c => c.hub.Best).filter(Boolean);
+        const worsts = items.map(c => c.hub.Wrst).filter(Boolean);
+        return {
+            segment_type: type,
+            hop_number:   items.length === 1 ? hub.count : null,
+            hop_ip:       items.length === 1 && hub.host !== '???' ? hub.host : null,
+            hop_count:    items.length,
+            rtt_avg_ms:   rtts.length   ? r3(rtts.reduce((a, b)   => a + b)  / rtts.length) : null,
+            rtt_best_ms:  bests.length  ? Math.min(...bests)  : null,
+            rtt_worst_ms: worsts.length ? Math.max(...worsts) : null,
+            loss_pct:     r1(items.reduce((a, c) => a + (c.hub['Loss%'] || 0), 0) / items.length),
+        };
+    };
+
+    return [
+        segment('gateway',     pickAll('gateway'),     pickFirst('gateway')),
+        segment('isp_edge',    pickAll('isp_edge'),    pickFirst('isp_edge')),
+        segment('isp_transit', pickAll('isp_transit'), pickFirst('isp_transit')),
+        segment('isp_server',  pickAll('isp_server'),  pickFirst('isp_server')),
+    ].filter(Boolean);
+}
+
 // ── Geolocalização de IPs via ip-api.com/batch ─────────────────────────────
 async function geoLookupBatch(ips) {
     if (!ips || !ips.length) return [];
@@ -280,9 +344,40 @@ async function ensureSchema(db) {
             `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_jitter_loss_pct DOUBLE PRECISION`,
             `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_jitter_samples  INTEGER`,
             `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS http_rtt_ms         DOUBLE PRECISION`,
+            // Resumo de topologia por segmento de rede
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS gateway_rtt_ms      DOUBLE PRECISION`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS isp_edge_rtt_ms     DOUBLE PRECISION`,
+            `ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS isp_server_rtt_ms   DOUBLE PRECISION`,
         ];
         for (const sql of probeResultCols) await db.query(sql).catch(() => {});
     } catch (e) { warn('Schema:', e.message); }
+
+    // Tabela de segmentos de topologia — um registro por papel de rede por sonda
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS probe_path_segments (
+                segment_id   BIGSERIAL PRIMARY KEY,
+                sample_id    BIGINT REFERENCES cable_telemetry_samples(sample_id) ON DELETE CASCADE,
+                cable_id     VARCHAR(255) NOT NULL,
+                measured_at  TIMESTAMPTZ NOT NULL,
+                -- Papel no caminho: gateway | isp_edge | isp_transit | isp_server
+                segment_type VARCHAR(20) NOT NULL,
+                hop_number   INTEGER,           -- hop representativo (null para isp_transit)
+                hop_ip       INET,
+                hop_count    INTEGER DEFAULT 1, -- nº de hops neste segmento
+                rtt_avg_ms   DOUBLE PRECISION,
+                rtt_best_ms  DOUBLE PRECISION,
+                rtt_worst_ms DOUBLE PRECISION,
+                loss_pct     DOUBLE PRECISION,
+                UNIQUE (sample_id, segment_type)
+            )
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_pps_cable   ON probe_path_segments(cable_id)`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_pps_ts      ON probe_path_segments(measured_at DESC)`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_pps_type    ON probe_path_segments(segment_type)`);
+        // hop_role classifica cada salto individual na tabela de hops existente
+        await db.query(`ALTER TABLE cable_telemetry_hops ADD COLUMN IF NOT EXISTS hop_role VARCHAR(20)`);
+    } catch (e) { warn('Schema topology:', e.message); }
 }
 
 
@@ -474,16 +569,25 @@ async function main() {
 
         // ── Salva resultados brutos por protocolo — sem mesclagem ───────────────
         // Cada protocolo grava seus dados na coluna dedicada; nada é descartado.
+
+        // Topologia de caminho: classifica hubs MTR por papel de rede
+        const topologySegments = buildTopologySegments(mr?.hubs ?? []);
+        const topoByType = Object.fromEntries(topologySegments.map(s => [s.segment_type, s]));
+
         const raw = {
-            mtr_rtt:     mr           ? r3(mr.rtt)             : null,
-            mtr_hops:    (mr && mr.hubs) ? mr.hubs.length      : null,
-            tcp_ports:   results_tcp.map(r => r.port),
-            tcp_rtt:     Object.fromEntries(results_tcp.map(r => [r.port, r.rtt])),
-            jit_mean:    jitterResult  ? r1(jitterResult.mean)  : null,
-            jit_p95:     jitterResult  ? r1(jitterResult.p95)   : null,
-            jit_loss:    jitterResult  ? jitterResult.loss       : null,
-            jit_samples: jitterResult  ? jitterResult.samples    : null,
-            http_rtt:    hrResult      ? r1(hrResult.rtt)        : null,
+            mtr_rtt:        mr           ? r3(mr.rtt)             : null,
+            mtr_hops:       (mr && mr.hubs) ? mr.hubs.length      : null,
+            tcp_ports:      results_tcp.map(r => r.port),
+            tcp_rtt:        Object.fromEntries(results_tcp.map(r => [r.port, r.rtt])),
+            jit_mean:       jitterResult  ? r1(jitterResult.mean)  : null,
+            jit_p95:        jitterResult  ? r1(jitterResult.p95)   : null,
+            jit_loss:       jitterResult  ? jitterResult.loss       : null,
+            jit_samples:    jitterResult  ? jitterResult.samples    : null,
+            http_rtt:       hrResult      ? r1(hrResult.rtt)        : null,
+            // Resumo por segmento de topologia
+            gateway_rtt:    topoByType.gateway?.rtt_avg_ms    ?? null,
+            isp_edge_rtt:   topoByType.isp_edge?.rtt_avg_ms   ?? null,
+            isp_server_rtt: topoByType.isp_server?.rtt_avg_ms ?? null,
         };
 
         // latency_ms: valor bruto do primeiro protocolo que respondeu (sem média ponderada)
@@ -557,8 +661,9 @@ async function main() {
                         mtr_rtt_ms, mtr_hops,
                         tcp_ports_open, tcp_rtt_ms,
                         tcp_jitter_mean_ms, tcp_jitter_p95_ms, tcp_jitter_loss_pct, tcp_jitter_samples,
-                        http_rtt_ms
-                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+                        http_rtt_ms,
+                        gateway_rtt_ms, isp_edge_rtt_ms, isp_server_rtt_ms
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
                     ON CONFLICT (cable_id, measured_at) DO UPDATE SET
                         latency_ms              = EXCLUDED.latency_ms,
                         jitter_ms               = EXCLUDED.jitter_ms,
@@ -581,7 +686,10 @@ async function main() {
                         tcp_jitter_p95_ms       = EXCLUDED.tcp_jitter_p95_ms,
                         tcp_jitter_loss_pct     = EXCLUDED.tcp_jitter_loss_pct,
                         tcp_jitter_samples      = EXCLUDED.tcp_jitter_samples,
-                        http_rtt_ms             = EXCLUDED.http_rtt_ms
+                        http_rtt_ms             = EXCLUDED.http_rtt_ms,
+                        gateway_rtt_ms          = EXCLUDED.gateway_rtt_ms,
+                        isp_edge_rtt_ms         = EXCLUDED.isp_edge_rtt_ms,
+                        isp_server_rtt_ms       = EXCLUDED.isp_server_rtt_ms
                     RETURNING sample_id
                 `, [
                     cableId, measAt, sentAt, recvAt,
@@ -593,25 +701,52 @@ async function main() {
                     raw.tcp_ports.length ? JSON.stringify(raw.tcp_rtt) : null,
                     raw.jit_mean, raw.jit_p95, raw.jit_loss, raw.jit_samples,
                     raw.http_rtt,
+                    raw.gateway_rtt, raw.isp_edge_rtt, raw.isp_server_rtt,
                 ]);
 
-                // Store per-hop data when MTR was used
                 const sampleId = sampleRes.rows[0]?.sample_id;
                 if (sampleId && mr && mr.hubs && mr.hubs.length) {
+                    // Hops individuais com papel de rede classificado
                     const hopQ = `
                         INSERT INTO cable_telemetry_hops
                             (sample_id, cable_id, hop_number, hop_ip,
-                             rtt_last_ms, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, rtt_stdev_ms, loss_pct)
-                        VALUES ($1,$2,$3,$4::inet,$5,$6,$7,$8,$9,$10)
+                             rtt_last_ms, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, rtt_stdev_ms, loss_pct,
+                             hop_role)
+                        VALUES ($1,$2,$3,$4::inet,$5,$6,$7,$8,$9,$10,$11)
                         ON CONFLICT (sample_id, hop_number) DO UPDATE SET
-                            hop_ip = EXCLUDED.hop_ip, rtt_avg_ms = EXCLUDED.rtt_avg_ms`;
-                    for (const h of mr.hubs) {
-                        const ip = h.host && h.host !== '???' ? h.host : null;
+                            hop_ip   = EXCLUDED.hop_ip,
+                            rtt_avg_ms = EXCLUDED.rtt_avg_ms,
+                            hop_role = EXCLUDED.hop_role`;
+                    for (const [idx, h] of mr.hubs.entries()) {
+                        const ip   = h.host && h.host !== '???' ? h.host : null;
+                        const role = classifyHopRole(h, idx, mr.hubs);
                         await db.query(hopQ, [
                             sampleId, cableId, h.count, ip,
                             h.Last || null, h.Avg || null, h.Best || null,
                             h.Wrst || null, h.StDev || null, h['Loss%'] || 0,
+                            role,
                         ]).catch(() => {});
+                    }
+
+                    // Segmentos de topologia agregados (um por papel de rede)
+                    if (topologySegments.length) {
+                        const segQ = `
+                            INSERT INTO probe_path_segments
+                                (sample_id, cable_id, measured_at, segment_type,
+                                 hop_number, hop_ip, hop_count,
+                                 rtt_avg_ms, rtt_best_ms, rtt_worst_ms, loss_pct)
+                            VALUES ($1,$2,$3,$4,$5,$6::inet,$7,$8,$9,$10,$11)
+                            ON CONFLICT (sample_id, segment_type) DO UPDATE SET
+                                rtt_avg_ms   = EXCLUDED.rtt_avg_ms,
+                                rtt_worst_ms = EXCLUDED.rtt_worst_ms,
+                                hop_count    = EXCLUDED.hop_count`;
+                        for (const seg of topologySegments) {
+                            await db.query(segQ, [
+                                sampleId, cableId, measAt, seg.segment_type,
+                                seg.hop_number, seg.hop_ip, seg.hop_count,
+                                seg.rtt_avg_ms, seg.rtt_best_ms, seg.rtt_worst_ms, seg.loss_pct,
+                            ]).catch(() => {});
+                        }
                     }
                 }
             } catch (e) { warn(`DB insert ${cableId}: ${e.message}`); }
@@ -700,7 +835,7 @@ async function main() {
             estimated:              est,
             telemetry_model_version: MODEL,
             open_ports:             openPorts,
-            // Per-protocol raw data
+            // Por protocolo — dados brutos sem mesclagem
             mtr_rtt_ms:             raw.mtr_rtt,
             mtr_hops:               raw.mtr_hops,
             mtr_hubs:               mr?.hubs ?? null,
@@ -711,6 +846,11 @@ async function main() {
             tcp_jitter_loss_pct:    raw.jit_loss,
             tcp_jitter_samples:     raw.jit_samples,
             http_rtt_ms:            raw.http_rtt,
+            // Topologia de rede — RTT por segmento do diagrama
+            gateway_rtt_ms:         raw.gateway_rtt,
+            isp_edge_rtt_ms:        raw.isp_edge_rtt,
+            isp_server_rtt_ms:      raw.isp_server_rtt,
+            topology_segments:      topologySegments.length ? topologySegments : null,
         });
 
         // Progress line — format matched by api.php regex
