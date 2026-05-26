@@ -1,0 +1,83 @@
+{
+  "exportado_em": "2026-05-26T16:16:03.356Z",
+  "date": "2026-05-26",
+  "tabelas": [
+    {
+      "tabela": "cables",
+      "registros": 699,
+      "arquivo": "cables.json",
+      "tamanho_kb": 257.7
+    },
+    {
+      "tabela": "cable_metadata",
+      "registros": 692,
+      "arquivo": "cable_metadata.json",
+      "tamanho_kb": 205
+    },
+    {
+      "tabela": "cable_landing_points",
+      "registros": 3159,
+      "arquivo": "cable_landing_points.json",
+      "tamanho_kb": 456.6
+    },
+    {
+      "tabela": "landing_points",
+      "registros": 1909,
+      "arquivo": "landing_points.json",
+      "tamanho_kb": 525.7
+    },
+    {
+      "tabela": "endpoints",
+      "registros": 3159,
+      "arquivo": "endpoints.json",
+      "tamanho_kb": 773.2
+    },
+    {
+      "tabela": "cable_telemetry_samples",
+      "registros": 10389,
+      "arquivo": "cable_telemetry_samples.json",
+      "tamanho_kb": 10832.2
+    },
+    {
+      "tabela": "cable_telemetry_hops",
+      "registros": 1483,
+      "arquivo": "cable_telemetry_hops.json",
+      "tamanho_kb": 528.4
+    },
+    {
+      "tabela": "cable_telemetry_reference",
+      "registros": 699,
+      "arquivo": "cable_telemetry_reference.json",
+      "tamanho_kb": 288
+    },
+    {
+      "tabela": "endpoint_ip_samples",
+      "registros": 3346,
+      "arquivo": "endpoint_ip_samples.json",
+      "tamanho_kb": 1085.9
+    },
+    {
+      "tabela": "hop_switch_geolocations",
+      "registros": 256,
+      "arquivo": "hop_switch_geolocations.json",
+      "tamanho_kb": 221.5
+    },
+    {
+      "tabela": "telemetry_rollup_1h",
+      "registros": 9774,
+      "arquivo": "telemetry_rollup_1h.json",
+      "tamanho_kb": 3530.9
+    },
+    {
+      "tabela": "telemetry_rollup_5m",
+      "registros": 10386,
+      "arquivo": "telemetry_rollup_5m.json",
+      "tamanho_kb": 3065.8
+    }
+  ],
+  "total_kb": 21770.9,
+  "total_registros": 45951,
+  "tabelas_puladas": [
+    "probe_path_segments"
+  ]
+}
