@@ -3750,21 +3750,9 @@ tbody tr:hover {
    ══════════════════════════════════════════════════════════════════════════════ */
 
 /* Cabeçalho */
-.sw-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-.sw-title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Bloco de cabeçalho da sonda de comutadores */
+.sw-header-block {
+  margin-bottom: 20px;
 }
 .sw-badge {
   font-size: 11px;
@@ -3775,64 +3763,41 @@ tbody tr:hover {
   border-radius: 4px;
   letter-spacing: 0.5px;
 }
-.sw-subtitle {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 4px;
-  max-width: 520px;
-}
-.sw-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.sw-actions input[type="text"],
-.sw-actions select {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 6px;
-  color: #fff;
-  padding: 6px 10px;
-  font-size: 13px;
-  outline: none;
-}
-.sw-actions input[type="text"] { width: 200px; }
-.sw-actions input[type="text"]:focus,
-.sw-actions select:focus        { border-color: var(--accent); }
 
-/* Caixa de comando */
-.sw-cmd-box {
+/* Linha de controles centralizada */
+.sw-controls-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(0,0,0,0.35);
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 18px;
-  font-size: 12px;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
-.sw-cmd-label { color: var(--muted); white-space: nowrap; }
-.sw-cmd-box code {
-  font-family: monospace;
-  color: #7dd3fc;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+/* Círculo de status: cinza=idle, laranja=rodando, verde=concluído */
+.sw-status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.15);
+  transition: background 400ms ease, box-shadow 400ms ease;
 }
-.sw-cmd-copy {
-  background: none;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 4px;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 8px;
-  font-size: 14px;
-  transition: color 120ms, border-color 120ms;
+.sw-status-dot.dot-running {
+  background: #f97316;
+  box-shadow: 0 0 8px rgba(249,115,22,0.6);
+  animation: sw-dot-pulse 1.2s ease-in-out infinite;
 }
-.sw-cmd-copy:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+.sw-status-dot.dot-done {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34,197,94,0.5);
+  animation: none;
+}
+@keyframes sw-dot-pulse {
+  0%,100% { opacity: 1; } 50% { opacity: 0.45; }
+}
 
 /* Barra de progresso ao vivo */
 .sw-live-bar {

@@ -732,20 +732,28 @@
   <section class="page" id="page-switch">
     <div class="page-inner">
 
-      <!-- Header (padrão daily) -->
-      <div class="daily-header">
-        <div>
-          <div class="daily-title">Sonda de Comutadores <span class="sw-badge">MTR</span></div>
-          <div class="daily-subtitle">Mapeamento ponto a ponto da topologia via MTR traceroute — ICMP com fallback TCP automático</div>
-        </div>
-        <div class="daily-actions">
+      <!-- Header -->
+      <div class="sw-header-block">
+        <div class="daily-title">Sonda de Comutadores <span class="sw-badge">MTR</span></div>
+        <div class="daily-subtitle">Mapeamento ponto a ponto da topologia via MTR traceroute — ICMP com fallback TCP automático</div>
+
+        <!-- Controles centralizados -->
+        <div class="sw-controls-row">
           <label class="sw-cycles-wrap" title="Ciclos MTR por alvo">
             <span>Ciclos</span>
             <input id="sw-mtr-cycles" type="number" min="3" max="50" value="20" class="sw-cycles-input">
           </label>
-          <button class="btn primary" id="btn-sw-run"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Executar MTR</button>
-          <button class="btn danger" id="btn-sw-cancel" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg> Cancelar</button>
-          <span class="daily-status-badge" id="sw-status-badge"></span>
+          <button class="btn primary" id="btn-sw-run">
+            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg>
+            Executar MTR
+          </button>
+          <!-- Círculo de status: laranja=rodando, verde=concluído -->
+          <span class="sw-status-dot" id="sw-status-dot" title="Aguardando"></span>
+          <!-- Cancelar (aparece só quando rodando) -->
+          <button class="btn danger" id="btn-sw-cancel" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg>
+            Parar
+          </button>
         </div>
       </div>
 
@@ -802,13 +810,6 @@
 
       <!-- Live feed de sondas recentes -->
       <div id="sw-live-feed" class="sw-live-feed" style="display:none"></div>
-
-      <!-- Comando de execução -->
-      <div class="sw-cmd-box" id="sw-cmd-box">
-        <span class="sw-cmd-label">Comando no servidor:</span>
-        <code id="sw-cmd-text">node scripts/sonda_switch.js --mtr-cycles 20</code>
-        <button class="sw-cmd-copy" id="btn-sw-copy" title="Copiar">⎘</button>
-      </div>
 
       <!-- Tabela de contadores (padrão dstat-table) -->
       <div class="dstat-table-wrap" id="sw-stats">

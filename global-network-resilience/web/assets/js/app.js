@@ -2839,10 +2839,9 @@ function initSwitchPage() {
   const refreshBtn    = document.getElementById('btn-sw-refresh');
   const runBtn        = document.getElementById('btn-sw-run');
   const cancelBtn     = document.getElementById('btn-sw-cancel');
-  const copyBtn       = document.getElementById('btn-sw-copy');
   const cyclesInput   = document.getElementById('sw-mtr-cycles');
   const errorEl       = document.getElementById('sw-error');
-  const statusBadge   = document.getElementById('sw-status-badge');
+  const statusDot     = document.getElementById('sw-status-dot');
   const phaseBar      = document.getElementById('sw-phase-bar');
   const progressWrap  = document.getElementById('sw-progress-wrap');
   const progressInner = document.getElementById('sw-progress-inner');
@@ -2987,6 +2986,14 @@ function initSwitchPage() {
     renderGeo();
   }
 
+  function setDot(state) { // 'idle' | 'running' | 'done'
+    if (!statusDot) return;
+    statusDot.className = 'sw-status-dot';
+    if (state === 'running') { statusDot.className += ' dot-running'; statusDot.title = 'Rodando…'; }
+    if (state === 'done')    { statusDot.className += ' dot-done';    statusDot.title = 'Concluído'; }
+    if (state === 'idle')    { statusDot.title = 'Aguardando'; }
+  }
+
   function setRunningUI(running) {
     isRunning = running;
     if (runBtn) {
@@ -2995,12 +3002,10 @@ function initSwitchPage() {
         ? '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5"/></svg> Rodando…'
         : '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Executar MTR';
     }
-    if (cancelBtn)  cancelBtn.style.display   = running ? '' : 'none';
-    if (statusBadge) statusBadge.textContent   = running ? 'Rodando' : '';
-    if (statusBadge) statusBadge.className     = 'daily-status-badge' + (running ? ' badge-running' : '');
-    if (!running && phaseBar) phaseBar.style.display  = 'none';
-    if (!running && progressWrap) progressWrap.style.display = 'none';
-    if (!running && cablePanel)  cablePanel.style.display   = 'none';
+    if (cancelBtn) cancelBtn.style.display = running ? '' : 'none';
+    if (!running && phaseBar)      phaseBar.style.display      = 'none';
+    if (!running && progressWrap)  progressWrap.style.display  = 'none';
+    if (!running && cablePanel)    cablePanel.style.display    = 'none';
   }
 
   function updateLiveFeed(recent) {
@@ -3037,6 +3042,7 @@ function initSwitchPage() {
           updateArc(0, 0, 0);
           updatePhaseBar(0);
           setRunningUI(true);
+          setDot('running');
           return;
         }
 
@@ -3047,6 +3053,7 @@ function initSwitchPage() {
           updateArc(pct, cur, tot);
           updatePhaseBar(pct);
           setRunningUI(true);
+          setDot('running');
           updateLiveFeed(live.recent);
         }
 
@@ -3057,6 +3064,7 @@ function initSwitchPage() {
           updateArc(100, cur, tot);
           updatePhaseBar(100);
           setRunningUI(false);
+          setDot('done');
           if (liveFeed) liveFeed.style.display = 'none';
           if (cablePanel) cablePanel.style.display = 'none';
           loadData();
@@ -3070,42 +3078,35 @@ function initSwitchPage() {
     if (isRunning) return;
     const cycles = parseInt(cyclesInput?.value || '20', 10);
     setRunningUI(true);
+    setDot('running');
     progressWrap.style.display = '';
     updateArc(0, 0, 0);
     updatePhaseBar(0);
-    if (liveFeed)  { liveFeed.innerHTML = ''; liveFeed.style.display = 'none'; }
-    if (cablePanel) cablePanel.style.display = 'none';
-    if (errorEl)   errorEl.textContent = '';
+    if (liveFeed)   { liveFeed.innerHTML = ''; liveFeed.style.display = 'none'; }
+    if (cablePanel)  cablePanel.style.display = 'none';
+    if (errorEl)     errorEl.textContent = '';
     try {
       const res = await apiFetch({ action: 'switch_start', mtr_cycles: cycles });
       if (res?.status === 'error') {
         if (errorEl) errorEl.textContent = res.message || 'Erro ao iniciar.';
-        setRunningUI(false); return;
+        setRunningUI(false); setDot('idle'); return;
       }
       pollLive();
     } catch (e) {
       if (errorEl) errorEl.textContent = e.message;
-      setRunningUI(false);
+      setRunningUI(false); setDot('idle');
     }
   });
 
-  // Cancelar
+  // Parar / Cancelar
   cancelBtn?.addEventListener('click', async () => {
     cancelBtn.disabled = true;
     try { await apiFetch({ action: 'switch_cancel' }); } catch { /* best-effort */ }
     if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
     setRunningUI(false);
+    setDot('idle');
     if (progressWrap) progressWrap.style.display = 'none';
     cancelBtn.disabled = false;
-  });
-
-  // Copiar comando
-  copyBtn?.addEventListener('click', () => {
-    const cmd = document.getElementById('sw-cmd-text')?.textContent || '';
-    navigator.clipboard?.writeText(cmd).then(() => {
-      copyBtn.textContent = '✔';
-      setTimeout(() => { copyBtn.textContent = '⎘'; }, 1500);
-    });
   });
 
   // Filtros
@@ -3119,6 +3120,7 @@ function initSwitchPage() {
       const live = await apiFetch({ action: 'switch_live' });
       if (live && (live.status === 'running' || live.status === 'starting')) {
         setRunningUI(true);
+        setDot('running');
         progressWrap.style.display = '';
         pollLive();
       }
