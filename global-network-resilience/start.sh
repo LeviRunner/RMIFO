@@ -9,5 +9,8 @@ if [ -n "$MTR_BIN" ]; then
   setcap cap_net_raw+ep "$MTR_BIN" 2>/dev/null || true
 fi
 
+# Run SaaS schema migration (idempotent — skips if already applied)
+php "$SCRIPT_DIR/scripts/migrate_saas.php" || true
+
 echo "[RMIFO] Iniciando servidor..."
 exec php -S "0.0.0.0:${PORT:-8080}" -t "$SCRIPT_DIR/web/"
