@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RMIFO Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --warn: #d29922;
+    --danger: #f85149;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* ── Layout ── */
+  .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; display: flex; flex-direction: column; }
+  .main { padding: 28px; overflow-y: auto; }
+
+  /* ── Sidebar ── */
+  .brand { padding: 0 20px 24px; font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
+  .brand span { color: var(--accent); }
+  nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--muted); text-decoration: none; transition: background .15s, color .15s; border-left: 3px solid transparent; }
+  nav a:hover, nav a.active { background: rgba(88,166,255,.08); color: var(--text); border-left-color: var(--accent); }
+  nav a svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); }
+  .user-badge { display: flex; align-items: center; gap: 10px; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; }
+  .user-info { flex: 1; overflow: hidden; }
+  .user-info .email { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-credits { font-size: 13px; font-weight: 600; color: var(--accent2); }
+  #btn-logout { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; margin-top: 10px; width: 100%; text-align: left; padding: 4px 0; }
+  #btn-logout:hover { color: var(--danger); }
+
+  /* ── Topbar ── */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .topbar h1 { font-size: 20px; font-weight: 700; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity .15s; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #0d1117; }
+  .btn-primary:hover:not(:disabled) { opacity: .85; }
+  .btn-danger  { background: var(--danger); color: #fff; }
+  .btn-danger:hover:not(:disabled)  { opacity: .85; }
+  .btn-ghost   { background: rgba(255,255,255,.06); color: var(--text); }
+  .btn-ghost:hover   { background: rgba(255,255,255,.12); }
+
+  /* ── Panels ── */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .panel-title { font-size: 15px; font-weight: 700; }
+  .panel-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Overview stats ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .stat-value { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-value.green { color: var(--accent2); }
+  .stat-value.blue  { color: var(--accent); }
+  .stat-value.warn  { color: var(--warn); }
+
+  /* ── Charts row ── */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .chart-wrap h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 14px; }
+  .chart-wrap canvas { max-height: 200px; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  td { padding: 9px 10px; border-bottom: 1px solid rgba(48,54,61,.6); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.025); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green  { background: rgba(63,185,80,.15); color: var(--accent2); }
+  .badge-red    { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .badge-warn   { background: rgba(210,153,34,.15); color: var(--warn); }
+  .badge-blue   { background: rgba(88,166,255,.15); color: var(--accent); }
+  .badge-muted  { background: rgba(139,148,158,.1); color: var(--muted); }
+  code.key { font-family: monospace; font-size: 12px; color: var(--muted); background: rgba(0,0,0,.3); padding: 2px 6px; border-radius: 4px; }
+
+  /* ── API key form ── */
+  .form-row { display: flex; gap: 10px; align-items: center; }
+  .form-input { flex: 1; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; }
+  .form-input:focus { border-color: var(--accent); }
+
+  /* ── Billing ── */
+  .packs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .pack-card { background: rgba(0,0,0,.2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; cursor: pointer; transition: border-color .2s; }
+  .pack-card:hover { border-color: var(--accent); }
+  .pack-name { font-weight: 700; margin-bottom: 6px; }
+  .pack-credits { font-size: 22px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .pack-credits span { font-size: 12px; color: var(--muted); }
+  .pack-price { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .pack-price strong { color: var(--text); font-size: 16px; }
+
+  /* ── Sections ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Toast ── */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 13px; max-width: 340px; z-index: 9999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.err  { border-color: var(--danger); color: var(--danger); }
+  #toast.ok   { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Login overlay ── */
+  #login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; }
+  #login-overlay.hidden { display: none; }
+  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 36px; width: 340px; }
+  .login-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .login-box p  { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .login-field  { margin-bottom: 14px; }
+  .login-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .login-field input { width: 100%; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; color: var(--text); font-size: 14px; outline: none; }
+  .login-field input:focus { border-color: var(--accent); }
+  .login-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .login-tab { flex: 1; padding: 7px; border-radius: 6px; border: none; background: rgba(255,255,255,.05); color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 600; }
+  .login-tab.active { background: var(--accent); color: #0d1117; }
+  #login-err { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .charts-row { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>RMIFO</h2>
+    <p>Plataforma de inteligência de rede</p>
+    <div class="login-tabs">
+      <button class="login-tab active" data-tab="login">Entrar</button>
+      <button class="login-tab" data-tab="register">Criar conta</button>
+    </div>
+    <div id="tab-login">
+      <div class="login-field"><label>E-mail</label><input id="l-email" type="email" autocomplete="email" placeholder="voce@email.com"></div>
+      <div class="login-field"><label>Senha</label><input id="l-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" id="btn-login">Entrar</button>
+    </div>
+    <div id="tab-register" style="display:none">
+      <div class="login-field"><label>Nome</label><input id="r-name" type="text" placeholder="Seu nome"></div>
+      <div class="login-field"><label>E-mail</label><input id="r-email" type="email" placeholder="voce@email.com"></div>
+      <div class="login-field"><label>Senha</label><input id="r-pass" type="password" placeholder="••••••••"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" id="btn-register">Criar conta</button>
+    </div>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- App Shell -->
+<div class="layout" id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="brand">RMI<span>FO</span></div>
+    <nav>
+      <a href="#" class="active" data-section="overview">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+        Visão Geral
+      </a>
+      <a href="#" data-section="keys">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.354.146H7.465A4.002 4.002 0 0 1 0 8zm4-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+        API & Chaves
+      </a>
+      <a href="#" data-section="tunnels">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14.763.075A.5.5 0 0 1 15 .5v15a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V14h-1v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-6a.5.5 0 0 1 .146-.354l5-5a.5.5 0 0 1 .354-.146H5V.5a.5.5 0 0 1 .075-.425l.75-1A.5.5 0 0 1 6.25 0l.75 1 .75-1A.5.5 0 0 1 8.5 0h5.5a.5.5 0 0 1 .263.075z"/></svg>
+        Túneis WireGuard
+      </a>
+      <a href="#" data-section="downloads">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+        Downloads DB
+      </a>
+      <a href="#" data-section="usage">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3zm5-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2z"/></svg>
+        Uso & Logs
+      </a>
+      <a href="#" data-section="billing">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1H0V4zm0 3h16v5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7zm3 2a.5.5 0 0 0 0 1h1a.5.5 0 0 0 0-1H3zm2.5 0a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5z"/></svg>
+        Cobrança
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-avatar" id="user-initials">?</div>
+        <div class="user-info">
+          <div class="email" id="user-email-display">—</div>
+          <div class="user-credits"><span id="sidebar-credits">0</span> créditos</div>
+        </div>
+      </div>
+      <button id="btn-logout">Sair</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- Overview -->
+    <div class="section active" id="section-overview">
+      <div class="topbar"><h1>Visão Geral</h1></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Créditos disponíveis</div><div class="stat-value green" id="ov-credits">0</div></div>
+        <div class="stat-card"><div class="stat-label">Requisições hoje</div><div class="stat-value blue" id="ov-req-today">0</div></div>
+        <div class="stat-card"><div class="stat-label">Créditos gastos hoje</div><div class="stat-value warn" id="ov-credits-today">0</div></div>
+        <div class="stat-card"><div class="stat-label">Túneis ativos</div><div class="stat-value blue" id="ov-tunnels">0</div></div>
+        <div class="stat-card"><div class="stat-label">Chaves API</div><div class="stat-value" id="ov-keys">0</div></div>
+        <div class="stat-card"><div class="stat-label">Requisições totais</div><div class="stat-value" id="ov-req-total">0</div></div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-wrap">
+          <h3>Créditos gastos — 7 dias</h3>
+          <canvas id="chart-credits"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <h3>Requisições por serviço</h3>
+          <canvas id="chart-services"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Keys -->
+    <div class="section" id="section-keys">
+      <div class="topbar">
+        <div><h1>API & Chaves</h1><div class="panel-subtitle" style="margin-top:4px;color:var(--muted)">Use a chave no header <code style="color:var(--accent)">X-API-Key</code></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Nova chave</div></div>
+        <div class="form-row">
+          <input class="form-input" id="new-key-label" placeholder="Rótulo (ex: produção, testes…)" maxlength="60">
+          <button class="btn btn-primary" id="btn-create-key">Criar chave</button>
+        </div>
+        <div id="new-key-reveal" style="margin-top:14px;display:none">
+          <div style="font-size:12px;color:var(--warn);margin-bottom:6px">Copie agora — não será mostrada novamente.</div>
+          <code id="new-key-value" style="word-break:break-all;font-size:13px;color:var(--accent2)"></code>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Suas chaves</div></div>
+        <table>
+          <thead><tr><th>Rótulo</th><th>Prefixo</th><th>Status</th><th>Último uso</th><th></th></tr></thead>
+          <tbody id="keys-table-body"><tr><td colspan="5" class="empty">Carregando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tunnels -->
+    <div class="section" id="section-tunnels">
+      <div class="topbar">
+        <h1>Túneis WireGuard</h1>
+        <button class="btn btn-primary" id="btn-create-tunnel">+ Novo túnel</button>
+      </div>
+      <div class="panel" id="tunnel-create-panel" style="display:none">
+        <div class="panel-header"><div class="panel-title">Criar túnel</div></div>
+        <div class="form-row">
+          <input class="form-input" id="tunnel-label" placeholder="Rótulo (ex: home, escritório…)" maxlength="60">
+          <button class="btn btn-primary" id="btn-tunnel-submit">Criar (50 créditos)</button>
+          <button class="btn btn-ghost" id="btn-tunnel-cancel">Cancelar</button>
+        </div>
+      </div>
+      <div id="tunnel-config-box" style="display:none" class="panel">
+        <div class="panel-title" style="margin-bottom:12px">Configuração WireGuard — copie para seu cliente</div>
+        <pre id="tunnel-config-text" style="background:rgba(0,0,0,.3);padding:14px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre;color:var(--accent2)"></pre>
+      </div>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Rótulo</th><th>IP</th><th>Status</th><th>Último handshake</th><th>Tráfego</th><th></th></tr></thead>
+          <tbody id="tunnels-table-body"><tr><td colspan="6" class="empty">Carregando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Downloads -->
+    <div class="section" id="section-downloads">
+      <div class="topbar"><h1>Downloads de BD IP</h1></div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Bases disponíveis</div></div>
+        <table>
+          <thead><tr><th>Base</th><th>Versão</th><th>Tamanho</th><th>Custo</th><th></th></tr></thead>
+          <tbody id="downloads-table-body"><tr><td colspan="5" class="empty">Carregando…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Histórico de downloads</div></div>
+        <table>
+          <thead><tr><th>Base</th><th>Versão</th><th>Data</th><th>Status</th></tr></thead>
+          <tbody id="dl-history-body"><tr><td colspan="4" class="empty">Nenhum download ainda.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Usage -->
+    <div class="section" id="section-usage">
+      <div class="topbar"><h1>Uso & Logs</h1></div>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Serviço</th><th>IP alvo</th><th>Créditos</th><th>Status</th><th>Data/hora</th></tr></thead>
+          <tbody id="usage-table-body"><tr><td colspan="5" class="empty">Carregando…</td></tr></tbody>
+        </table>
+        <div style="text-align:center;margin-top:14px">
+          <button class="btn btn-ghost" id="btn-load-more-usage">Carregar mais</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Billing -->
+    <div class="section" id="section-billing">
+      <div class="topbar"><h1>Cobrança</h1></div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Comprar créditos</div></div>
+        <div class="packs-grid" id="packs-grid"><div class="empty">Carregando…</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Histórico de compras</div></div>
+        <table>
+          <thead><tr><th>Pacote</th><th>Créditos</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
+          <tbody id="billing-history-body"><tr><td colspan="5" class="empty">Carregando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '/api_gateway.php';
+let token = localStorage.getItem('rmifo_token') || '';
+let userData = null;
+let usageOffset = 0;
+let creditsChart = null, servicesChart = null;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function apiFetch(action, body = {}, method = 'POST') {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  };
+  if (method !== 'GET') opts.body = JSON.stringify({ action, ...body });
+  const url = method === 'GET' ? `${API}?action=${action}` : API;
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({ error: 'invalid json' }));
+  if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = ''; }, 3500);
+}
+
+function fmt(n) { return Number(n).toLocaleString('pt-BR'); }
+function fmtDate(s) { return s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'; }
+function fmtBytes(b) {
+  b = Number(b) || 0;
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+function badgeStatus(s) {
+  const map = { active: 'badge-green', ok: 'badge-green', suspended: 'badge-warn', deleted: 'badge-muted', error: 'badge-red', insufficient_credits: 'badge-red', completed: 'badge-green', pending: 'badge-warn', refunded: 'badge-muted' };
+  return `<span class="badge ${map[s] || 'badge-muted'}">${s}</span>`;
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.login-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.login-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-login').style.display    = btn.dataset.tab === 'login'    ? '' : 'none';
+    document.getElementById('tab-register').style.display = btn.dataset.tab === 'register' ? '' : 'none';
+  });
+});
+
+document.getElementById('btn-login').addEventListener('click', async () => {
+  const email = document.getElementById('l-email').value.trim();
+  const pass  = document.getElementById('l-pass').value;
+  try {
+    const d = await apiFetch('auth_login', { email, password: pass });
+    token = d.token;
+    localStorage.setItem('rmifo_token', token);
+    await initApp();
+  } catch (e) {
+    document.getElementById('login-err').textContent = e.message;
+  }
+});
+
+document.getElementById('btn-register').addEventListener('click', async () => {
+  const name  = document.getElementById('r-name').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const pass  = document.getElementById('r-pass').value;
+  try {
+    const d = await apiFetch('auth_register', { name, email, password: pass });
+    token = d.token;
+    localStorage.setItem('rmifo_token', token);
+    await initApp();
+  } catch (e) {
+    document.getElementById('login-err').textContent = e.message;
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  token = '';
+  localStorage.removeItem('rmifo_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-overlay').classList.remove('hidden');
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('nav a[data-section]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(a.dataset.section);
+  });
+});
+
+function navigate(section) {
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.dataset.section === section));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(`section-${section}`);
+  if (el) el.classList.add('active');
+  if (section === 'overview')  loadOverview();
+  if (section === 'keys')      loadKeys();
+  if (section === 'tunnels')   loadTunnels();
+  if (section === 'downloads') loadDownloads();
+  if (section === 'usage')     { usageOffset = 0; loadUsage(true); }
+  if (section === 'billing')   loadBilling();
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+async function initApp() {
+  try {
+    userData = await apiFetch('account_usage', {});
+  } catch (e) {
+    token = '';
+    localStorage.removeItem('rmifo_token');
+    return;
+  }
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('app').style.display = '';
+  updateSidebarUser();
+  navigate('overview');
+}
+
+function updateSidebarUser() {
+  if (!userData) return;
+  const credits = userData.credits ?? 0;
+  document.getElementById('sidebar-credits').textContent = fmt(credits);
+  document.getElementById('user-email-display').textContent = userData.email || '';
+  const initials = (userData.name || userData.email || '?').slice(0, 2).toUpperCase();
+  document.getElementById('user-initials').textContent = initials;
+}
+
+// ── Overview ─────────────────────────────────────────────────────────────────
+
+async function loadOverview() {
+  try {
+    const d = await apiFetch('account_usage', {});
+    userData = d;
+    updateSidebarUser();
+
+    document.getElementById('ov-credits').textContent      = fmt(d.credits ?? 0);
+    document.getElementById('ov-req-today').textContent    = fmt(d.requests_today ?? 0);
+    document.getElementById('ov-credits-today').textContent= fmt(d.credits_spent_today ?? 0);
+    document.getElementById('ov-tunnels').textContent      = fmt(d.active_tunnels ?? 0);
+    document.getElementById('ov-keys').textContent         = fmt(d.api_keys ?? 0);
+    document.getElementById('ov-req-total').textContent    = fmt(d.requests_total ?? 0);
+
+    renderCreditsChart(d.credits_history || []);
+    renderServicesChart(d.service_breakdown || []);
+  } catch (e) {
+    toast('Erro ao carregar visão geral: ' + e.message, 'err');
+  }
+}
+
+function renderCreditsChart(history) {
+  const ctx = document.getElementById('chart-credits').getContext('2d');
+  const labels = history.map(h => h.date);
+  const values = history.map(h => h.credits);
+  if (creditsChart) creditsChart.destroy();
+  creditsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Créditos', data: values, backgroundColor: 'rgba(88,166,255,.5)', borderColor: '#58a6ff', borderWidth: 1 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }, y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } } } }
+  });
+}
+
+function renderServicesChart(breakdown) {
+  const ctx = document.getElementById('chart-services').getContext('2d');
+  const labels = breakdown.map(b => b.service);
+  const values = breakdown.map(b => b.count);
+  const colors = ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#79c0ff','#56d364'];
+  if (servicesChart) servicesChart.destroy();
+  servicesChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { position: 'right', labels: { color: '#8b949e', boxWidth: 12 } } } }
+  });
+}
+
+// ── API Keys ─────────────────────────────────────────────────────────────────
+
+async function loadKeys() {
+  try {
+    const d = await apiFetch('key_list', {});
+    const tbody = document.getElementById('keys-table-body');
+    if (!d.keys || d.keys.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhuma chave criada.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.keys.map(k => `
+      <tr>
+        <td>${k.label || '—'}</td>
+        <td><code class="key">${k.key_prefix}…</code></td>
+        <td>${badgeStatus(k.active ? 'active' : 'deleted')}</td>
+        <td>${fmtDate(k.last_used)}</td>
+        <td><button class="btn btn-danger" style="padding:4px 10px;font-size:12px" onclick="deleteKey(${k.id})">Revogar</button></td>
+      </tr>`).join('');
+  } catch (e) {
+    toast('Erro ao listar chaves: ' + e.message, 'err');
+  }
+}
+
+document.getElementById('btn-create-key').addEventListener('click', async () => {
+  const label = document.getElementById('new-key-label').value.trim();
+  try {
+    const d = await apiFetch('key_create', { label });
+    document.getElementById('new-key-value').textContent = d.api_key;
+    document.getElementById('new-key-reveal').style.display = '';
+    toast('Chave criada!', 'ok');
+    loadKeys();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'err');
+  }
+});
+
+async function deleteKey(id) {
+  if (!confirm('Revogar esta chave?')) return;
+  try {
+    await apiFetch('key_delete', { key_id: id });
+    toast('Chave revogada.', 'ok');
+    loadKeys();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'err');
+  }
+}
+
+// ── Tunnels ───────────────────────────────────────────────────────────────────
+
+async function loadTunnels() {
+  try {
+    const d = await apiFetch('tunnel_list', {});
+    const tbody = document.getElementById('tunnels-table-body');
+    if (!d.tunnels || d.tunnels.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Nenhum túnel criado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.tunnels.map(t => `
+      <tr>
+        <td>${t.label || '—'}</td>
+        <td><code class="key">${t.client_ip}</code></td>
+        <td>${badgeStatus(t.status)}</td>
+        <td>${fmtDate(t.last_handshake)}</td>
+        <td>${fmtBytes(t.bytes_rx)} ↓ / ${fmtBytes(t.bytes_tx)} ↑</td>
+        <td>${t.status !== 'deleted' ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:12px" onclick="deleteTunnel('${t.tunnel_id}')">Apagar</button>` : ''}</td>
+      </tr>`).join('');
+  } catch (e) {
+    toast('Erro ao listar túneis: ' + e.message, 'err');
+  }
+}
+
+document.getElementById('btn-create-tunnel').addEventListener('click', () => {
+  document.getElementById('tunnel-create-panel').style.display = '';
+  document.getElementById('btn-create-tunnel').style.display = 'none';
+});
+document.getElementById('btn-tunnel-cancel').addEventListener('click', () => {
+  document.getElementById('tunnel-create-panel').style.display = 'none';
+  document.getElementById('btn-create-tunnel').style.display = '';
+});
+
+document.getElementById('btn-tunnel-submit').addEventListener('click', async () => {
+  const label = document.getElementById('tunnel-label').value.trim();
+  try {
+    const d = await apiFetch('tunnel_create', { label });
+    const cfg = buildWgConfig(d);
+    document.getElementById('tunnel-config-text').textContent = cfg;
+    document.getElementById('tunnel-config-box').style.display = '';
+    document.getElementById('tunnel-create-panel').style.display = 'none';
+    document.getElementById('btn-create-tunnel').style.display = '';
+    toast('Túnel criado! Copie a configuração.', 'ok');
+    loadTunnels();
+    // Update credits
+    userData = await apiFetch('account_usage', {});
+    updateSidebarUser();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'err');
+  }
+});
+
+function buildWgConfig(d) {
+  return `[Interface]
+PrivateKey = ${d.client_privkey || '<sua-chave-privada>'}
+Address = ${d.client_ip}/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = ${d.server_pubkey || '<chave-publica-servidor>'}
+${d.preshared_key ? `PresharedKey = ${d.preshared_key}\n` : ''}Endpoint = ${location.hostname}:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25`;
+}
+
+async function deleteTunnel(id) {
+  if (!confirm('Apagar túnel permanentemente?')) return;
+  try {
+    await apiFetch('tunnel_delete', { tunnel_id: id });
+    toast('Túnel apagado.', 'ok');
+    loadTunnels();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'err');
+  }
+}
+
+// ── Downloads ─────────────────────────────────────────────────────────────────
+
+async function loadDownloads() {
+  try {
+    const d = await apiFetch('db_list', {});
+    const tbody = document.getElementById('downloads-table-body');
+    if (!d.databases || d.databases.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhuma base disponível.</td></tr>';
+    } else {
+      tbody.innerHTML = d.databases.map(db => `
+        <tr>
+          <td>${db.name}</td>
+          <td>${db.version}</td>
+          <td>${db.size_human || '—'}</td>
+          <td><span class="badge badge-blue">${db.credits_cost} créditos</span></td>
+          <td><button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="downloadDb('${db.db_name}','${db.version}')">Download</button></td>
+        </tr>`).join('');
+    }
+
+    // History
+    const hist = await apiFetch('account_usage', {});
+    const hbody = document.getElementById('dl-history-body');
+    const downloads = hist.downloads || [];
+    hbody.innerHTML = downloads.length ? downloads.map(dl => `
+      <tr>
+        <td>${dl.db_name}</td>
+        <td>${dl.version}</td>
+        <td>${fmtDate(dl.created_at)}</td>
+        <td>${dl.downloaded ? badgeStatus('completed') : `<a href="${dl.url}" class="btn btn-ghost" style="padding:3px 10px;font-size:12px" target="_blank">Baixar</a>`}</td>
+      </tr>`).join('') : '<tr><td colspan="4" class="empty">Nenhum download ainda.</td></tr>';
+  } catch (e) {
+    toast('Erro: ' + e.message, 'err');
+  }
+}
+
+async function downloadDb(dbName, version) {
+  try {
+    const d = await apiFetch('db_download', { db_name: dbName, version });
+    window.open(d.url, '_blank');
+    toast('Download iniciado!', 'ok');
+    loadDownloads();
+    userData = await apiFetch('account_usage', {});
+    updateSidebarUser();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'err');
+  }
+}
+
+// ── Usage Logs ────────────────────────────────────────────────────────────────
+
+async function loadUsage(reset = false) {
+  if (reset) usageOffset = 0;
+  try {
+    const d = await apiFetch('usage_log', { limit: 50, offset: usageOffset });
+    const tbody = document.getElementById('usage-table-body');
+    const rows = (d.logs || []).map(l => `
+      <tr>
+        <td>${l.service}</td>
+        <td><code class="key">${l.ip || '—'}</code></td>
+        <td>${l.credits}</td>
+        <td>${badgeStatus(l.status)}</td>
+        <td>${fmtDate(l.created_at)}</td>
+      </tr>`).join('');
+    if (reset) tbody.innerHTML = rows || '<tr><td colspan="5" class="empty">Nenhum registro ainda.</td></tr>';
+    else tbody.innerHTML += rows;
+    usageOffset += (d.logs || []).length;
+    document.getElementById('btn-load-more-usage').style.display = (d.logs || []).length < 50 ? 'none' : '';
+  } catch (e) {
+    toast('Erro ao carregar logs: ' + e.message, 'err');
+  }
+}
+
+document.getElementById('btn-load-more-usage').addEventListener('click', () => loadUsage(false));
+
+// ── Billing ───────────────────────────────────────────────────────────────────
+
+async function loadBilling() {
+  try {
+    const d = await apiFetch('billing_checkout', {});
+    // This call should list packs — we'll get them from account_usage which includes pricing
+    const usage = await apiFetch('account_usage', {});
+    const packs = usage.credit_packs || [];
+    const grid = document.getElementById('packs-grid');
+    grid.innerHTML = packs.length ? packs.map(p => `
+      <div class="pack-card" onclick="checkout(${p.id})">
+        <div class="pack-name">${p.name}</div>
+        <div class="pack-credits">${fmt(p.credits)} <span>créditos</span></div>
+        <div class="pack-price"><strong>R$ ${(p.price_cents / 100).toFixed(2).replace('.', ',')}</strong></div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center">Comprar</button>
+      </div>`).join('') : '<div class="empty">Nenhum pacote disponível.</div>';
+
+    const hist = usage.purchases || [];
+    const hbody = document.getElementById('billing-history-body');
+    hbody.innerHTML = hist.length ? hist.map(p => `
+      <tr>
+        <td>${p.pack_name || '—'}</td>
+        <td>${fmt(p.credits)}</td>
+        <td>R$ ${(p.amount_cents / 100).toFixed(2).replace('.', ',')}</td>
+        <td>${badgeStatus(p.status)}</td>
+        <td>${fmtDate(p.created_at)}</td>
+      </tr>`).join('') : '<tr><td colspan="5" class="empty">Nenhuma compra ainda.</td></tr>';
+  } catch (e) {
+    toast('Erro ao carregar cobrança: ' + e.message, 'err');
+  }
+}
+
+async function checkout(packId) {
+  try {
+    const d = await apiFetch('billing_checkout', { pack_id: packId });
+    if (d.url) window.location.href = d.url;
+  } catch (e) {
+    toast('Erro ao iniciar checkout: ' + e.message, 'err');
+  }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+
+if (token) {
+  initApp();
+} else {
+  document.getElementById('login-overlay').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
