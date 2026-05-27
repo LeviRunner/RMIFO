@@ -2299,6 +2299,57 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
     }
 
+    // ── build_ip_ranges: deriva /24 dos IPs já no banco → ip_range_targets ───
+    if ($_modeNow === 'build_ip_ranges') {
+        try {
+            $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
+            // Garante que ip_range_targets existe
+            $pdo->exec("CREATE TABLE IF NOT EXISTS ip_range_targets (
+                id           SERIAL PRIMARY KEY,
+                cidr         CIDR NOT NULL UNIQUE,
+                label        VARCHAR(120),
+                country_code CHAR(2),
+                isp_name     VARCHAR(200),
+                priority     SMALLINT DEFAULT 5,
+                active       BOOLEAN DEFAULT TRUE,
+                notes        TEXT,
+                created_at   TIMESTAMPTZ DEFAULT NOW()
+            )");
+            // Insere /24 derivados de todos os IPs públicos conhecidos
+            $sql = "
+                INSERT INTO ip_range_targets (cidr, label, priority, active)
+                SELECT DISTINCT
+                    network(set_masklen(ip, 24)) AS cidr,
+                    host(network(set_masklen(ip, 24))) || '/24' AS label,
+                    5 AS priority,
+                    TRUE AS active
+                FROM (
+                    SELECT ip_start::inet AS ip
+                    FROM endpoint_ip_samples WHERE ip_start IS NOT NULL
+                    UNION ALL
+                    SELECT hop_ip::inet AS ip
+                    FROM hop_switch_geolocations WHERE hop_ip IS NOT NULL
+                    UNION ALL
+                    SELECT hop_ip::inet AS ip
+                    FROM cable_telemetry_hops WHERE hop_ip IS NOT NULL
+                ) t
+                WHERE family(ip) = 4
+                  AND NOT ip << '10.0.0.0/8'::inet
+                  AND NOT ip << '172.16.0.0/12'::inet
+                  AND NOT ip << '192.168.0.0/16'::inet
+                  AND NOT ip << '127.0.0.0/8'::inet
+                  AND NOT ip << '169.254.0.0/16'::inet
+                ON CONFLICT (cidr) DO NOTHING
+            ";
+            $stmt    = $pdo->query($sql);
+            $added   = $stmt ? $stmt->rowCount() : 0;
+            $total   = (int)($pdo->query("SELECT COUNT(*) FROM ip_range_targets WHERE active")->fetchColumn());
+            jsonResponse(['status' => 'ok', 'added' => $added, 'total' => $total]);
+        } catch (\Throwable $e) {
+            jsonResponse(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     // ── switch_start: inicia sonda_switch.js em background ──────────────────
     if ($_modeNow === 'switch_start') {
         if (!function_exists('exec')) {
@@ -2326,25 +2377,41 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         @mkdir($histDir, 0775, true);
         if (file_exists($liveFile)) @unlink($liveFile);
 
-        $mtrCycles = max(3, min(50, (int)($_reqAll['mtr_cycles'] ?? 20)));
-        $nodeBin   = trim((string)shell_exec('which node 2>/dev/null') ?: 'node');
-        $logFile   = $histDir . '/switch_stdout.log';
-        $cmd = sprintf(
-            'nohup %s %s --mtr-cycles %s > %s 2>&1 & echo $!',
-            escapeshellarg($nodeBin),
-            escapeshellarg($script),
-            escapeshellarg((string)$mtrCycles),
-            escapeshellarg($logFile)
-        );
+        $mtrCycles  = max(3, min(50, (int)($_reqAll['mtr_cycles'] ?? 20)));
+        $probeMode  = in_array($_reqAll['probe_mode'] ?? '', ['cable', 'ip_ranges'], true)
+                      ? ($_reqAll['probe_mode'] ?? 'cable') : 'cable';
+        $ipStep     = max(1, min(64, (int)($_reqAll['ip_step'] ?? 8)));
+        $nodeBin    = trim((string)shell_exec('which node 2>/dev/null') ?: 'node');
+        $logFile    = $histDir . '/switch_stdout.log';
+
+        // Monta argumentos de acordo com o modo
+        if ($probeMode === 'ip_ranges') {
+            $cmd = sprintf(
+                'nohup %s %s --ip-ranges-db --ip-step %s --mtr-cycles %s > %s 2>&1 & echo $!',
+                escapeshellarg($nodeBin),
+                escapeshellarg($script),
+                escapeshellarg((string)$ipStep),
+                escapeshellarg((string)$mtrCycles),
+                escapeshellarg($logFile)
+            );
+        } else {
+            $cmd = sprintf(
+                'nohup %s %s --mtr-cycles %s > %s 2>&1 & echo $!',
+                escapeshellarg($nodeBin),
+                escapeshellarg($script),
+                escapeshellarg((string)$mtrCycles),
+                escapeshellarg($logFile)
+            );
+        }
         exec($cmd, $out);
         $pid = trim($out[0] ?? '');
         if ($pid) {
             file_put_contents($runFile, json_encode([
                 'pid' => $pid, 'started_at' => gmdate('c'), 'mtr_cycles' => $mtrCycles,
-                'log_file' => $logFile,
+                'probe_mode' => $probeMode, 'ip_step' => $ipStep, 'log_file' => $logFile,
             ]));
         }
-        jsonResponse(['status' => 'started', 'pid' => $pid, 'mtr_cycles' => $mtrCycles]);
+        jsonResponse(['status' => 'started', 'pid' => $pid, 'mtr_cycles' => $mtrCycles, 'probe_mode' => $probeMode]);
     }
 
     // ── switch_cancel: cancela sonda em execução ──────────────────────────────

@@ -2840,6 +2840,9 @@ function initSwitchPage() {
   const runBtn        = document.getElementById('btn-sw-run');
   const cancelBtn     = document.getElementById('btn-sw-cancel');
   const cyclesInput   = document.getElementById('sw-mtr-cycles');
+  const stepInput     = document.getElementById('sw-ip-step');
+  const stepWrap      = document.getElementById('sw-step-wrap');
+  const modeToggle    = document.getElementById('sw-mode-toggle');
   const errorEl       = document.getElementById('sw-error');
   const statusDot     = document.getElementById('sw-status-dot');
   const phaseBar      = document.getElementById('sw-phase-bar');
@@ -2867,6 +2870,17 @@ function initSwitchPage() {
   let allGeo      = [];
   let liveTimer   = null;
   let isRunning   = false;
+  let probeMode   = 'cable'; // 'cable' | 'ip_ranges'
+
+  // ── Seletor de modo ──────────────────────────────────────────────────────
+  modeToggle?.querySelectorAll('.sw-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeToggle.querySelectorAll('.sw-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      probeMode = btn.dataset.mode;
+      if (stepWrap) stepWrap.style.display = probeMode === 'ip_ranges' ? '' : 'none';
+    });
+  });
 
   const roleLabel = {
     gateway:     { label: 'Gateway',      cls: 'sw-role-gw' },
@@ -3081,10 +3095,11 @@ function initSwitchPage() {
     }, 3000);
   }
 
-  // Executar MTR → switch_start + polling
+  // Executar MTR → (build_ip_ranges se ip_ranges) → switch_start + polling
   runBtn?.addEventListener('click', async () => {
     if (isRunning) return;
     const cycles = parseInt(cyclesInput?.value || '20', 10);
+    const step   = parseInt(stepInput?.value  || '8',  10);
     setRunningUI(true);
     setDot('running');
     progressWrap.style.display = '';
@@ -3094,7 +3109,19 @@ function initSwitchPage() {
     if (cablePanel)  cablePanel.style.display = 'none';
     if (errorEl)     errorEl.textContent = '';
     try {
-      const res = await apiFetch({ action: 'switch_start', mtr_cycles: cycles });
+      // Em modo ip_ranges: constrói/atualiza a tabela de ranges primeiro
+      if (probeMode === 'ip_ranges') {
+        const built = await apiFetch({ action: 'build_ip_ranges' });
+        if (built?.status === 'error') {
+          if (errorEl) errorEl.textContent = 'Erro ao construir ranges: ' + (built.message || '');
+          setRunningUI(false); setDot('idle'); return;
+        }
+        if (errorEl && built?.total === 0) {
+          errorEl.textContent = 'Nenhum range encontrado. Execute a sonda de cabos primeiro para popular o banco.';
+          setRunningUI(false); setDot('idle'); return;
+        }
+      }
+      const res = await apiFetch({ action: 'switch_start', mtr_cycles: cycles, probe_mode: probeMode, ip_step: step });
       if (res?.status === 'error') {
         if (errorEl) errorEl.textContent = res.message || 'Erro ao iniciar.';
         setRunningUI(false); setDot('idle'); return;

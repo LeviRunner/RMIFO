@@ -3776,6 +3776,30 @@ tbody tr:hover {
   border-top: 1px solid rgba(255,255,255,0.07);
 }
 
+/* Seletor de modo Cabos / Ranges de IP */
+.sw-mode-toggle {
+  display: flex;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sw-mode-btn {
+  padding: 5px 13px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: .82rem;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  white-space: nowrap;
+}
+.sw-mode-btn:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.12); }
+.sw-mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
 /* Círculo de status: cinza=idle, laranja=rodando, verde=concluído */
 .sw-status-dot {
   width: 14px;
