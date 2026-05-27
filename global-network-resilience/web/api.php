@@ -2299,11 +2299,13 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
     }
 
-    // ── build_ip_ranges: deriva /24 dos IPs já no banco → ip_range_targets ───
+    // ── build_ip_ranges: deriva /8 /16 /24 /32 dos IPs já no banco ──────────
+    // Popula ip_range_targets (para probing) e seed em hop_switch_geolocations
     if ($_modeNow === 'build_ip_ranges') {
         try {
             $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
-            // Garante que ip_range_targets existe
+
+            // Garante esquema e coluna step_size
             $pdo->exec("CREATE TABLE IF NOT EXISTS ip_range_targets (
                 id           SERIAL PRIMARY KEY,
                 cidr         CIDR NOT NULL UNIQUE,
@@ -2311,40 +2313,98 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 country_code CHAR(2),
                 isp_name     VARCHAR(200),
                 priority     SMALLINT DEFAULT 5,
+                step_size    SMALLINT DEFAULT NULL,
                 active       BOOLEAN DEFAULT TRUE,
                 notes        TEXT,
                 created_at   TIMESTAMPTZ DEFAULT NOW()
             )");
-            // Insere /24 derivados de todos os IPs públicos conhecidos
-            $sql = "
-                INSERT INTO ip_range_targets (cidr, label, priority, active)
-                SELECT DISTINCT
-                    network(set_masklen(ip, 24)) AS cidr,
-                    host(network(set_masklen(ip, 24))) || '/24' AS label,
-                    5 AS priority,
-                    TRUE AS active
-                FROM (
-                    SELECT ip_start::inet AS ip
-                    FROM endpoint_ip_samples WHERE ip_start IS NOT NULL
-                    UNION ALL
-                    SELECT hop_ip::inet AS ip
-                    FROM hop_switch_geolocations WHERE hop_ip IS NOT NULL
-                    UNION ALL
-                    SELECT hop_ip::inet AS ip
-                    FROM cable_telemetry_hops WHERE hop_ip IS NOT NULL
-                ) t
-                WHERE family(ip) = 4
-                  AND NOT ip << '10.0.0.0/8'::inet
-                  AND NOT ip << '172.16.0.0/12'::inet
-                  AND NOT ip << '192.168.0.0/16'::inet
-                  AND NOT ip << '127.0.0.0/8'::inet
-                  AND NOT ip << '169.254.0.0/16'::inet
+            $pdo->exec("ALTER TABLE ip_range_targets ADD COLUMN IF NOT EXISTS step_size SMALLINT DEFAULT NULL");
+
+            // CTE com todos os IPs públicos conhecidos
+            $srcCte = "
+                WITH source_ips AS (
+                    SELECT DISTINCT ip FROM (
+                        SELECT ip_start::inet AS ip
+                        FROM endpoint_ip_samples WHERE ip_start IS NOT NULL
+                        UNION ALL
+                        SELECT hop_ip::inet AS ip
+                        FROM cable_telemetry_hops WHERE hop_ip IS NOT NULL
+                        UNION ALL
+                        SELECT hop_ip::inet AS ip
+                        FROM hop_switch_geolocations WHERE hop_ip IS NOT NULL
+                    ) t
+                    WHERE family(ip) = 4
+                      AND NOT ip << '10.0.0.0/8'::inet
+                      AND NOT ip << '172.16.0.0/12'::inet
+                      AND NOT ip << '192.168.0.0/16'::inet
+                      AND NOT ip << '127.0.0.0/8'::inet
+                      AND NOT ip << '169.254.0.0/16'::inet
+                )
+            ";
+
+            // 1. Insere /24, /16, /8 em ip_range_targets com step_size por nível
+            $sqlRanges = $srcCte . "
+                INSERT INTO ip_range_targets (cidr, label, priority, step_size, active)
+                SELECT cidr, label, priority, step_size, TRUE FROM (
+                    SELECT DISTINCT
+                        network(set_masklen(ip, 24)) AS cidr,
+                        host(network(set_masklen(ip, 24))) || '/24' AS label,
+                        3 AS priority, 4::SMALLINT AS step_size
+                    FROM source_ips
+                    UNION
+                    SELECT DISTINCT
+                        network(set_masklen(ip, 16)) AS cidr,
+                        host(network(set_masklen(ip, 16))) || '/16' AS label,
+                        4 AS priority, 256::SMALLINT AS step_size
+                    FROM source_ips
+                    UNION
+                    SELECT DISTINCT
+                        network(set_masklen(ip, 8)) AS cidr,
+                        host(network(set_masklen(ip, 8))) || '/8' AS label,
+                        5 AS priority, 65536::SMALLINT AS step_size
+                    FROM source_ips
+                ) sub
                 ON CONFLICT (cidr) DO NOTHING
             ";
-            $stmt    = $pdo->query($sql);
-            $added   = $stmt ? $stmt->rowCount() : 0;
-            $total   = (int)($pdo->query("SELECT COUNT(*) FROM ip_range_targets WHERE active")->fetchColumn());
-            jsonResponse(['status' => 'ok', 'added' => $added, 'total' => $total]);
+            $stmtR   = $pdo->query($sqlRanges);
+            $addedR  = $stmtR ? $stmtR->rowCount() : 0;
+
+            // 2. Seed hop_switch_geolocations com /32 + representativos de /24 /16 /8
+            // Inserção apenas de hop_ip; demais colunas ficam NULL aguardando enriquecimento
+            $sqlGeo = $srcCte . "
+                , derived AS (
+                    -- /32: IPs exatos
+                    SELECT ip AS target_ip FROM source_ips
+                    UNION
+                    -- /24: primeiro host de cada /24
+                    SELECT (network(set_masklen(ip, 24)) + 1)::inet FROM source_ips
+                    UNION
+                    -- /16: primeiro host de cada /16
+                    SELECT (network(set_masklen(ip, 16)) + 1)::inet FROM source_ips
+                    UNION
+                    -- /8: primeiro host de cada /8
+                    SELECT (network(set_masklen(ip, 8)) + 1)::inet FROM source_ips
+                )
+                INSERT INTO hop_switch_geolocations (hop_ip)
+                SELECT DISTINCT target_ip FROM derived
+                WHERE target_ip IS NOT NULL
+                ON CONFLICT (hop_ip) DO NOTHING
+            ";
+            $stmtG  = $pdo->query($sqlGeo);
+            $addedG = $stmtG ? $stmtG->rowCount() : 0;
+
+            $totalR = (int)($pdo->query("SELECT COUNT(*) FROM ip_range_targets WHERE active")->fetchColumn());
+            $totalG = (int)($pdo->query("SELECT COUNT(*) FROM hop_switch_geolocations")->fetchColumn());
+            $nullG  = (int)($pdo->query("SELECT COUNT(*) FROM hop_switch_geolocations WHERE lat IS NULL")->fetchColumn());
+
+            jsonResponse([
+                'status'          => 'ok',
+                'ranges_added'    => $addedR,
+                'ranges_total'    => $totalR,
+                'ips_seeded'      => $addedG,
+                'ips_total'       => $totalG,
+                'ips_pending_geo' => $nullG,
+            ]);
         } catch (\Throwable $e) {
             jsonResponse(['status' => 'error', 'message' => $e->getMessage()], 500);
         }

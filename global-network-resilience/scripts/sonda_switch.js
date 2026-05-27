@@ -283,6 +283,7 @@ async function ensureSchema(db) {
         `CREATE INDEX IF NOT EXISTS idx_pps_ts       ON probe_path_segments(measured_at DESC)`,
         `ALTER TABLE cable_telemetry_hops    ADD COLUMN IF NOT EXISTS hop_role    VARCHAR(20)`,
         `ALTER TABLE probe_path_segments     ADD COLUMN IF NOT EXISTS probe_agent VARCHAR(120)`,
+        `ALTER TABLE ip_range_targets        ADD COLUMN IF NOT EXISTS step_size   SMALLINT DEFAULT NULL`,
     ];
     for (const sql of stmts) await db.query(sql).catch(() => {});
 }
@@ -318,16 +319,19 @@ async function buildTargets(db) {
         if (FILTER_RIR)     { params.push(FILTER_RIR);     conditions.push(`upper(isp_name) = $${params.length}`); }
         const where = conditions.join(' AND ');
         const res = await db.query(
-            `SELECT cidr::text AS cidr, label, country_code, isp_name, priority
+            `SELECT cidr::text AS cidr, label, country_code, isp_name, priority,
+                    COALESCE(step_size, $${params.length + 1}) AS step_size,
+                    masklen(cidr) AS prefix_len
              FROM ip_range_targets WHERE ${where} ORDER BY priority, id`,
-            params
+            [...params, IP_STEP]
         );
         const targets = [];
         const rows = res.rows;
         const filterDesc = [FILTER_COUNTRY && `country=${FILTER_COUNTRY}`, FILTER_RIR && `rir=${FILTER_RIR}`].filter(Boolean).join(', ');
         for (const row of rows) {
+            const step     = Math.max(1, parseInt(row.step_size, 10) || IP_STEP);
             const perRange = Math.max(1, Math.ceil(LIMIT / Math.max(rows.length, 1)));
-            const ips = expandCidr(row.cidr, IP_STEP).slice(0, perRange);
+            const ips      = expandCidr(row.cidr, step).slice(0, perRange);
             for (const ip of ips) targets.push({ id: row.cidr, label: `${row.label || row.cidr}/${ip}`, host: ip });
         }
         log(`IP ranges DB${filterDesc ? ` (${filterDesc})` : ''}: ${rows.length} ranges → ${targets.length} IPs`);
@@ -472,8 +476,20 @@ async function main() {
                             (hop_ip, lat, lng, city, region, country, country_code, isp, org, as_number, as_name)
                         VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
                         ON CONFLICT (hop_ip) DO UPDATE SET
-                            lat=EXCLUDED.lat, lng=EXCLUDED.lng, city=EXCLUDED.city,
-                            country=EXCLUDED.country, isp=EXCLUDED.isp, queried_at=NOW()
+                            lat          = COALESCE(hop_switch_geolocations.lat,          EXCLUDED.lat),
+                            lng          = COALESCE(hop_switch_geolocations.lng,          EXCLUDED.lng),
+                            city         = COALESCE(hop_switch_geolocations.city,         EXCLUDED.city),
+                            region       = COALESCE(hop_switch_geolocations.region,       EXCLUDED.region),
+                            country      = COALESCE(hop_switch_geolocations.country,      EXCLUDED.country),
+                            country_code = COALESCE(hop_switch_geolocations.country_code, EXCLUDED.country_code),
+                            isp          = COALESCE(hop_switch_geolocations.isp,          EXCLUDED.isp),
+                            org          = COALESCE(hop_switch_geolocations.org,          EXCLUDED.org),
+                            as_number    = COALESCE(hop_switch_geolocations.as_number,    EXCLUDED.as_number),
+                            as_name      = COALESCE(hop_switch_geolocations.as_name,      EXCLUDED.as_name),
+                            queried_at   = CASE WHEN hop_switch_geolocations.lat IS NULL
+                                                THEN NOW()
+                                                ELSE hop_switch_geolocations.queried_at END
+                        WHERE hop_switch_geolocations.lat IS NULL
                     `, [g.query, g.lat, g.lon, g.city, g.regionName, g.country,
                         g.countryCode, g.isp, g.org, g.as, g.asname]).catch(() => {});
                 }
@@ -545,6 +561,37 @@ async function main() {
                 segments: r.topology_segments?.length ?? 0,
             })),
         });
+    }
+
+    // Enriquecimento final: IPs com lat IS NULL (seeds de build_ip_ranges não cobertos pelo MTR)
+    if (db) {
+        const pendingRes = await db.query(
+            `SELECT hop_ip::text AS ip FROM hop_switch_geolocations WHERE lat IS NULL LIMIT 100`
+        ).catch(() => ({ rows: [] }));
+        const pendingIps = pendingRes.rows.map(r => r.ip).filter(ip => !geoCache.has(ip));
+        if (pendingIps.length) {
+            log(`Enriquecendo ${pendingIps.length} IPs pendentes em hop_switch_geolocations…`);
+            const batches = [];
+            for (let i = 0; i < pendingIps.length; i += 100) batches.push(pendingIps.slice(i, i + 100));
+            for (const batch of batches) {
+                const geoRes = await geoLookupBatch(batch);
+                for (const g of geoRes) {
+                    if (g.status !== 'success' || !g.lat) continue;
+                    geoCache.add(g.query);
+                    await db.query(`
+                        UPDATE hop_switch_geolocations SET
+                            lat=COALESCE(lat,$1), lng=COALESCE(lng,$2), city=COALESCE(city,$3),
+                            region=COALESCE(region,$4), country=COALESCE(country,$5),
+                            country_code=COALESCE(country_code,$6), isp=COALESCE(isp,$7),
+                            org=COALESCE(org,$8), as_number=COALESCE(as_number,$9),
+                            as_name=COALESCE(as_name,$10), queried_at=NOW()
+                        WHERE hop_ip=$11::inet AND lat IS NULL
+                    `, [g.lat, g.lon, g.city, g.regionName, g.country,
+                        g.countryCode, g.isp, g.org, g.as, g.asname, g.query]).catch(() => {});
+                }
+            }
+            ok(`Enriquecimento final: ${geoCache.size} IPs geolocalizados no total`);
+        }
     }
 
     // Aguarda geo queue
