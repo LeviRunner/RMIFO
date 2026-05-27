@@ -340,19 +340,54 @@ async function buildTargets(db) {
         cables = JSON.parse(fs.readFileSync(path.resolve(CABLES_FILE), 'utf8'));
     } else if (db) {
         const res = await db.query(
-            `SELECT cable_id, cable_name, length_km, capacity_gbps,
-                    landing_points_count, public_url
-             FROM cables WHERE public_url IS NOT NULL ORDER BY cable_id`
+            `SELECT cable_id, cable_name, public_url FROM cables ORDER BY cable_id`
         );
         cables = res.rows;
     }
     if (SINGLE) cables = cables.filter(c => c.cable_id === SINGLE);
-    cables = cables.filter(c => extractHost(c.public_url)).slice(0, LIMIT);
-    return cables.map(c => ({
-        id:    c.cable_id,
-        label: c.cable_name || c.cable_id,
-        host:  extractHost(c.public_url),
-    }));
+    cables = cables.slice(0, LIMIT);
+
+    const targets = [];
+
+    // Fonte primária: IPs reais dos endpoints no banco (ip_start de endpoint_ip_samples)
+    if (db && cables.length) {
+        const cableIds = cables.map(c => c.cable_id);
+        const res = await db.query(
+            `SELECT ce.cable_id, eis.ip_start::text AS ip
+             FROM cable_endpoints ce
+             JOIN endpoint_ip_samples eis ON eis.endpoint_id = ce.endpoint_id
+             WHERE ce.cable_id = ANY($1::text[])
+             ORDER BY ce.cable_id, ce.endpoint_order, eis.sample_order`,
+            [cableIds]
+        ).catch(() => ({ rows: [] }));
+
+        // Primeiro IP por cabo
+        const ipByCable = {};
+        for (const row of res.rows) {
+            if (!ipByCable[row.cable_id]) ipByCable[row.cable_id] = row.ip;
+        }
+
+        for (const c of cables) {
+            const ip = ipByCable[c.cable_id];
+            if (ip) {
+                targets.push({ id: c.cable_id, label: c.cable_name || c.cable_id, host: ip });
+            } else {
+                // Fallback: hostname do public_url quando não há endpoint IP registrado
+                const h = extractHost(c.public_url);
+                if (h) targets.push({ id: c.cable_id, label: c.cable_name || c.cable_id, host: h });
+            }
+        }
+        const withIp = targets.filter(t => /^\d{1,3}\./.test(t.host)).length;
+        log(`Modo cabo: ${targets.length} cabos — ${withIp} com IP real de endpoint, ${targets.length - withIp} com hostname`);
+    } else {
+        // Sem DB: usa hostname do public_url como fallback
+        for (const c of cables) {
+            const h = extractHost(c.public_url);
+            if (h) targets.push({ id: c.cable_id, label: c.cable_name || c.cable_id, host: h });
+        }
+        log(`Modo cabo: ${targets.length} cabos (sem DB, usando public_url)`);
+    }
+    return targets;
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
