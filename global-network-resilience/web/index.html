@@ -749,10 +749,15 @@
             <option value="isp_transit">ISP Transit</option>
             <option value="isp_server">ISP Server</option>
           </select>
+          <label class="sw-cycles-wrap" title="Ciclos MTR por alvo">
+            <span>Ciclos</span>
+            <input id="sw-mtr-cycles" type="number" min="3" max="50" value="20" class="sw-cycles-input">
+          </label>
           <button class="btn primary" id="btn-sw-run">
             <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg>
             Executar MTR
           </button>
+          <button class="btn danger" id="btn-sw-cancel" style="display:none">Cancelar</button>
           <button class="btn" id="btn-sw-refresh">Atualizar</button>
         </div>
       </div>
@@ -767,13 +772,14 @@
       <!-- Progresso ao vivo (quando sonda está rodando) -->
       <div id="sw-live-wrap" style="display:none">
         <div class="sw-live-bar">
-          <div class="sw-live-dot"></div>
+          <div class="sw-live-dot" id="sw-live-dot"></div>
           <span id="sw-live-label">Aguardando progresso…</span>
           <span class="sw-live-pct" id="sw-live-pct">0%</span>
         </div>
         <div class="sw-progress-outer">
           <div class="sw-progress-inner" id="sw-progress-inner"></div>
         </div>
+        <div id="sw-live-feed" class="sw-live-feed" style="display:none"></div>
       </div>
 
       <!-- Sumário de totais -->

@@ -3845,6 +3845,10 @@ tbody tr:hover {
 .sw-live-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.sw-live-dot.sw-live-dot-active {
   background: #22c55e;
   animation: sw-blink 1s ease-in-out infinite;
 }
@@ -3871,6 +3875,49 @@ tbody tr:hover {
   transition: width 400ms ease;
   width: 0%;
 }
+
+/* Input de ciclos MTR */
+.sw-cycles-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.sw-cycles-input {
+  width: 54px;
+  padding: 5px 7px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: center;
+}
+.sw-cycles-input:focus { outline: none; border-color: var(--accent); }
+
+/* Live feed de sondas recentes */
+.sw-live-feed {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sw-feed-row {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.03);
+  animation: sw-feed-in 0.3s ease;
+}
+@keyframes sw-feed-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+.sw-feed-cable { flex: 1; color: var(--fg); font-family: monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw-feed-hops  { color: #60a5fa; white-space: nowrap; }
+.sw-feed-rtt   { color: #22c55e; white-space: nowrap; }
+.sw-feed-seg   { color: var(--muted); white-space: nowrap; }
 
 /* Cards de totais */
 .sw-totals {

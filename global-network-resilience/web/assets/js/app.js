@@ -2852,9 +2852,15 @@ function initSwitchPage() {
   const geoTbody     = document.getElementById('sw-geo-tbody');
   const geoCount     = document.getElementById('sw-geo-count');
 
-  let allSegments = [];
-  let allGeo      = [];
-  let liveTimer   = null;
+  const cancelBtn   = document.getElementById('btn-sw-cancel');
+  const cyclesInput = document.getElementById('sw-mtr-cycles');
+  const liveDot     = document.getElementById('sw-live-dot');
+  const liveFeed    = document.getElementById('sw-live-feed');
+
+  let allSegments   = [];
+  let allGeo        = [];
+  let liveTimer     = null;
+  let isRunning     = false;
 
   const roleLabel = {
     gateway:     { label: 'Gateway',      cls: 'sw-role-gw' },
@@ -2945,31 +2951,110 @@ function initSwitchPage() {
     renderGeo();
   }
 
+  function setRunningUI(running) {
+    isRunning = running;
+    if (runBtn) {
+      runBtn.disabled = running;
+      runBtn.innerHTML = running
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5"/></svg> Rodando…'
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Executar MTR';
+    }
+    if (cancelBtn) cancelBtn.style.display = running ? '' : 'none';
+    if (liveDot)   liveDot.classList.toggle('sw-live-dot-active', running);
+  }
+
+  function updateLiveFeed(recent) {
+    if (!liveFeed || !Array.isArray(recent) || !recent.length) return;
+    liveFeed.style.display = '';
+    liveFeed.innerHTML = recent.slice(-5).reverse().map(r =>
+      `<div class="sw-feed-row">
+        <span class="sw-feed-cable">${esc(r.cable_id)}</span>
+        <span class="sw-feed-hops">${r.hops ?? 0} hops</span>
+        <span class="sw-feed-rtt">${r.rtt_ms != null ? r.rtt_ms + ' ms' : '—'}</span>
+        <span class="sw-feed-seg">${r.segments ?? 0} seg.</span>
+      </div>`
+    ).join('');
+  }
+
   function pollLive() {
     if (liveTimer) clearInterval(liveTimer);
     liveTimer = setInterval(async () => {
       try {
         const live = await apiFetch({ action: 'switch_live' });
-        if (!live || !live.current) return;
-        const pct = live.percent ?? Math.round((live.current / (live.total||1)) * 100);
+        if (!live) return;
+
+        const status = live.status || (live.current ? 'running' : 'starting');
         liveWrap.style.display = '';
-        liveLabel.textContent = `Sondando ${live.current} / ${live.total} cabos — ${live.switches_found ?? 0} IPs públicos descobertos`;
-        livePct.textContent   = pct + '%';
-        progressInner.style.width = pct + '%';
-        if (live.current >= live.total) {
+
+        if (status === 'starting') {
+          liveLabel.textContent     = 'Iniciando sonda…';
+          livePct.textContent       = '0%';
+          progressInner.style.width = '0%';
+          setRunningUI(true);
+          return;
+        }
+
+        if (status === 'running' || live.current) {
+          const cur = live.current || 0;
+          const tot = live.total   || 1;
+          const pct = live.percent ?? Math.round((cur / tot) * 100);
+          liveLabel.textContent     = `Sondando ${cur} / ${tot} cabos — ${live.switches_found ?? 0} IPs públicos`;
+          livePct.textContent       = pct + '%';
+          progressInner.style.width = pct + '%';
+          setRunningUI(true);
+          updateLiveFeed(live.recent);
+        }
+
+        if (status === 'completed' || (live.current && live.current >= (live.total || Infinity))) {
           clearInterval(liveTimer);
-          liveLabel.textContent = `Concluído — ${live.current} cabos sondados`;
+          liveLabel.textContent     = `Concluído — ${live.current} cabos sondados, ${live.switches_found ?? 0} IPs públicos`;
+          livePct.textContent       = '100%';
+          progressInner.style.width = '100%';
+          setRunningUI(false);
           loadData();
         }
-      } catch {}
+      } catch { /* ignore network errors during poll */ }
     }, 3000);
   }
 
-  // Botão Executar MTR → mostra comando e começa polling
-  runBtn?.addEventListener('click', () => {
-    pollLive();
-    liveWrap.style.display = '';
-    liveLabel.textContent  = 'Aguardando início da sonda…';
+  // Botão Executar MTR → chama switch_start e inicia polling
+  runBtn?.addEventListener('click', async () => {
+    if (isRunning) return;
+    const cycles = parseInt(cyclesInput?.value || '20', 10);
+    setRunningUI(true);
+    liveWrap.style.display    = '';
+    liveLabel.textContent     = 'Iniciando sonda…';
+    livePct.textContent       = '0%';
+    progressInner.style.width = '0%';
+    if (liveFeed) { liveFeed.innerHTML = ''; liveFeed.style.display = 'none'; }
+    if (errorEl)  errorEl.textContent = '';
+    try {
+      const res = await apiFetch({ action: 'switch_start', mtr_cycles: cycles });
+      if (res?.status === 'error') {
+        if (errorEl) errorEl.textContent = res.message || 'Erro ao iniciar.';
+        setRunningUI(false);
+        return;
+      }
+      if (res?.status === 'already_running') {
+        liveLabel.textContent = 'Sonda já em execução — monitorando…';
+      }
+      pollLive();
+    } catch (e) {
+      if (errorEl) errorEl.textContent = e.message;
+      setRunningUI(false);
+    }
+  });
+
+  // Botão Cancelar
+  cancelBtn?.addEventListener('click', async () => {
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = 'Cancelando…';
+    try { await apiFetch({ action: 'switch_cancel' }); } catch { /* best-effort */ }
+    if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+    setRunningUI(false);
+    liveLabel.textContent = 'Sonda cancelada.';
+    cancelBtn.disabled    = false;
+    cancelBtn.textContent = 'Cancelar';
   });
 
   // Copiar comando
@@ -2988,13 +3073,30 @@ function initSwitchPage() {
   // Refresh manual
   refreshBtn?.addEventListener('click', loadData);
 
-  // Carrega ao entrar na página
+  // Detecta automaticamente se sonda está rodando ao abrir a página
   document.querySelectorAll('.nav-link[data-page="switch"]').forEach(a => {
-    a.addEventListener('click', loadData);
+    a.addEventListener('click', async () => {
+      loadData();
+      try {
+        const live = await apiFetch({ action: 'switch_live' });
+        if (live && (live.status === 'running' || live.status === 'starting')) {
+          setRunningUI(true);
+          liveWrap.style.display = '';
+          pollLive();
+        }
+      } catch { /* silent */ }
+    });
   });
 
-  // Carga inicial
+  // Carga inicial + detecção de sonda em andamento
   loadData();
+  apiFetch({ action: 'switch_live' }).then(live => {
+    if (live && (live.status === 'running' || live.status === 'starting')) {
+      setRunningUI(true);
+      liveWrap.style.display = '';
+      pollLive();
+    }
+  }).catch(() => {});
 }
 
 // ─── History page ─────────────────────────────────────────────────────────────

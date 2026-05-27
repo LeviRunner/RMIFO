@@ -79,13 +79,13 @@ function checkRateLimit(PDO $pdo, string $action): void
 {
     $rawIp  = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     $ip     = trim(explode(',', $rawIp)[0]);
-    // daily_start: 1 req/10min; probe: 5 req/min; demais: 60 req/min
+    // daily_start/switch_start: 1 req/10min; probe: 5 req/min; demais: 60 req/min
     $limit  = match($action) {
-        'daily_start' => 1,
-        'probe'       => 5,
-        default       => 60,
+        'daily_start', 'switch_start' => 1,
+        'probe'                       => 5,
+        default                       => 60,
     };
-    $windowMins = ($action === 'daily_start') ? 10 : 1;
+    $windowMins = in_array($action, ['daily_start', 'switch_start']) ? 10 : 1;
     $ipHash = hash('sha256', $ip . $action); // hash separado por ação
     $window = gmdate('Y-m-d H:') . str_pad((string)((int)(gmdate('i') / $windowMins) * $windowMins), 2, '0', STR_PAD_LEFT) . ':00+00';
 
@@ -2299,11 +2299,92 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
     }
 
+    // ── switch_start: inicia sonda_switch.js em background ──────────────────
+    if ($_modeNow === 'switch_start') {
+        if (!function_exists('exec')) {
+            jsonResponse(['status' => 'error', 'message' => 'exec() não disponível.'], 503);
+        }
+        $script  = $_projectDir . '/scripts/sonda_switch.js';
+        if (!file_exists($script)) {
+            jsonResponse(['status' => 'error', 'message' => 'sonda_switch.js não encontrado.'], 404);
+        }
+        $runFile  = $_projectDir . '/data/local/.switch_running';
+        $date     = date('Y-m-d');
+        $histDir  = $_projectDir . '/data/local/historico/' . $date;
+        $liveFile = $histDir . '/.switch_live.json';
+
+        // Verifica se já está rodando
+        if (file_exists($runFile)) {
+            $info = json_decode((string)file_get_contents($runFile), true) ?: [];
+            $pid  = (string)($info['pid'] ?? '');
+            if ($pid !== '' && file_exists('/proc/' . $pid)) {
+                jsonResponse(['status' => 'already_running', 'pid' => $pid, 'started_at' => $info['started_at'] ?? null]);
+            }
+            @unlink($runFile);
+        }
+
+        @mkdir($histDir, 0775, true);
+        if (file_exists($liveFile)) @unlink($liveFile);
+
+        $mtrCycles = max(3, min(50, (int)($_reqAll['mtr_cycles'] ?? 20)));
+        $nodeBin   = trim((string)shell_exec('which node 2>/dev/null') ?: 'node');
+        $cmd = sprintf(
+            'nohup %s %s --mtr-cycles %s > /dev/null 2>&1 & echo $!',
+            escapeshellarg($nodeBin),
+            escapeshellarg($script),
+            escapeshellarg((string)$mtrCycles)
+        );
+        exec($cmd, $out);
+        $pid = trim($out[0] ?? '');
+        if ($pid) {
+            file_put_contents($runFile, json_encode([
+                'pid' => $pid, 'started_at' => gmdate('c'), 'mtr_cycles' => $mtrCycles,
+            ]));
+        }
+        jsonResponse(['status' => 'started', 'pid' => $pid, 'mtr_cycles' => $mtrCycles]);
+    }
+
+    // ── switch_cancel: cancela sonda em execução ──────────────────────────────
+    if ($_modeNow === 'switch_cancel') {
+        $runFile = $_projectDir . '/data/local/.switch_running';
+        if (!file_exists($runFile)) { jsonResponse(['status' => 'idle']); }
+        $info = json_decode((string)file_get_contents($runFile), true) ?: [];
+        $pid  = (string)($info['pid'] ?? '');
+        if ($pid !== '' && file_exists('/proc/' . $pid)) {
+            exec('kill ' . escapeshellarg($pid) . ' 2>/dev/null');
+        }
+        @unlink($runFile);
+        jsonResponse(['status' => 'cancelled']);
+    }
+
     // ── switch_live: progresso ao vivo da sonda de comutadores ───────────────
     if ($_modeNow === 'switch_live') {
-        $liveFile = dirname(__DIR__) . '/data/local/historico/' . date('Y-m-d') . '/.switch_live.json';
-        if (!file_exists($liveFile)) { jsonResponse(null); }
-        $live = json_decode(file_get_contents($liveFile), true);
+        $runFile  = $_projectDir . '/data/local/.switch_running';
+        $date     = date('Y-m-d');
+        $liveFile = $_projectDir . '/data/local/historico/' . $date . '/.switch_live.json';
+
+        $running = false;
+        $runInfo = [];
+        if (file_exists($runFile)) {
+            $runInfo = json_decode((string)file_get_contents($runFile), true) ?: [];
+            $pid     = (string)($runInfo['pid'] ?? '');
+            $running = $pid !== '' && file_exists('/proc/' . $pid);
+            if (!$running && $pid !== '') @unlink($runFile);
+        }
+
+        if (!file_exists($liveFile)) {
+            jsonResponse($running ? ['status' => 'starting', 'started_at' => $runInfo['started_at'] ?? null] : null);
+        }
+
+        $live = json_decode((string)file_get_contents($liveFile), true) ?: [];
+        if ($running) {
+            $live['status'] = 'running';
+        } elseif (!empty($live['current']) && (int)$live['current'] >= (int)($live['total'] ?? PHP_INT_MAX)) {
+            $live['status'] = 'completed';
+        } else {
+            $live['status'] = $running ? 'running' : 'idle';
+        }
+        $live['started_at'] = $runInfo['started_at'] ?? null;
         jsonResponse($live ?: null);
     }
 
