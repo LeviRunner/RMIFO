@@ -1,4 +1,4 @@
-const CACHE = 'rmifo-v26';
+const CACHE = 'rmifo-v27';
 const STATIC = [
   '/assets/css/app.css',
   '/assets/js/app.js',
