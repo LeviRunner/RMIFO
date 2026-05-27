@@ -2301,8 +2301,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
 
     // ── switch_segments: segmentos de topologia de todos os cabos ────────────
     if ($_modeNow === 'switch_segments') {
-        if (!$_pdo) { jsonResponse([]); }
         try {
+            $pdoSeg = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
             $limit  = max(1, min(5000, (int)($_reqAll['limit'] ?? 2000)));
             $cable  = trim((string)($_reqAll['cable_id'] ?? ''));
             $role   = trim((string)($_reqAll['role'] ?? ''));
@@ -2316,7 +2316,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     FROM probe_path_segments'
                  . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
                  . ' ORDER BY cable_id, segment_type LIMIT ' . $limit;
-            $stmt = $_pdo->prepare($sql);
+            $stmt = $pdoSeg->prepare($sql);
             $stmt->execute($params);
             jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
         } catch (Exception $_e) { jsonResponse([]); }
@@ -2324,8 +2324,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
 
     // ── switch_geo: comutadores geolocalizados ────────────────────────────────
     if ($_modeNow === 'switch_geo') {
-        if (!$_pdo) { jsonResponse([]); }
         try {
+            $pdoGeoSw = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
             $limit = max(1, min(5000, (int)($_reqAll['limit'] ?? 2000)));
             $q     = trim((string)($_reqAll['q'] ?? ''));
             $where = '';
@@ -2335,7 +2335,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $like  = '%' . $q . '%';
                 $params = [$like, $like, $like, $like];
             }
-            $stmt = $_pdo->prepare(
+            $stmt = $pdoGeoSw->prepare(
                 "SELECT CAST(hop_ip AS TEXT) AS hop_ip, lat, lng,
                         city, region, country, country_code, isp, org, as_number, as_name
                  FROM hop_switch_geolocations $where

@@ -620,6 +620,12 @@ ul {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
+  background: var(--bg);
+}
+
+/* Map page must be transparent so the WebGL globe is visible */
+#page-map {
+  background: transparent;
 }
 
 .page.active {

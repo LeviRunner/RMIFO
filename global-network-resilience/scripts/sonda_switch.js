@@ -2,16 +2,25 @@
 /**
  * sonda_switch.js — Sonda de Comutadores (MTR dedicado)
  *
- * Mapeia a topologia de rede ponto a ponto para cada cabo submarino usando MTR.
+ * Modo cabo: sonda MTR para cada cabo submarino (usa public_url como destino).
+ * Modo IP range: sonda MTR para cada IP dentro de um bloco CIDR selecionado.
+ *
  * Classifica cada salto: gateway → isp_edge → isp_transit → isp_server.
- * Geoloaliza IPs públicos e armazena em cable_telemetry_hops + probe_path_segments.
+ * Geolocaliza IPs públicos → hop_switch_geolocations.
+ * Persiste segmentos → probe_path_segments.
  *
  * Requer: sudo mtr OU  sudo setcap cap_net_raw+ep $(which mtr)
  *
- * Uso:
+ * Uso — modo cabo:
  *   sudo node scripts/sonda_switch.js --cables-file data/cables_list.json
- *   sudo node scripts/sonda_switch.js --cables-file data/cables_list.json --mtr-cycles 20 --limit 50
  *   sudo node scripts/sonda_switch.js --cable 2africa --mtr-cycles 30
+ *
+ * Uso — modo IP range:
+ *   sudo node scripts/sonda_switch.js --ip-range 203.0.113.0/24 --limit 30
+ *   sudo node scripts/sonda_switch.js --ip-ranges-file data/ip_ranges.json --ip-step 4
+ *   sudo node scripts/sonda_switch.js --ip-ranges-db --ip-step 8 --limit 200
+ *   sudo node scripts/sonda_switch.js --ip-ranges-db --country BR --limit 100
+ *   sudo node scripts/sonda_switch.js --ip-ranges-db --rir LACNIC --limit 500
  */
 
 const net   = require('net');
@@ -26,11 +35,17 @@ const argv    = process.argv.slice(2);
 const hasFlag = (f) => argv.includes(f);
 const getArg  = (f, d) => { const i = argv.indexOf(f); return i !== -1 && argv[i+1] ? argv[i+1] : d; };
 
-const MTR_CYCLES  = parseInt(getArg('--mtr-cycles', '20'), 10);
-const TIMEOUT_S   = parseInt(getArg('--timeout',    '30'), 10);
-const LIMIT       = parseInt(getArg('--limit',      '999'), 10);
-const CABLES_FILE = getArg('--cables-file', '');
-const SINGLE      = getArg('--cable', '');           // sonda apenas um cabo
+const MTR_CYCLES     = parseInt(getArg('--mtr-cycles',    '20'),  10);
+const TIMEOUT_S      = parseInt(getArg('--timeout',        '30'),  10);
+const LIMIT          = parseInt(getArg('--limit',          '999'), 10);
+const IP_STEP        = Math.max(1, parseInt(getArg('--ip-step', '1'), 10)); // sample every Nth IP
+const CABLES_FILE    = getArg('--cables-file',    '');
+const SINGLE         = getArg('--cable',          '');   // sonda apenas um cabo
+const IP_RANGE       = getArg('--ip-range',       '');   // CIDR único, ex: 203.0.113.0/24
+const IP_RANGES_FILE = getArg('--ip-ranges-file', '');   // JSON com lista de ranges
+const IP_RANGES_DB   = hasFlag('--ip-ranges-db');        // carrega ranges do banco
+const FILTER_COUNTRY = getArg('--country',        '').toUpperCase(); // filtra por ISO2, ex: BR
+const FILTER_RIR     = getArg('--rir',            '').toUpperCase(); // filtra por RIR, ex: LACNIC
 
 const MODEL       = '1.4.0';
 const PROBE_AGENT = `RMIFO-Switch/sonda_switch.js/${MODEL}`;
@@ -68,6 +83,26 @@ function extractHost(url) {
 function isPrivateIp(ip) {
     if (!ip || ip === '???' || ip === '*') return true;
     return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|::1|fd[0-9a-f]{2}:|fc[0-9a-f]{2}:)/i.test(ip);
+}
+
+// ── Expansão de CIDR ──────────────────────────────────────────────────────────
+function expandCidr(cidr, step) {
+    step = step || 1;
+    const [base, bits] = (cidr || '').split('/');
+    const prefix = parseInt(bits, 10);
+    if (!base || isNaN(prefix) || prefix < 0 || prefix > 32) return [];
+    const parts   = base.split('.').map(Number);
+    const baseInt = ((parts[0]||0)<<24 | (parts[1]||0)<<16 | (parts[2]||0)<<8 | (parts[3]||0)) >>> 0;
+    const mask    = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+    const network = (baseInt & mask) >>> 0;
+    const bcast   = (network | (~mask >>> 0)) >>> 0;
+    const start   = prefix < 31 ? network + 1 : network;
+    const end     = prefix < 31 ? bcast   - 1 : bcast;
+    const ips     = [];
+    for (let i = start; i <= end; i = (i + step) >>> 0) {
+        ips.push([(i>>>24)&0xFF, (i>>>16)&0xFF, (i>>>8)&0xFF, i&0xFF].join('.'));
+    }
+    return ips;
 }
 
 // ── Classificação de papel de rede ─────────────────────────────────────────────
@@ -222,6 +257,18 @@ async function ensureSchema(db) {
             probe_agent  VARCHAR(120),
             UNIQUE (sample_id, segment_type)
         )`,
+        `CREATE TABLE IF NOT EXISTS ip_range_targets (
+            id           SERIAL PRIMARY KEY,
+            cidr         CIDR NOT NULL UNIQUE,
+            label        VARCHAR(120),
+            country_code CHAR(2),
+            isp_name     VARCHAR(200),
+            priority     SMALLINT DEFAULT 5,
+            active       BOOLEAN DEFAULT TRUE,
+            notes        TEXT,
+            created_at   TIMESTAMPTZ DEFAULT NOW()
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_ipr_priority ON ip_range_targets(priority, id) WHERE active`,
         `CREATE INDEX IF NOT EXISTS idx_hops_cable   ON cable_telemetry_hops(cable_id)`,
         `CREATE INDEX IF NOT EXISTS idx_hops_ip      ON cable_telemetry_hops(hop_ip)`,
         `CREATE INDEX IF NOT EXISTS idx_geo_ip       ON hop_switch_geolocations(hop_ip)`,
@@ -233,10 +280,79 @@ async function ensureSchema(db) {
     for (const sql of stmts) await db.query(sql).catch(() => {});
 }
 
+// ── Constrói lista de alvos ────────────────────────────────────────────────────
+// Retorna array de { id, label, host } — host é o endereço para o MTR
+async function buildTargets(db) {
+    // Modo IP range
+    if (IP_RANGE) {
+        const ips = expandCidr(IP_RANGE, IP_STEP).slice(0, LIMIT);
+        log(`IP range ${IP_RANGE}: ${ips.length} IPs (step=${IP_STEP})`);
+        return ips.map(ip => ({ id: IP_RANGE, label: ip, host: ip }));
+    }
+    if (IP_RANGES_FILE) {
+        const raw    = JSON.parse(fs.readFileSync(path.resolve(IP_RANGES_FILE), 'utf8'));
+        const ranges = Array.isArray(raw) ? raw : (raw.ranges || raw.ip_ranges || []);
+        const targets = [];
+        for (const entry of ranges) {
+            const cidr  = typeof entry === 'string' ? entry : entry.cidr;
+            const label = (typeof entry === 'object' && entry.label) ? entry.label : cidr;
+            if (!cidr) continue;
+            const perRange = Math.max(1, Math.ceil(LIMIT / ranges.length));
+            const ips = expandCidr(cidr, IP_STEP).slice(0, perRange);
+            for (const ip of ips) targets.push({ id: cidr, label: `${label}/${ip}`, host: ip });
+        }
+        log(`IP ranges file: ${ranges.length} ranges → ${targets.length} IPs`);
+        return targets;
+    }
+    if (IP_RANGES_DB && db) {
+        const conditions = ['active = TRUE'];
+        const params     = [];
+        if (FILTER_COUNTRY) { params.push(FILTER_COUNTRY); conditions.push(`country_code = $${params.length}`); }
+        if (FILTER_RIR)     { params.push(FILTER_RIR);     conditions.push(`upper(isp_name) = $${params.length}`); }
+        const where = conditions.join(' AND ');
+        const res = await db.query(
+            `SELECT cidr::text AS cidr, label, country_code, isp_name, priority
+             FROM ip_range_targets WHERE ${where} ORDER BY priority, id`,
+            params
+        );
+        const targets = [];
+        const rows = res.rows;
+        const filterDesc = [FILTER_COUNTRY && `country=${FILTER_COUNTRY}`, FILTER_RIR && `rir=${FILTER_RIR}`].filter(Boolean).join(', ');
+        for (const row of rows) {
+            const perRange = Math.max(1, Math.ceil(LIMIT / Math.max(rows.length, 1)));
+            const ips = expandCidr(row.cidr, IP_STEP).slice(0, perRange);
+            for (const ip of ips) targets.push({ id: row.cidr, label: `${row.label || row.cidr}/${ip}`, host: ip });
+        }
+        log(`IP ranges DB${filterDesc ? ` (${filterDesc})` : ''}: ${rows.length} ranges → ${targets.length} IPs`);
+        return targets;
+    }
+
+    // Modo cabo (padrão)
+    let cables = [];
+    if (CABLES_FILE) {
+        cables = JSON.parse(fs.readFileSync(path.resolve(CABLES_FILE), 'utf8'));
+    } else if (db) {
+        const res = await db.query(
+            `SELECT cable_id, cable_name, length_km, capacity_gbps,
+                    landing_points_count, public_url
+             FROM cables WHERE public_url IS NOT NULL ORDER BY cable_id`
+        );
+        cables = res.rows;
+    }
+    if (SINGLE) cables = cables.filter(c => c.cable_id === SINGLE);
+    cables = cables.filter(c => extractHost(c.public_url)).slice(0, LIMIT);
+    return cables.map(c => ({
+        id:    c.cable_id,
+        label: c.cable_name || c.cable_id,
+        host:  extractHost(c.public_url),
+    }));
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
+    const mode = IP_RANGE ? 'ip-range' : (IP_RANGES_FILE ? 'ip-ranges-file' : (IP_RANGES_DB ? 'ip-ranges-db' : 'cabo'));
     log('=== Sonda de Comutadores (MTR dedicado) ===');
-    log(`Ciclos MTR: ${MTR_CYCLES} | Timeout: ${TIMEOUT_S}s`);
+    log(`Modo: ${mode} | Ciclos MTR: ${MTR_CYCLES} | Timeout: ${TIMEOUT_S}s | Step: ${IP_STEP}`);
 
     // Conexão DB (opcional)
     const dbUrl = process.env.DATABASE_URL;
@@ -249,36 +365,25 @@ async function main() {
         warn('DATABASE_URL não definido — salvando apenas em arquivo local.');
     }
 
-    // Carrega lista de cabos
-    let cables = [];
-    if (CABLES_FILE) {
-        cables = JSON.parse(fs.readFileSync(path.resolve(CABLES_FILE), 'utf8'));
-    } else if (db) {
-        const res = await db.query(
-            `SELECT cable_id, cable_name, length_km, capacity_gbps,
-                    landing_points_count, public_url
-             FROM cables WHERE public_url IS NOT NULL ORDER BY cable_id`
-        );
-        cables = res.rows;
-    }
+    const targets = await buildTargets(db);
+    if (!targets.length) { warn('Nenhum alvo para sondar. Use --ip-range, --ip-ranges-file, --ip-ranges-db ou --cables-file.'); return; }
+    log(`${targets.length} alvos para sondar via MTR.`);
 
-    if (SINGLE) cables = cables.filter(c => c.cable_id === SINGLE);
-    cables = cables.filter(c => extractHost(c.public_url)).slice(0, LIMIT);
-
-    if (!cables.length) { warn('Nenhum cabo com URL para sondar.'); return; }
-    log(`${cables.length} cabos para sondar via MTR.`);
-
-    const total       = cables.length;
+    const total       = targets.length;
     const sessionStart = new Date();
     const geoCache    = new Set();
     const registros   = [];
     let done = 0, found = 0;
 
-    for (const c of cables) {
-        const cableId   = c.cable_id;
-        const cableName = c.cable_name || cableId;
-        const host      = extractHost(c.public_url);
+    // Base para sample_id único: evita conflito na UNIQUE (sample_id, hop_number)
+    const SESSION_BASE = Date.now();
+
+    for (const t of targets) {
+        const cableId   = t.id;
+        const cableName = t.label;
+        const host      = t.host;
         const measAt    = new Date(sessionStart.getTime() + done);
+        const sampleId  = SESSION_BASE + done;   // inteiro único por alvo por sessão
 
         process.stdout.write(`  [${String(done+1).padStart(4)}/${total}]  ${cableId.padEnd(40)} mtr→${host}…`);
 
@@ -329,11 +434,11 @@ async function main() {
                 const role = classifyHopRole(h, idx, hubs);
                 await db.query(`
                     INSERT INTO cable_telemetry_hops
-                        (cable_id, hop_number, hop_ip, rtt_avg_ms, rtt_best_ms,
+                        (sample_id, cable_id, hop_number, hop_ip, rtt_avg_ms, rtt_best_ms,
                          rtt_worst_ms, rtt_stdev_ms, loss_pct, hop_role)
-                    VALUES ($1,$2,$3::inet,$4,$5,$6,$7,$8,$9)
+                    VALUES ($1,$2,$3,$4::inet,$5,$6,$7,$8,$9,$10)
                     ON CONFLICT (sample_id, hop_number) DO NOTHING
-                `, [cableId, h.count, ip, h.Avg||null, h.Best||null,
+                `, [sampleId, cableId, h.count, ip, h.Avg||null, h.Best||null,
                     h.Wrst||null, h.StDev||null, h['Loss%']||0, role]).catch(() => {});
             }
 
@@ -341,11 +446,11 @@ async function main() {
             for (const seg of segments) {
                 await db.query(`
                     INSERT INTO probe_path_segments
-                        (cable_id, measured_at, segment_type, hop_number, hop_ip,
+                        (sample_id, cable_id, measured_at, segment_type, hop_number, hop_ip,
                          hop_count, rtt_avg_ms, rtt_best_ms, rtt_worst_ms, loss_pct, probe_agent)
-                    VALUES ($1,$2,$3,$4,$5::inet,$6,$7,$8,$9,$10,$11)
-                    ON CONFLICT DO NOTHING
-                `, [cableId, measAt, seg.segment_type, seg.hop_number, seg.hop_ip,
+                    VALUES ($1,$2,$3,$4,$5,$6::inet,$7,$8,$9,$10,$11,$12)
+                    ON CONFLICT (sample_id, segment_type) DO NOTHING
+                `, [sampleId, cableId, measAt, seg.segment_type, seg.hop_number, seg.hop_ip,
                     seg.hop_count, seg.rtt_avg_ms, seg.rtt_best_ms, seg.rtt_worst_ms,
                     seg.loss_pct, PROBE_AGENT]).catch(() => {});
             }
