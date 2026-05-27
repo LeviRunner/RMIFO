@@ -302,7 +302,8 @@ async function ensureSchema(db) {
         `CREATE INDEX IF NOT EXISTS idx_pps_ts       ON probe_path_segments(measured_at DESC)`,
         `ALTER TABLE cable_telemetry_hops    ADD COLUMN IF NOT EXISTS hop_role    VARCHAR(20)`,
         `ALTER TABLE probe_path_segments     ADD COLUMN IF NOT EXISTS probe_agent VARCHAR(120)`,
-        `ALTER TABLE ip_range_targets        ADD COLUMN IF NOT EXISTS step_size   SMALLINT DEFAULT NULL`,
+        `ALTER TABLE ip_range_targets        ADD COLUMN IF NOT EXISTS step_size   INTEGER DEFAULT NULL`,
+        `ALTER TABLE ip_range_targets        ALTER COLUMN step_size TYPE INTEGER USING step_size::INTEGER`,
     ];
     for (const sql of stmts) await db.query(sql).catch(() => {});
 }

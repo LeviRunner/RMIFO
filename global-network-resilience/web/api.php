@@ -2313,12 +2313,14 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 country_code CHAR(2),
                 isp_name     VARCHAR(200),
                 priority     SMALLINT DEFAULT 5,
-                step_size    SMALLINT DEFAULT NULL,
+                step_size    INTEGER DEFAULT NULL,
                 active       BOOLEAN DEFAULT TRUE,
                 notes        TEXT,
                 created_at   TIMESTAMPTZ DEFAULT NOW()
             )");
-            $pdo->exec("ALTER TABLE ip_range_targets ADD COLUMN IF NOT EXISTS step_size SMALLINT DEFAULT NULL");
+            $pdo->exec("ALTER TABLE ip_range_targets ADD COLUMN IF NOT EXISTS step_size INTEGER DEFAULT NULL");
+            // migração: SMALLINT → INTEGER se já existir com tipo anterior
+            $pdo->exec("ALTER TABLE ip_range_targets ALTER COLUMN step_size TYPE INTEGER USING step_size::INTEGER");
             $pdo->exec("CREATE TABLE IF NOT EXISTS hop_switch_geolocations (
                 id           BIGSERIAL PRIMARY KEY,
                 hop_ip       INET NOT NULL UNIQUE,
@@ -2364,19 +2366,19 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     SELECT DISTINCT
                         network(set_masklen(ip, 24)) AS cidr,
                         host(network(set_masklen(ip, 24))) || '/24' AS label,
-                        3 AS priority, 4::SMALLINT AS step_size
+                        3 AS priority, 4::INTEGER AS step_size
                     FROM source_ips
                     UNION
                     SELECT DISTINCT
                         network(set_masklen(ip, 16)) AS cidr,
                         host(network(set_masklen(ip, 16))) || '/16' AS label,
-                        4 AS priority, 256::SMALLINT AS step_size
+                        4 AS priority, 256::INTEGER AS step_size
                     FROM source_ips
                     UNION
                     SELECT DISTINCT
                         network(set_masklen(ip, 8)) AS cidr,
                         host(network(set_masklen(ip, 8))) || '/8' AS label,
-                        5 AS priority, 65536::SMALLINT AS step_size
+                        5 AS priority, 65536::INTEGER AS step_size
                     FROM source_ips
                 ) sub
                 ON CONFLICT (cidr) DO NOTHING
