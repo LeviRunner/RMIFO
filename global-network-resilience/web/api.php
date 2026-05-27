@@ -1469,16 +1469,24 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
             }
             if ($targetIp === '') { jsonResponse(['error' => 'Nenhum IP disponível para este cabo.'], 422); }
 
-            // Executa MTR com timeout
-            $cmd    = 'mtr --report --report-cycles=' . $cycles . ' --no-dns --json ' . escapeshellarg($targetIp) . ' 2>/dev/null';
-            $output = '';
-            $handle = @popen($cmd, 'r');
-            if ($handle) {
-                $deadline = time() + ($cycles * 3) + 20;
-                while (!feof($handle) && time() < $deadline) {
-                    $output .= fread($handle, 4096);
+            // Executa MTR com timeout; fallback TCP se ICMP bloqueado (sem CAP_NET_RAW)
+            $mtrBase = 'mtr --report --report-cycles=' . $cycles . ' --no-dns --json ';
+            $mtrDeadline = $cycles * 3 + 20;
+            $runMtr = static function (string $extraFlags) use ($mtrBase, $targetIp, $mtrDeadline): string {
+                $cmd    = $mtrBase . $extraFlags . escapeshellarg($targetIp) . ' 2>/dev/null';
+                $out    = '';
+                $handle = @popen($cmd, 'r');
+                if ($handle) {
+                    $deadline = time() + $mtrDeadline;
+                    while (!feof($handle) && time() < $deadline) { $out .= fread($handle, 4096); }
+                    pclose($handle);
                 }
-                pclose($handle);
+                return $out;
+            };
+            $output = $runMtr('');
+            // Se ICMP não devolveu hubs (sem CAP_NET_RAW), tenta TCP
+            if (empty(json_decode($output, true)['report']['hubs'] ?? [])) {
+                $output = $runMtr('--tcp ');
             }
 
             $hops   = [];
@@ -2315,7 +2323,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                            rtt_avg_ms, rtt_best_ms, rtt_worst_ms, loss_pct
                     FROM probe_path_segments'
                  . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
-                 . ' ORDER BY cable_id, segment_type LIMIT ' . $limit;
+                 . ' ORDER BY cable_id, hop_number, segment_type LIMIT ' . $limit;
             $stmt = $pdoSeg->prepare($sql);
             $stmt->execute($params);
             jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));

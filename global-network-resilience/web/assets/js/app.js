@@ -2876,7 +2876,7 @@ function initSwitchPage() {
     );
     segCount.textContent = `${rows.length} linhas`;
     if (rows.length === 0) {
-      segTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Nenhum dado — execute a sonda MTR no servidor para popular esta tabela.</td></tr>`;
+      segTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Nenhum dado — execute a sonda MTR para popular esta tabela.</td></tr>`;
     } else {
       segTbody.innerHTML = rows.map(s => {
         const r = roleLabel[s.segment_type] || roleLabel.unknown;
@@ -2904,7 +2904,7 @@ function initSwitchPage() {
     );
     geoCount.textContent = `${rows.length} IPs`;
     if (rows.length === 0) {
-      geoTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhum comutador geolocaliado ainda.</td></tr>`;
+      geoTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhum comutador geolocalizado ainda.</td></tr>`;
     } else {
       geoTbody.innerHTML = rows.map(g => `<tr>
         <td class="mono sw-ip">${esc(g.hop_ip)}</td>

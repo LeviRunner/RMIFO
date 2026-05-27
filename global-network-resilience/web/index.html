@@ -738,7 +738,7 @@
           <div class="sw-title">Sonda de Comutadores
             <span class="sw-badge">MTR</span>
           </div>
-          <div class="sw-subtitle">Mapeamento ponto a ponto da topologia de rede via traceroute (requer root/sudo no servidor)</div>
+          <div class="sw-subtitle">Mapeamento ponto a ponto da topologia de rede via MTR traceroute — ICMP com fallback TCP automático</div>
         </div>
         <div class="sw-actions">
           <input id="sw-cable-filter" type="text" placeholder="Filtrar por cabo ou IP…" autocomplete="off">
@@ -760,7 +760,7 @@
       <!-- Comando de execução -->
       <div class="sw-cmd-box" id="sw-cmd-box">
         <span class="sw-cmd-label">Comando no servidor:</span>
-        <code id="sw-cmd-text">sudo node scripts/sonda_switch.js --cables-file data/cables_list.json --mtr-cycles 20</code>
+        <code id="sw-cmd-text">node scripts/sonda_switch.js --cables-file data/cables_list.json --mtr-cycles 20</code>
         <button class="sw-cmd-copy" id="btn-sw-copy" title="Copiar">⎘</button>
       </div>
 
