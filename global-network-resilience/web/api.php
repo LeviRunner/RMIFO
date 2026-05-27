@@ -2328,17 +2328,20 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
 
         $mtrCycles = max(3, min(50, (int)($_reqAll['mtr_cycles'] ?? 20)));
         $nodeBin   = trim((string)shell_exec('which node 2>/dev/null') ?: 'node');
+        $logFile   = $histDir . '/switch_stdout.log';
         $cmd = sprintf(
-            'nohup %s %s --mtr-cycles %s > /dev/null 2>&1 & echo $!',
+            'nohup %s %s --mtr-cycles %s > %s 2>&1 & echo $!',
             escapeshellarg($nodeBin),
             escapeshellarg($script),
-            escapeshellarg((string)$mtrCycles)
+            escapeshellarg((string)$mtrCycles),
+            escapeshellarg($logFile)
         );
         exec($cmd, $out);
         $pid = trim($out[0] ?? '');
         if ($pid) {
             file_put_contents($runFile, json_encode([
                 'pid' => $pid, 'started_at' => gmdate('c'), 'mtr_cycles' => $mtrCycles,
+                'log_file' => $logFile,
             ]));
         }
         jsonResponse(['status' => 'started', 'pid' => $pid, 'mtr_cycles' => $mtrCycles]);
@@ -2386,6 +2389,17 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         }
         $live['started_at'] = $runInfo['started_at'] ?? null;
         jsonResponse($live ?: null);
+    }
+
+    // ── switch_log: últimas linhas do log da sonda em execução ───────────────
+    if ($_modeNow === 'switch_log') {
+        $date    = date('Y-m-d');
+        $logFile = $_projectDir . '/data/local/historico/' . $date . '/switch_stdout.log';
+        $lines   = max(20, min(500, (int)($_reqAll['lines'] ?? 80)));
+        if (!file_exists($logFile)) { jsonResponse(['log' => '', 'exists' => false]); }
+        $allLines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        $tail     = array_slice($allLines, -$lines);
+        jsonResponse(['log' => implode("\n", $tail), 'exists' => true, 'total_lines' => count($allLines)]);
     }
 
     // ── switch_segments: segmentos de topologia de todos os cabos ────────────

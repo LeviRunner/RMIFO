@@ -3068,6 +3068,14 @@ function initSwitchPage() {
           if (liveFeed) liveFeed.style.display = 'none';
           if (cablePanel) cablePanel.style.display = 'none';
           loadData();
+          return;
+        }
+
+        if (status === 'idle') {
+          clearInterval(liveTimer); liveTimer = null;
+          setRunningUI(false);
+          setDot('idle');
+          if (progressWrap) progressWrap.style.display = 'none';
         }
       } catch { /* ignore network errors */ }
     }, 3000);

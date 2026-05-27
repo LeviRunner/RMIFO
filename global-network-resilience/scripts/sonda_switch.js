@@ -411,11 +411,14 @@ async function main() {
     if (!targets.length) { warn('Nenhum alvo para sondar. Use --ip-range, --ip-ranges-file, --ip-ranges-db ou --cables-file.'); return; }
     log(`${targets.length} alvos para sondar via MTR.`);
 
-    const total       = targets.length;
+    const total        = targets.length;
     const sessionStart = new Date();
-    const geoCache    = new Set();
-    const registros   = [];
+    const geoCache     = new Set();
+    const registros    = [];
     let done = 0, found = 0;
+
+    // Estado inicial: sai do "starting" imediatamente
+    writeLive({ current: 0, total, percent: 0, switches_found: 0, updated_at: new Date().toISOString(), recent: [] });
 
     // Base para sample_id único: evita conflito na UNIQUE (sample_id, hop_number)
     const SESSION_BASE = Date.now();
@@ -434,6 +437,14 @@ async function main() {
         if (!mr || !mr.hubs || !mr.hubs.length) {
             console.log(' sem resposta MTR');
             done++;
+            writeLive({
+                current: done, total, percent: r1((done / total) * 100),
+                switches_found: found, updated_at: new Date().toISOString(),
+                recent: registros.slice(-10).map(r => ({
+                    cable_id: r.cable_id, hops: r.mtr_hops, rtt_ms: r.mtr_rtt_ms,
+                    segments: r.topology_segments?.length ?? 0,
+                })),
+            });
             continue;
         }
 
