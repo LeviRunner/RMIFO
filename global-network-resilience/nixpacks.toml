@@ -9,14 +9,14 @@ nixPkgs = [
   "mtr",
   "iputils",
   "python312",
-  "python312Packages.pip",
+  "python312Packages.psycopg2",
+  "python312Packages.schedule",
   "wireguard-tools"
 ]
 
 [phases.install]
 cmds = [
-  "npm install --omit=dev",
-  "pip install --quiet psycopg2-binary schedule"
+  "npm install --omit=dev"
 ]
 
 [start]
