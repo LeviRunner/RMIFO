@@ -9,18 +9,19 @@
  * Geolocaliza IPs públicos → hop_switch_geolocations.
  * Persiste segmentos → probe_path_segments.
  *
- * Requer: sudo mtr OU  sudo setcap cap_net_raw+ep $(which mtr)
+ * Em Railway/Docker: start.sh faz setcap cap_net_raw+ep no mtr automaticamente.
+ * Fallback automático para --tcp se ICMP não tiver permissão (CAP_NET_RAW).
  *
  * Uso — modo cabo:
- *   sudo node scripts/sonda_switch.js --cables-file data/cables_list.json
- *   sudo node scripts/sonda_switch.js --cable 2africa --mtr-cycles 30
+ *   node scripts/sonda_switch.js --cables-file data/cables_list.json
+ *   node scripts/sonda_switch.js --cable 2africa --mtr-cycles 30
  *
  * Uso — modo IP range:
- *   sudo node scripts/sonda_switch.js --ip-range 203.0.113.0/24 --limit 30
- *   sudo node scripts/sonda_switch.js --ip-ranges-file data/ip_ranges.json --ip-step 4
- *   sudo node scripts/sonda_switch.js --ip-ranges-db --ip-step 8 --limit 200
- *   sudo node scripts/sonda_switch.js --ip-ranges-db --country BR --limit 100
- *   sudo node scripts/sonda_switch.js --ip-ranges-db --rir LACNIC --limit 500
+ *   node scripts/sonda_switch.js --ip-range 203.0.113.0/24 --limit 30
+ *   node scripts/sonda_switch.js --ip-ranges-file data/ip_ranges.json --ip-step 4
+ *   node scripts/sonda_switch.js --ip-ranges-db --ip-step 8 --limit 200
+ *   node scripts/sonda_switch.js --ip-ranges-db --country BR --limit 100
+ *   node scripts/sonda_switch.js --ip-ranges-db --rir LACNIC --limit 500
  */
 
 const net   = require('net');
@@ -180,13 +181,12 @@ async function geoLookupBatch(ips) {
 }
 
 // ── MTR probe ─────────────────────────────────────────────────────────────────
-function mtrProbe(host, cycles, timeoutS) {
+function runMtr(host, cycles, timeoutS, extraArgs = []) {
     return new Promise(res => {
         const t0   = Date.now();
-        const proc = cp.spawn('mtr', [
-            '--report', `--report-cycles=${cycles}`, '--no-dns', '--json',
-            '--timeout', String(timeoutS), host,
-        ]);
+        const args = ['--report', `--report-cycles=${cycles}`, '--no-dns', '--json',
+                      '--timeout', String(timeoutS), ...extraArgs, host];
+        const proc = cp.spawn('mtr', args);
         let out = '';
         proc.stdout.on('data', d => { out += d; });
         proc.on('error', () => res(null));
@@ -206,6 +206,13 @@ function mtrProbe(host, cycles, timeoutS) {
         });
         setTimeout(() => { try { proc.kill(); } catch {} res(null); }, (timeoutS + 20) * 1000);
     });
+}
+
+async function mtrProbe(host, cycles, timeoutS) {
+    // Try ICMP first; fall back to TCP if permission denied (no CAP_NET_RAW)
+    const result = await runMtr(host, cycles, timeoutS);
+    if (result) return result;
+    return runMtr(host, cycles, timeoutS, ['--tcp']);
 }
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
