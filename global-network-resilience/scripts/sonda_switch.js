@@ -158,24 +158,43 @@ function buildTopologySegments(hubs) {
     ].filter(Boolean);
 }
 
-// ── Geolocalização em batch ────────────────────────────────────────────────────
-async function geoLookupBatch(ips) {
+// ── Geolocalização em batch (ip-api.com, free: 45 req/min) ───────────────────
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function geoLookupBatch(ips, retryOnLimit = true) {
     if (!ips.length) return [];
+    const body = JSON.stringify(ips.map(ip => ({
+        query: ip,
+        fields: 'status,message,query,lat,lon,city,regionName,country,countryCode,isp,org,as,asname',
+    })));
     return new Promise(res => {
-        const body = JSON.stringify(ips.map(ip => ({
-            query: ip,
-            fields: 'status,query,lat,lon,city,regionName,country,countryCode,isp,org,as,asname',
-        })));
         const req = http.request({
-            hostname: 'ip-api.com', path: '/batch', method: 'POST',
+            hostname: 'ip-api.com', path: '/batch?fields=status,message,query,lat,lon,city,regionName,country,countryCode,isp,org,as,asname',
+            method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
         }, resp => {
+            // ip-api.com rate limit headers
+            const rl  = parseInt(resp.headers['x-rl']  || '45', 10);
+            const ttl = parseInt(resp.headers['x-ttl'] || '0',  10);
             let data = '';
             resp.on('data', d => { data += d; });
-            resp.on('end', () => { try { res(JSON.parse(data)); } catch { res([]); } });
+            resp.on('end', async () => {
+                if (resp.statusCode === 429 || rl <= 1) {
+                    const wait = Math.max(ttl, 1) * 1000 + 500;
+                    warn(`ip-api.com rate limit (X-Rl=${rl}, X-Ttl=${ttl}s) — aguardando ${wait}ms…`);
+                    await sleep(wait);
+                    if (retryOnLimit) { res(await geoLookupBatch(ips, false)); return; }
+                    res([]); return;
+                }
+                try {
+                    const parsed = JSON.parse(data);
+                    // Filtra respostas de rate limit individuais
+                    res(Array.isArray(parsed) ? parsed.filter(g => g.status !== 'fail' || !g.message?.includes('quota')) : []);
+                } catch { res([]); }
+            });
         });
         req.on('error', () => res([]));
-        req.setTimeout(18000, () => { req.destroy(); res([]); });
+        req.setTimeout(20000, () => { req.destroy(); res([]); });
         req.write(body); req.end();
     });
 }
@@ -461,10 +480,11 @@ async function main() {
 
         console.log(` ${hubs.length} hops  ${publicIps.length} públicos  rtt=${mr.rtt}ms`);
 
-        // Geo lookup dos IPs novos
+        // Geo lookup dos IPs novos (delay 1.4s para respeitar 45 req/min da ip-api.com)
         const newIps = publicIps.filter(ip => !geoCache.has(ip));
         let geoMap   = {};
         if (newIps.length) {
+            await sleep(1400);
             const geoRes = await geoLookupBatch(newIps);
             for (const g of geoRes) {
                 if (g.status !== 'success' || !g.lat) continue;
@@ -566,7 +586,7 @@ async function main() {
     // Enriquecimento final: IPs com lat IS NULL (seeds de build_ip_ranges não cobertos pelo MTR)
     if (db) {
         const pendingRes = await db.query(
-            `SELECT hop_ip::text AS ip FROM hop_switch_geolocations WHERE lat IS NULL LIMIT 100`
+            `SELECT hop_ip::text AS ip FROM hop_switch_geolocations WHERE lat IS NULL LIMIT 500`
         ).catch(() => ({ rows: [] }));
         const pendingIps = pendingRes.rows.map(r => r.ip).filter(ip => !geoCache.has(ip));
         if (pendingIps.length) {
@@ -574,6 +594,7 @@ async function main() {
             const batches = [];
             for (let i = 0; i < pendingIps.length; i += 100) batches.push(pendingIps.slice(i, i + 100));
             for (const batch of batches) {
+                await sleep(1400); // respeita 45 req/min da ip-api.com
                 const geoRes = await geoLookupBatch(batch);
                 for (const g of geoRes) {
                     if (g.status !== 'success' || !g.lat) continue;

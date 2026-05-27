@@ -2305,7 +2305,7 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         try {
             $pdo = getDb($pgSocket, $pgPort, $pgDbname, $pgUser, $pgPass, $pgSsl);
 
-            // Garante esquema e coluna step_size
+            // Garante ambas as tabelas antes de qualquer INSERT
             $pdo->exec("CREATE TABLE IF NOT EXISTS ip_range_targets (
                 id           SERIAL PRIMARY KEY,
                 cidr         CIDR NOT NULL UNIQUE,
@@ -2319,6 +2319,21 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 created_at   TIMESTAMPTZ DEFAULT NOW()
             )");
             $pdo->exec("ALTER TABLE ip_range_targets ADD COLUMN IF NOT EXISTS step_size SMALLINT DEFAULT NULL");
+            $pdo->exec("CREATE TABLE IF NOT EXISTS hop_switch_geolocations (
+                id           BIGSERIAL PRIMARY KEY,
+                hop_ip       INET NOT NULL UNIQUE,
+                lat          DOUBLE PRECISION,
+                lng          DOUBLE PRECISION,
+                city         VARCHAR(120),
+                region       VARCHAR(120),
+                country      VARCHAR(80),
+                country_code CHAR(2),
+                isp          VARCHAR(200),
+                org          VARCHAR(200),
+                as_number    VARCHAR(30),
+                as_name      VARCHAR(200),
+                queried_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )");
 
             // CTE com todos os IPs públicos conhecidos
             $srcCte = "

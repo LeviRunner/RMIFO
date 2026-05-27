@@ -179,7 +179,7 @@ const Router = {
     cuts:    'Cortes Críticos',
     probe:   'Histórico de Janela de Conexão',
     daily:   'Sonda Diária',
-    switch:  'Sonda de Comutadores',
+    switch:  'IP Range',
     history: 'Histórico',
   },
   go(page) {
