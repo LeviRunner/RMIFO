@@ -21,6 +21,7 @@
 # Variáveis de ambiente:
 #   FULL_SCAN, MTR_CYCLES, TIMEOUT, RETRY_ATTEMPTS, WORKSPACE_ROOT,
 #   PG_SOCKET, PG_PORT, PGDATABASE, PGUSER,
+#   SWITCH_PROBE (padrão 1 — roda sonda_switch.js no daily),
 #   ENRICH_LIMIT (padrão 200), ENRICH_STALE_DAYS (padrão 7),
 #   ENRICH_FIELDS (padrão hostname,whois,privacy,tls),
 #   REACH_MODE (padrão banner), REACH_SKIP (1 para pular reach no all)
@@ -50,6 +51,7 @@ PACKET_COUNT="${PACKET_COUNT:-5}"
 PACKET_LOSS_THRESHOLD="${PACKET_LOSS_THRESHOLD:-50}"
 MAX_RTT_MS="${MAX_RTT_MS:-300}"
 RETRY_ATTEMPTS="${RETRY_ATTEMPTS:-2}"
+SWITCH_PROBE="${SWITCH_PROBE:-1}"
 
 PROBE_TARGETS=(
     "8.8.8.8"         # Google DNS
@@ -252,6 +254,17 @@ run_daily() {
             "${BASE_DIR}/scripts/sonda.js" \
             --mtr-cycles 3 --timeout "${TIMEOUT}" \
             --probe-report "${PROBE_REPORT}" || true
+    fi
+
+    # ── 4b. Sonda de Comutadores (sonda_switch.js) ────────────────────────────
+    if [[ "${SWITCH_PROBE}" = "1" ]]; then
+        log ""
+        log "=== [4b] Sonda de Comutadores (MTR) ==="
+        run_node "sonda_switch" \
+            "${BASE_DIR}/scripts/sonda_switch.js" \
+            --mtr-cycles "${MTR_CYCLES}" || true
+    else
+        log "Sonda de Comutadores pulada (SWITCH_PROBE=0)."
     fi
 
     # ── 5. Enriquecimento nativo de IPs ──────────────────────────────────────
@@ -467,6 +480,7 @@ Opções do reach:
   --mode M      Vetor: banner|netconf|mrt|ris|lg|whois|mpls|ixp|gnmi|atlas|full
 
 Variáveis de ambiente:
+  SWITCH_PROBE=1        (padrão — roda sonda_switch.js; use 0 para pular)
   ENRICH_LIMIT=200      ENRICH_STALE_DAYS=7    ENRICH_FIELDS=hostname,whois,privacy,tls
   REACH_MODE=banner     REACH_SKIP=1           (pula reach no 'all')
 
