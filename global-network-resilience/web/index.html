@@ -732,35 +732,76 @@
   <section class="page" id="page-switch">
     <div class="page-inner">
 
-      <!-- Cabeçalho -->
-      <div class="sw-header">
+      <!-- Header (padrão daily) -->
+      <div class="daily-header">
         <div>
-          <div class="sw-title">Sonda de Comutadores
-            <span class="sw-badge">MTR</span>
-          </div>
-          <div class="sw-subtitle">Mapeamento ponto a ponto da topologia de rede via MTR traceroute — ICMP com fallback TCP automático</div>
+          <div class="daily-title">Sonda de Comutadores <span class="sw-badge">MTR</span></div>
+          <div class="daily-subtitle">Mapeamento ponto a ponto da topologia via MTR traceroute — ICMP com fallback TCP automático</div>
         </div>
-        <div class="sw-actions">
-          <input id="sw-cable-filter" type="text" placeholder="Filtrar por cabo ou IP…" autocomplete="off">
-          <select id="sw-role-filter">
-            <option value="">Todos os papéis</option>
-            <option value="gateway">Gateway</option>
-            <option value="isp_edge">ISP Edge</option>
-            <option value="isp_transit">ISP Transit</option>
-            <option value="isp_server">ISP Server</option>
-          </select>
+        <div class="daily-actions">
           <label class="sw-cycles-wrap" title="Ciclos MTR por alvo">
             <span>Ciclos</span>
             <input id="sw-mtr-cycles" type="number" min="3" max="50" value="20" class="sw-cycles-input">
           </label>
-          <button class="btn primary" id="btn-sw-run">
-            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg>
-            Executar MTR
-          </button>
-          <button class="btn danger" id="btn-sw-cancel" style="display:none">Cancelar</button>
-          <button class="btn" id="btn-sw-refresh">Atualizar</button>
+          <button class="btn primary" id="btn-sw-run"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Executar MTR</button>
+          <button class="btn danger" id="btn-sw-cancel" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg> Cancelar</button>
+          <span class="daily-status-badge" id="sw-status-badge"></span>
         </div>
       </div>
+
+      <!-- Barra de fases -->
+      <div class="daily-phase-bar" id="sw-phase-bar" style="display:none">
+        <div class="dpb-step" id="swpb-start">Iniciando</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="swpb-mtr">MTR Probe</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="swpb-geo">Geolocalizando</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="swpb-db">Persistindo</div>
+        <div class="dpb-arrow">›</div>
+        <div class="dpb-step" id="swpb-done">Concluído</div>
+      </div>
+
+      <!-- Progresso: arco + barra (padrão daily) -->
+      <div id="sw-progress-wrap" style="display:none">
+        <div class="daily-progress-flex">
+          <svg id="sw-arc-svg" width="80" height="80" viewBox="0 0 80 80" aria-hidden="true">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="5"/>
+            <circle id="sw-arc-fill" cx="40" cy="40" r="32" fill="none"
+              stroke="#22c55e" stroke-width="5" stroke-linecap="round"
+              stroke-dasharray="0 201.1" stroke-dashoffset="50.3"/>
+            <text id="sw-arc-pct" x="40" y="36" text-anchor="middle"
+              fill="#22c55e" font-size="12" font-weight="700" font-family="monospace">0%</text>
+            <text id="sw-arc-sub" x="40" y="52" text-anchor="middle"
+              fill="rgba(255,255,255,0.35)" font-size="8">0 / 0</text>
+          </svg>
+          <div class="daily-progress-bar-col">
+            <div class="daily-progress-outer">
+              <div class="daily-progress-inner" id="sw-progress-inner" style="background:linear-gradient(90deg,#22c55e,#86efac)"></div>
+            </div>
+            <div class="daily-progress-label" id="sw-progress-label">0 / 0 — 0%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Painel do cabo sendo sondado agora -->
+      <div id="sw-cable-panel" style="display:none">
+        <div class="pv-hero">
+          <div class="pv-hero-sup">Sondando agora</div>
+          <div class="pv-hero-name" id="sw-current-cable">—</div>
+          <div class="pv-hero-row">
+            <span class="pv-proto-chip mtr">MTR</span>
+            <span class="pv-ep-pair">
+              <span id="sw-current-host">—</span>
+              <span class="pv-ep-arr">›</span>
+              <span id="sw-current-hops" style="color:var(--muted)">— hops</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live feed de sondas recentes -->
+      <div id="sw-live-feed" class="sw-live-feed" style="display:none"></div>
 
       <!-- Comando de execução -->
       <div class="sw-cmd-box" id="sw-cmd-box">
@@ -769,40 +810,49 @@
         <button class="sw-cmd-copy" id="btn-sw-copy" title="Copiar">⎘</button>
       </div>
 
-      <!-- Progresso ao vivo (quando sonda está rodando) -->
-      <div id="sw-live-wrap" style="display:none">
-        <div class="sw-live-bar">
-          <div class="sw-live-dot" id="sw-live-dot"></div>
-          <span id="sw-live-label">Aguardando progresso…</span>
-          <span class="sw-live-pct" id="sw-live-pct">0%</span>
-        </div>
-        <div class="sw-progress-outer">
-          <div class="sw-progress-inner" id="sw-progress-inner"></div>
-        </div>
-        <div id="sw-live-feed" class="sw-live-feed" style="display:none"></div>
-      </div>
-
-      <!-- Sumário de totais -->
-      <div class="sw-totals" id="sw-totals">
-        <div class="sw-total-card">
-          <div class="sw-total-val" id="swt-cabos">—</div>
-          <div class="sw-total-lbl">Cabos rastreados</div>
-        </div>
-        <div class="sw-total-card">
-          <div class="sw-total-val" id="swt-hops">—</div>
-          <div class="sw-total-lbl">Hops públicos</div>
-        </div>
-        <div class="sw-total-card">
-          <div class="sw-total-val" id="swt-geo">—</div>
-          <div class="sw-total-lbl">IPs geolocalizados</div>
-        </div>
-        <div class="sw-total-card">
-          <div class="sw-total-val" id="swt-countries">—</div>
-          <div class="sw-total-lbl">Países distintos</div>
-        </div>
+      <!-- Tabela de contadores (padrão dstat-table) -->
+      <div class="dstat-table-wrap" id="sw-stats">
+        <table class="dstat-table">
+          <thead><tr><th>Métrica</th><th>Contagem</th><th></th></tr></thead>
+          <tbody>
+            <tr class="dstat-row">
+              <td class="dstat-label">Rotas com endpoint rastreadas</td>
+              <td class="dstat-val" id="swstat-cabos">—</td>
+              <td class="dstat-pct" id="swstat-pct-cabos"></td>
+            </tr>
+            <tr class="dstat-row mtr">
+              <td class="dstat-label">Hops públicos</td>
+              <td class="dstat-val" id="swstat-hops">—</td>
+              <td class="dstat-pct"></td>
+            </tr>
+            <tr class="dstat-row tcp">
+              <td class="dstat-label">IPs geolocalizados</td>
+              <td class="dstat-val" id="swstat-geo">—</td>
+              <td class="dstat-pct"></td>
+            </tr>
+            <tr class="dstat-row">
+              <td class="dstat-label">Países distintos</td>
+              <td class="dstat-val" id="swstat-countries">—</td>
+              <td class="dstat-pct"></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="error" id="sw-error"></div>
+
+      <!-- Filtros das tabelas -->
+      <div class="sw-filter-row">
+        <input id="sw-cable-filter" type="text" placeholder="Filtrar por cabo ou IP…" autocomplete="off">
+        <select id="sw-role-filter">
+          <option value="">Todos os papéis</option>
+          <option value="gateway">Gateway</option>
+          <option value="isp_edge">ISP Edge</option>
+          <option value="isp_transit">ISP Transit</option>
+          <option value="isp_server">ISP Server</option>
+        </select>
+        <button class="btn" id="btn-sw-refresh">Atualizar</button>
+      </div>
 
       <!-- Tabela de segmentos de topologia por cabo -->
       <div id="sw-segments-wrap">
@@ -813,15 +863,9 @@
           <table id="sw-segments-table">
             <thead>
               <tr>
-                <th>Cabo</th>
-                <th>Papel</th>
-                <th>Hop #</th>
-                <th>IP</th>
-                <th>RTT avg</th>
-                <th>RTT best</th>
-                <th>RTT worst</th>
-                <th>Perda</th>
-                <th>Hops neste segmento</th>
+                <th>Cabo</th><th>Papel</th><th>Hop #</th><th>IP</th>
+                <th>RTT avg</th><th>RTT best</th><th>RTT worst</th>
+                <th>Perda</th><th>Hops neste segmento</th>
               </tr>
             </thead>
             <tbody id="sw-segments-tbody"></tbody>
@@ -837,14 +881,7 @@
         <div class="table-wrap">
           <table id="sw-geo-table">
             <thead>
-              <tr>
-                <th>IP</th>
-                <th>Cidade</th>
-                <th>País</th>
-                <th>ISP / ASN</th>
-                <th>Lat</th>
-                <th>Lng</th>
-              </tr>
+              <tr><th>IP</th><th>Cidade</th><th>País</th><th>ISP / ASN</th><th>Lat</th><th>Lng</th></tr>
             </thead>
             <tbody id="sw-geo-tbody"></tbody>
           </table>
