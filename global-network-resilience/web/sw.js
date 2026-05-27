@@ -1,7 +1,5 @@
-const CACHE = 'rmifo-v25';
+const CACHE = 'rmifo-v26';
 const STATIC = [
-  '/',
-  '/index.html',
   '/assets/css/app.css',
   '/assets/js/app.js',
   '/assets/js/ui-enhancements.js',
@@ -12,32 +10,41 @@ const STATIC = [
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(c => c.addAll(STATIC))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+      .then(() => {
+        // Force reload all open tabs after activation so fresh content loads immediately
+        return self.clients.matchAll({ type: 'window' }).then(clients => {
+          clients.forEach(client => client.navigate(client.url));
+        });
+      })
   );
 });
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Requisições à API sempre vão à rede (sem cache)
-  if (url.pathname.startsWith('/api.php')) {
-    e.respondWith(fetch(e.request).catch(() =>
-      new Response(JSON.stringify({ error: 'Offline' }), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-    ));
+  // API and HTML: always network-first (never serve stale data or HTML)
+  if (url.pathname.startsWith('/api.php') ||
+      url.pathname === '/' ||
+      url.pathname.endsWith('.html') ||
+      url.pathname.endsWith('.php')) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
     return;
   }
 
-  // Recursos estáticos: cache-first
+  // Static assets: cache-first with network fallback
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
