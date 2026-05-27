@@ -818,86 +818,36 @@
         </div>
       </div>
 
-      <!-- Live feed de sondas recentes -->
-      <div id="sw-live-feed" class="sw-live-feed" style="display:none"></div>
-
-      <!-- Tabela de contadores (padrão dstat-table) -->
+      <!-- Tabela de contadores -->
       <div class="dstat-table-wrap" id="sw-stats">
         <table class="dstat-table">
-          <thead><tr><th>Métrica</th><th>Contagem</th><th></th></tr></thead>
+          <thead><tr><th>Métrica</th><th>Valor</th></tr></thead>
           <tbody>
             <tr class="dstat-row">
-              <td class="dstat-label">Rotas com endpoint rastreadas</td>
-              <td class="dstat-val" id="swstat-cabos">—</td>
-              <td class="dstat-pct" id="swstat-pct-cabos"></td>
-            </tr>
-            <tr class="dstat-row mtr">
-              <td class="dstat-label">Hops públicos</td>
-              <td class="dstat-val" id="swstat-hops">—</td>
-              <td class="dstat-pct"></td>
-            </tr>
-            <tr class="dstat-row tcp">
-              <td class="dstat-label">IPs geolocalizados</td>
-              <td class="dstat-val" id="swstat-geo">—</td>
-              <td class="dstat-pct"></td>
+              <td class="dstat-label">Contador</td>
+              <td class="dstat-val" id="swstat-progress">—</td>
             </tr>
             <tr class="dstat-row">
-              <td class="dstat-label">Países distintos</td>
-              <td class="dstat-val" id="swstat-countries">—</td>
-              <td class="dstat-pct"></td>
+              <td class="dstat-label">Número de IPs</td>
+              <td class="dstat-val" id="swstat-ips">—</td>
+            </tr>
+            <tr class="dstat-row mtr">
+              <td class="dstat-label">Número de comutadores</td>
+              <td class="dstat-val" id="swstat-hops">—</td>
+            </tr>
+            <tr class="dstat-row tcp">
+              <td class="dstat-label">Sub-redes encontradas</td>
+              <td class="dstat-val" id="swstat-subnets">—</td>
+            </tr>
+            <tr class="dstat-row">
+              <td class="dstat-label">ISP / AS encontrados</td>
+              <td class="dstat-val" id="swstat-isp">—</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div class="error" id="sw-error"></div>
-
-      <!-- Filtros das tabelas -->
-      <div class="sw-filter-row">
-        <input id="sw-cable-filter" type="text" placeholder="Filtrar por cabo ou IP…" autocomplete="off">
-        <select id="sw-role-filter">
-          <option value="">Todos os papéis</option>
-          <option value="gateway">Gateway</option>
-          <option value="isp_edge">ISP Edge</option>
-          <option value="isp_transit">ISP Transit</option>
-          <option value="isp_server">ISP Server</option>
-        </select>
-        <button class="btn" id="btn-sw-refresh">Atualizar</button>
-      </div>
-
-      <!-- Tabela de segmentos de topologia por cabo -->
-      <div id="sw-segments-wrap">
-        <div class="subhead">Topologia por Cabo
-          <span class="sw-count-badge" id="sw-seg-count"></span>
-        </div>
-        <div class="table-wrap">
-          <table id="sw-segments-table">
-            <thead>
-              <tr>
-                <th>Cabo</th><th>Papel</th><th>Hop #</th><th>IP</th>
-                <th>RTT avg</th><th>RTT best</th><th>RTT worst</th>
-                <th>Perda</th><th>Hops neste segmento</th>
-              </tr>
-            </thead>
-            <tbody id="sw-segments-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Tabela de comutadores geolocalizados -->
-      <div id="sw-geo-wrap" style="display:none">
-        <div class="subhead">Comutadores Geolocalizados
-          <span class="sw-count-badge" id="sw-geo-count"></span>
-        </div>
-        <div class="table-wrap">
-          <table id="sw-geo-table">
-            <thead>
-              <tr><th>IP</th><th>Cidade</th><th>País</th><th>ISP / ASN</th><th>Lat</th><th>Lng</th></tr>
-            </thead>
-            <tbody id="sw-geo-tbody"></tbody>
-          </table>
-        </div>
-      </div>
 
     </div>
   </section>

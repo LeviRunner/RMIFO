@@ -2834,9 +2834,6 @@ function initDailyPage() {
 // ─── Switch probe page ────────────────────────────────────────────────────────
 
 function initSwitchPage() {
-  const cableFilter   = document.getElementById('sw-cable-filter');
-  const roleFilter    = document.getElementById('sw-role-filter');
-  const refreshBtn    = document.getElementById('btn-sw-refresh');
   const runBtn        = document.getElementById('btn-sw-run');
   const cancelBtn     = document.getElementById('btn-sw-cancel');
   const cyclesInput   = document.getElementById('sw-mtr-cycles');
@@ -2854,15 +2851,7 @@ function initSwitchPage() {
   const arcSub        = document.getElementById('sw-arc-sub');
   const cablePanel    = document.getElementById('sw-cable-panel');
   const currentCable  = document.getElementById('sw-current-cable');
-  const currentHost   = document.getElementById('sw-current-host');
   const currentHops   = document.getElementById('sw-current-hops');
-  const liveFeed      = document.getElementById('sw-live-feed');
-  const segWrap       = document.getElementById('sw-segments-wrap');
-  const segTbody      = document.getElementById('sw-segments-tbody');
-  const segCount      = document.getElementById('sw-seg-count');
-  const geoWrap       = document.getElementById('sw-geo-wrap');
-  const geoTbody      = document.getElementById('sw-geo-tbody');
-  const geoCount      = document.getElementById('sw-geo-count');
 
   const CIRC = 201.06; // 2π × 32
 
@@ -2871,6 +2860,7 @@ function initSwitchPage() {
   let liveTimer   = null;
   let isRunning   = false;
   let probeMode   = 'cable'; // 'cable' | 'ip_ranges'
+  let lastProgress = { cur: 0, tot: 0 };
 
   // ── Seletor de modo ──────────────────────────────────────────────────────
   modeToggle?.querySelectorAll('.sw-mode-btn').forEach(btn => {
@@ -2881,68 +2871,6 @@ function initSwitchPage() {
       if (stepWrap) stepWrap.style.display = probeMode === 'ip_ranges' ? '' : 'none';
     });
   });
-
-  const roleLabel = {
-    gateway:     { label: 'Gateway',      cls: 'sw-role-gw' },
-    isp_edge:    { label: 'ISP Edge',     cls: 'sw-role-edge' },
-    isp_transit: { label: 'ISP Transit',  cls: 'sw-role-transit' },
-    isp_server:  { label: 'ISP Server',   cls: 'sw-role-server' },
-    unknown:     { label: '—',            cls: 'sw-role-unk' },
-  };
-
-  function fmtMs(v) { return v != null ? v + ' ms' : '—'; }
-  function esc(s)   { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-
-  function renderSegments() {
-    const q     = (cableFilter?.value || '').toLowerCase();
-    const role  = roleFilter?.value || '';
-    const rows  = allSegments.filter(s =>
-      (!q    || s.cable_id?.toLowerCase().includes(q) || (s.hop_ip||'').includes(q)) &&
-      (!role || s.segment_type === role)
-    );
-    segCount.textContent = `${rows.length} linhas`;
-    if (rows.length === 0) {
-      segTbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Nenhum dado — execute a sonda MTR para popular esta tabela.</td></tr>`;
-    } else {
-      segTbody.innerHTML = rows.map(s => {
-        const r = roleLabel[s.segment_type] || roleLabel.unknown;
-        return `<tr>
-          <td class="mono sw-cable-id">${esc(s.cable_id)}</td>
-          <td><span class="sw-role-chip ${r.cls}">${r.label}</span></td>
-          <td class="mono">${s.hop_number ?? '—'}</td>
-          <td class="mono sw-ip">${esc(s.hop_ip || '—')}</td>
-          <td class="sw-rtt">${fmtMs(s.rtt_avg_ms)}</td>
-          <td class="sw-rtt sw-rtt-best">${fmtMs(s.rtt_best_ms)}</td>
-          <td class="sw-rtt sw-rtt-worst">${fmtMs(s.rtt_worst_ms)}</td>
-          <td class="sw-loss ${(s.loss_pct||0) >= 10 ? 'sw-loss-high' : ''}">${s.loss_pct != null ? s.loss_pct + '%' : '—'}</td>
-          <td class="mono">${s.hop_count ?? 1}</td>
-        </tr>`;
-      }).join('');
-    }
-    segWrap.style.display = '';
-  }
-
-  function renderGeo() {
-    const q    = (cableFilter?.value || '').toLowerCase();
-    const rows = allGeo.filter(g =>
-      !q || (g.hop_ip||'').includes(q) || (g.city||'').toLowerCase().includes(q) ||
-            (g.country||'').toLowerCase().includes(q) || (g.isp||'').toLowerCase().includes(q)
-    );
-    geoCount.textContent = `${rows.length} IPs`;
-    if (rows.length === 0) {
-      geoTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhum comutador geolocalizado ainda.</td></tr>`;
-    } else {
-      geoTbody.innerHTML = rows.map(g => `<tr>
-        <td class="mono sw-ip">${esc(g.hop_ip)}</td>
-        <td>${esc(g.city || '—')}</td>
-        <td>${esc(g.country || '—')} <span class="sw-cc">${esc(g.country_code || '')}</span></td>
-        <td class="sw-isp">${esc(g.isp || g.org || '—')}</td>
-        <td class="mono">${g.lat != null ? g.lat : '—'}</td>
-        <td class="mono">${g.lng != null ? g.lng : '—'}</td>
-      </tr>`).join('');
-    }
-    geoWrap.style.display = '';
-  }
 
   function updateArc(pct, cur, tot) {
     const dash = (pct / 100) * CIRC;
@@ -2969,16 +2897,25 @@ function initSwitchPage() {
     });
   }
 
-  function updateCounters() {
-    const cabos     = new Set(allSegments.map(s => s.cable_id)).size;
-    const hops      = allSegments.filter(s => s.hop_ip).length;
-    const countries = new Set(allGeo.map(g => g.country_code).filter(Boolean)).size;
+  function updateCounters(liveProgress) {
     const el = (id) => document.getElementById(id);
-    if (el('swstat-cabos'))     el('swstat-cabos').textContent     = cabos;
-    if (el('swstat-hops'))      el('swstat-hops').textContent      = hops;
-    if (el('swstat-geo'))       el('swstat-geo').textContent       = allGeo.length;
-    if (el('swstat-countries')) el('swstat-countries').textContent = countries;
-    if (el('swstat-pct-cabos')) el('swstat-pct-cabos').textContent = cabos > 0 ? `${hops} hops` : '';
+    // Contador: live progress when running, else last known
+    const { cur, tot } = liveProgress || lastProgress;
+    const pct = tot > 0 ? Math.round((cur / tot) * 100) : 0;
+    if (el('swstat-progress')) {
+      el('swstat-progress').textContent = tot > 0 ? `${cur} / ${tot} (${pct}%)` : '—';
+    }
+    // IPs: unique IPs in geo table
+    if (el('swstat-ips'))     el('swstat-ips').textContent     = allGeo.length || '—';
+    // Comutadores: unique hop IPs found in segments
+    const uniqueHops = new Set(allSegments.map(s => s.hop_ip).filter(Boolean)).size;
+    if (el('swstat-hops'))    el('swstat-hops').textContent    = uniqueHops || '—';
+    // Sub-redes: unique /24 prefixes from geo IPs
+    const subnets = new Set(allGeo.map(g => g.hop_ip?.split('.').slice(0, 3).join('.')).filter(Boolean)).size;
+    if (el('swstat-subnets')) el('swstat-subnets').textContent = subnets || '—';
+    // ISP/AS: unique ISP/AS names from geo data
+    const isps = new Set(allGeo.map(g => g.isp || g.org || g.as_name).filter(Boolean)).size;
+    if (el('swstat-isp'))     el('swstat-isp').textContent     = isps || '—';
   }
 
   async function loadData() {
@@ -2996,8 +2933,6 @@ function initSwitchPage() {
       allGeo      = [];
     }
     updateCounters();
-    renderSegments();
-    renderGeo();
   }
 
   function setDot(state) { // 'idle' | 'running' | 'done'
@@ -3022,26 +2957,6 @@ function initSwitchPage() {
     if (!running && cablePanel)    cablePanel.style.display    = 'none';
   }
 
-  function updateLiveFeed(recent) {
-    if (!liveFeed || !Array.isArray(recent) || !recent.length) return;
-    liveFeed.style.display = '';
-    // Most recent at top
-    const last = recent[recent.length - 1];
-    if (last && currentCable) {
-      currentCable.textContent = last.cable_id || '—';
-      if (currentHops) currentHops.textContent = (last.hops ?? '—') + ' hops';
-      if (cablePanel)  cablePanel.style.display = '';
-    }
-    liveFeed.innerHTML = recent.slice(-8).reverse().map(r =>
-      `<div class="sw-feed-row">
-        <span class="sw-feed-cable">${esc(r.cable_id)}</span>
-        <span class="sw-feed-hops">${r.hops ?? 0} hops</span>
-        <span class="sw-feed-rtt">${r.rtt_ms != null ? r.rtt_ms + ' ms' : '—'}</span>
-        <span class="sw-feed-seg">${r.segments ?? 0} seg.</span>
-      </div>`
-    ).join('');
-  }
-
   function pollLive() {
     if (liveTimer) clearInterval(liveTimer);
     liveTimer = setInterval(async () => {
@@ -3064,22 +2979,30 @@ function initSwitchPage() {
           const cur = live.current || 0;
           const tot = live.total   || 1;
           const pct = Math.round(live.percent ?? (cur / tot) * 100);
+          lastProgress = { cur, tot };
           updateArc(pct, cur, tot);
           updatePhaseBar(pct);
           setRunningUI(true);
           setDot('running');
-          updateLiveFeed(live.recent);
+          updateCounters({ cur, tot });
+          // Update "sondando agora" panel with last probed target
+          if (live.recent?.length && currentCable) {
+            const last = live.recent[live.recent.length - 1];
+            currentCable.textContent = last.cable_id || '—';
+            if (currentHops) currentHops.textContent = (last.hops ?? '—') + ' hops';
+            if (cablePanel) cablePanel.style.display = '';
+          }
         }
 
         if (status === 'completed' || (live.current && live.current >= (live.total || Infinity))) {
           clearInterval(liveTimer); liveTimer = null;
           const cur = live.current || 0;
           const tot = live.total   || cur;
+          lastProgress = { cur, tot };
           updateArc(100, cur, tot);
           updatePhaseBar(100);
           setRunningUI(false);
           setDot('done');
-          if (liveFeed) liveFeed.style.display = 'none';
           if (cablePanel) cablePanel.style.display = 'none';
           loadData();
           return;
@@ -3105,7 +3028,6 @@ function initSwitchPage() {
     progressWrap.style.display = '';
     updateArc(0, 0, 0);
     updatePhaseBar(0);
-    if (liveFeed)   { liveFeed.innerHTML = ''; liveFeed.style.display = 'none'; }
     if (cablePanel)  cablePanel.style.display = 'none';
     if (errorEl)     errorEl.textContent = '';
     try {
@@ -3143,11 +3065,6 @@ function initSwitchPage() {
     if (progressWrap) progressWrap.style.display = 'none';
     cancelBtn.disabled = false;
   });
-
-  // Filtros
-  cableFilter?.addEventListener('input', () => { renderSegments(); renderGeo(); });
-  roleFilter?.addEventListener('change', renderSegments);
-  refreshBtn?.addEventListener('click', loadData);
 
   // Detecta sonda em andamento ao abrir a página
   async function detectRunning() {
