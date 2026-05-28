@@ -864,25 +864,27 @@ async function initGlobe() {
     ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v); });
   }
 
+  let togglesWired = false;
   function initLayerToggles(map) {
+    if (togglesWired) {
+      // Layers were added after initial wiring — just sync visibility
+      document.querySelectorAll('#globe-filters .layer-toggle').forEach(btn => {
+        setLayerGroupVisibility(map, btn.dataset.layer, btn.classList.contains('active'));
+      });
+      return;
+    }
+    togglesWired = true;
     document.querySelectorAll('#globe-filters .layer-toggle').forEach(btn => {
-      // Set initial state from button active class
-      const group  = btn.dataset.layer;
-      const active = btn.classList.contains('active');
-      setLayerGroupVisibility(map, group, active);
-
+      const group = btn.dataset.layer;
+      setLayerGroupVisibility(map, group, btn.classList.contains('active'));
       btn.addEventListener('click', () => {
-        const nowActive = btn.classList.toggle('active');
-        setLayerGroupVisibility(map, group, nowActive);
+        setLayerGroupVisibility(map, group, btn.classList.toggle('active'));
       });
     });
   }
 
-  // Wires toggles for layers that loaded before hop_geo_points (cables, endpoints)
-  map.on('idle', function wireEarlyToggles() {
-    map.off('idle', wireEarlyToggles); // run once
-    initLayerToggles(map);
-  });
+  // Wire toggles once map becomes idle (cables + endpoints already loaded)
+  map.once('idle', () => initLayerToggles(map));
 
   // ── Hover tip com throttle RAF — evita queryRenderedFeatures a 60fps ─────
   let hoverRAF = null;
