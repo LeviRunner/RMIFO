@@ -797,7 +797,8 @@ async function initGlobe() {
         if (map.getSource('switch-hops')) return;
         map.addSource('switch-hops', { type: 'geojson', data: fc });
 
-        // Build same-AS relationship lines client-side (star topology per ASN)
+        // Pré-computa links ISP/AS (estrela por ASN) — fonte preservada para uso futuro.
+        // Para ativar a camada de relacionamento, descomentar addLayer abaixo.
         const byAs = {};
         for (const f of fc.features) {
           const asn = f.properties.as_number;
@@ -808,7 +809,6 @@ async function initGlobe() {
         const asLinkFeatures = [];
         for (const [asn, coords] of Object.entries(byAs)) {
           if (coords.length < 2) continue;
-          // Connect all nodes in this AS to the centroid (reduces visual clutter)
           const cx = coords.reduce((s, c) => s + c[0], 0) / coords.length;
           const cy = coords.reduce((s, c) => s + c[1], 0) / coords.length;
           for (const c of coords) {
@@ -823,16 +823,11 @@ async function initGlobe() {
           type: 'geojson',
           data: { type: 'FeatureCollection', features: asLinkFeatures },
         });
-        map.addLayer({
-          id: 'switch-as-links-layer', type: 'line', source: 'switch-as-links',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color':     '#f59e0b',
-            'line-width':     0.8,
-            'line-opacity':   0.35,
-            'line-dasharray': [1, 3],
-          },
-        });
+        // map.addLayer({  // ← Reservado para atualização futura de relacionamento ISP/AS
+        //   id: 'switch-as-links-layer', type: 'line', source: 'switch-as-links',
+        //   layout: { 'line-cap': 'round', 'line-join': 'round' },
+        //   paint: { 'line-color': '#f59e0b', 'line-width': 0.8, 'line-opacity': 0.35, 'line-dasharray': [1, 3] },
+        // });
 
         map.addLayer({
           id: 'switch-hops-layer', type: 'circle', source: 'switch-hops',
@@ -855,7 +850,7 @@ async function initGlobe() {
   const layerGroups = {
     cables:    ['cables-layer'],
     endpoints: ['points-layer'],
-    isp:       ['switch-hops-layer', 'switch-as-links-layer', 'switch-lp-lines-layer'],
+    isp:       ['switch-hops-layer'],
   };
 
   function setLayerGroupVisibility(map, group, visible) {
