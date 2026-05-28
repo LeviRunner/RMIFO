@@ -771,22 +771,17 @@ async function initGlobe() {
         if (globeTip) globeTip.textContent = `Erro ao carregar dados: ${err.message}`;
       });
 
-    // ── Linhas comutador → landing-point ─────────────────────────────────
+    // ── Linhas comutador → landing-point (fonte preservada para uso futuro) ──
     apiFetch({ action: 'switch_lp_lines' })
       .then(fc => {
         if (!fc.features || !fc.features.length) return;
         if (map.getSource('switch-lp-lines')) return;
         map.addSource('switch-lp-lines', { type: 'geojson', data: fc });
-        map.addLayer({
-          id: 'switch-lp-lines-layer', type: 'line', source: 'switch-lp-lines',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color':     '#ff912a',
-            'line-width':     0.9,
-            'line-opacity':   0.28,
-            'line-dasharray': [2, 4],
-          },
-        });
+        // map.addLayer({  // ← Reservado para atualização futura de relacionamento ISP/AS
+        //   id: 'switch-lp-lines-layer', type: 'line', source: 'switch-lp-lines',
+        //   layout: { 'line-cap': 'round', 'line-join': 'round' },
+        //   paint: { 'line-color': '#ff912a', 'line-width': 0.9, 'line-opacity': 0.28, 'line-dasharray': [2, 4] },
+        // });
       })
       .catch(() => {});
 
