@@ -790,12 +790,50 @@ async function initGlobe() {
       })
       .catch(() => {});
 
-    // ── Comutadores geolocalizados (switch hop layer) ─────────────────────
+    // ── ISP / AS nodes + relationship lines (same-AS links) ──────────────
     apiFetch({ action: 'hop_geo_points' })
       .then(fc => {
         if (!fc.features || !fc.features.length) return;
         if (map.getSource('switch-hops')) return;
         map.addSource('switch-hops', { type: 'geojson', data: fc });
+
+        // Build same-AS relationship lines client-side (star topology per ASN)
+        const byAs = {};
+        for (const f of fc.features) {
+          const asn = f.properties.as_number;
+          if (!asn) continue;
+          if (!byAs[asn]) byAs[asn] = [];
+          byAs[asn].push(f.geometry.coordinates);
+        }
+        const asLinkFeatures = [];
+        for (const [asn, coords] of Object.entries(byAs)) {
+          if (coords.length < 2) continue;
+          // Connect all nodes in this AS to the centroid (reduces visual clutter)
+          const cx = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+          const cy = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+          for (const c of coords) {
+            asLinkFeatures.push({
+              type: 'Feature',
+              properties: { as_number: asn },
+              geometry: { type: 'LineString', coordinates: [c, [cx, cy]] },
+            });
+          }
+        }
+        map.addSource('switch-as-links', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: asLinkFeatures },
+        });
+        map.addLayer({
+          id: 'switch-as-links-layer', type: 'line', source: 'switch-as-links',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color':     '#f59e0b',
+            'line-width':     0.8,
+            'line-opacity':   0.35,
+            'line-dasharray': [1, 3],
+          },
+        });
+
         map.addLayer({
           id: 'switch-hops-layer', type: 'circle', source: 'switch-hops',
           paint: {
@@ -806,9 +844,45 @@ async function initGlobe() {
             'circle-stroke-color': 'rgba(255,255,255,0.25)',
           },
         });
+
+        // Wire toggle buttons now that all layers exist
+        initLayerToggles(map);
       })
       .catch(() => {});
   }); // end map.on('load')
+
+  // ── Layer visibility toggles ──────────────────────────────────────────────
+  const layerGroups = {
+    cables:    ['cables-layer', 'switch-lp-lines-layer'],
+    endpoints: ['points-layer'],
+    isp:       ['switch-hops-layer', 'switch-as-links-layer'],
+  };
+
+  function setLayerGroupVisibility(map, group, visible) {
+    const ids = layerGroups[group] || [];
+    const v   = visible ? 'visible' : 'none';
+    ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v); });
+  }
+
+  function initLayerToggles(map) {
+    document.querySelectorAll('#globe-filters .layer-toggle').forEach(btn => {
+      // Set initial state from button active class
+      const group  = btn.dataset.layer;
+      const active = btn.classList.contains('active');
+      setLayerGroupVisibility(map, group, active);
+
+      btn.addEventListener('click', () => {
+        const nowActive = btn.classList.toggle('active');
+        setLayerGroupVisibility(map, group, nowActive);
+      });
+    });
+  }
+
+  // Wires toggles for layers that loaded before hop_geo_points (cables, endpoints)
+  map.on('idle', function wireEarlyToggles() {
+    map.off('idle', wireEarlyToggles); // run once
+    initLayerToggles(map);
+  });
 
   // ── Hover tip com throttle RAF — evita queryRenderedFeatures a 60fps ─────
   let hoverRAF = null;
@@ -852,10 +926,10 @@ async function initGlobe() {
     const titleEl = document.getElementById('sel-title');
     const bodyEl  = document.getElementById('sel-body');
     if (!panel || !titleEl || !bodyEl) return;
-    titleEl.textContent = p.ip || 'Comutador';
+    titleEl.textContent = p.ip || 'ISP / AS';
     const loc = [p.city, p.region, p.country].filter(Boolean).join(', ') || '—';
     bodyEl.innerHTML = `
-      <p><span class="badge yes">Comutador de Rota</span></p>
+      <p><span class="badge yes">ISP / AS</span></p>
       <table class="sel-table">
         <tr><th>IP</th><td class="mono">${esc(p.ip)}</td></tr>
         <tr><th>Localização</th><td>${esc(loc)}</td></tr>

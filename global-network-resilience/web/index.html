@@ -223,7 +223,20 @@
         <span class="leg-item"><span class="leg-dot probe"></span>Telemetria TCP verificada</span>
         <span class="leg-item"><span class="leg-dot warn"></span>Com alerta</span>
         <span class="leg-item"><span class="leg-dot off"></span>Inativo</span>
-        <span class="leg-item"><span class="leg-dot switch"></span>Comutador de rota</span>
+        <span class="leg-item"><span class="leg-dot switch"></span>ISP / AS</span>
+      </div>
+      <!-- Layer visibility toggles -->
+      <div class="globe-filters" id="globe-filters">
+        <span class="globe-filters-label">Camadas:</span>
+        <button class="layer-toggle active" data-layer="cables">
+          <span class="layer-toggle-line cables-line"></span>Cabos
+        </button>
+        <button class="layer-toggle active" data-layer="endpoints">
+          <span class="layer-toggle-dot ok"></span>Endpoints
+        </button>
+        <button class="layer-toggle active" data-layer="isp">
+          <span class="layer-toggle-dot switch"></span>ISP / AS
+        </button>
       </div>
       <div class="globe-tip" id="globe-tip">
         Clique em um cabo ou ponto para selecionar
