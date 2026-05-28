@@ -306,7 +306,6 @@
   // ── Bootstrap ────────────────────────────────────────────────────────────────
   function init() {
     initArcProgress();
-    initLiveScatter();
     initHeatmap();
     initCutsGraph();
   }

@@ -2445,206 +2445,57 @@ function initDailyPage() {
   const progressWrap = document.getElementById('daily-progress-wrap');
   const progressBar  = document.getElementById('daily-progress-inner');
   const progressLbl  = document.getElementById('daily-progress-label');
-  const cablePanel   = document.getElementById('daily-cable-panel');
-  const pvEpA        = document.getElementById('pv-ep-a');
-  const pvEpB        = document.getElementById('pv-ep-b');
-  const pvCable      = document.getElementById('pv-cable-name');
-  const pvLat        = document.getElementById('pv-lat');
-  const pvProto      = document.getElementById('pv-proto');
-  const pvProtoChip  = document.getElementById('pv-proto-chip');
-  const pvPktN       = document.getElementById('pv-pkt-n');
-  const pvPorts      = document.getElementById('pv-ports');
-  const pvPtag1      = document.getElementById('pv-ptag-1');
-  const pvPtag2      = document.getElementById('pv-ptag-2');
-  const pvPtag3      = document.getElementById('pv-ptag-3');
-  const tableWrap    = document.getElementById('daily-table-wrap');
-  const tbody        = document.getElementById('daily-tbody');
   const errEl        = document.getElementById('daily-error');
-  const phaseBar     = document.getElementById('daily-phase-bar');
-  const preflightEl  = document.getElementById('daily-preflight');
-  const taskBar      = document.getElementById('daily-task-bar');
-  const alertsEl     = document.getElementById('daily-alerts');
 
   let pollTimer      = null;
   let currentLog     = null;
-  let tableRows      = [];
   let probeStartTime = null;
-  let pvLastCable    = null;
-  let pvCounterTimer = null;
-  let pvPacketCount  = 0;
 
-  function parseProto(str) {
-    if (!str) return { label: '—', chipCls: '', ports: [], tags: ['PKT', 'PKT', 'PKT'] };
-    const tagMap = { '80': 'HTTP', '443': 'TLS', '22': 'SSH', '8080': 'ALT', '8443': 'TLS' };
-    if (str.match(/tcp-\d+pkt/)) {
-      const m = str.match(/ports([\d,]+)/);
-      const ports = m ? m[1].split(',').filter(Boolean) : [];
-      const tags = ports.slice(0, 3).map(p => tagMap[p] || `P${p}`);
-      while (tags.length < 3) tags.push('JIT');
-      return { label: 'TCP Jitter', chipCls: 'jitter', ports, tags };
-    }
-    if (str.includes('tcp')) {
-      const m = str.match(/port(\d+)/);
-      const ports = m ? [m[1]] : [];
-      const tags = ports.slice(0, 3).map(p => tagMap[p] || `P${p}`);
-      while (tags.length < 3) tags.push('SYN');
-      return { label: 'TCP', chipCls: '', ports, tags };
-    }
-    if (str.includes('mtr') || str.includes('traceroute')) {
-      return { label: 'MTR', chipCls: 'mtr', ports: [], tags: ['UDP', 'TTL', 'HOP'] };
-    }
-    if (str.includes('http') || str.includes('curl')) {
-      return { label: 'HTTP', chipCls: 'http', ports: [], tags: ['HEAD', 'GET', '200'] };
-    }
-    return { label: 'Sint.', chipCls: 'synth', ports: [], tags: ['EST', '≈', 'SIM'] };
+  // ── localStorage cache ───────────────────────────────────────────────────
+  // Persiste progresso + contadores entre recargas e navegações.
+  // Buffer de log acumula entradas e só grava no servidor a cada FLUSH_EVERY cabos.
+  const CACHE_KEY  = 'rmifo_daily_cache';
+  const FLUSH_EVERY = 10;
+  let logBuffer = [];
+
+  function saveCache(progress, statsSnap) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        ts: Date.now(),
+        progress,
+        stats: statsSnap,
+        log: currentLog,
+      }));
+    } catch { /* quota — silencioso */ }
   }
 
-  function setRunningUI(running) {
-    if (btnStart)  { btnStart.disabled = running; btnStart.innerHTML = running ? ICONS.dot + ' Rodando…' : ICONS.play + ' Iniciar Sonda'; }
-    if (btnCancel) { btnCancel.style.display = running ? '' : 'none'; }
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      if (Date.now() - d.ts > 86400000) { localStorage.removeItem(CACHE_KEY); return null; } // expirado após 24h
+      return d;
+    } catch { return null; }
   }
 
-  // ── PRÉ-FLIGHT panel ─────────────────────────────────────────────────────
-  function updatePreflight(data) {
-    if (!preflightEl) return;
-    const phase = (data.current_phase || '').toLowerCase();
-    const hasPreflight = phase.includes('pré-flight') || phase.includes('conectividade')
-                      || phase.includes('dns') || phase.includes('http')
-                      || (data.probes && data.probes.length > 0)
-                      || data.reachable != null;
-    if (!hasPreflight && data.status !== 'completed') return;
-    preflightEl.style.display = '';
-
-    const icon = (ok) => ok == null ? ICONS.clock : ok ? ICONS.check : ICONS.xmark;
-    const cls  = (ok)          => ok == null ? '' : ok ? 'pf-ok' : 'pf-fail';
-
-    const setCheck = (id, ok, label) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.className = 'pf-check ' + cls(ok);
-      el.innerHTML = `<span class="pf-icon">${icon(ok)}</span> ${label}`;
-    };
-
-    const depsOk = data.deps_ok ?? null;
-    const dnsOk  = data.dns_ok  ?? null;
-    const httpOk = data.http_ok ?? null;
-    setCheck('pf-deps', depsOk, 'Dependências');
-    setCheck('pf-dns',  dnsOk,  'DNS');
-    setCheck('pf-http', httpOk, 'HTTP');
-
-    const r = data.reachable;
-    const reachOk = r ? (r.ok >= 2 ? true : r.ok > 0 ? null : false) : null;
-    const reachLbl = r ? `Rede ${r.ok}/${r.total}` : 'Rede —';
-    setCheck('pf-reach', reachOk, reachLbl);
-
-    // Probe ICMP grid
-    const grid = document.getElementById('pf-probes');
-    if (grid && data.probes && data.probes.length) {
-      grid.innerHTML = data.probes.map(p => {
-        const sc = p.status === 'ok' ? 'pf-probe-ok' : p.status === 'warn' ? 'pf-probe-warn' : 'pf-probe-fail';
-        const ic = p.status === 'ok' ? ICONS.check : p.status === 'warn' ? ICONS.alert : ICONS.xmark;
-        return `<div class="pf-probe ${sc}">
-          <span class="pf-probe-ic">${ic}</span>
-          <span class="pf-probe-ip">${esc(p.ip)}</span>
-          <span class="pf-probe-loss">perda ${p.loss}%</span>
-          <span class="pf-probe-rtt">${p.rtt} ms</span>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  // ── Phase bar ─────────────────────────────────────────────────────────────
-  function updatePhaseBar(data) {
-    if (!phaseBar) return;
-    const phase = (data.current_phase || '').toLowerCase();
-    if (!phase && data.status === 'idle') return;
-    phaseBar.style.display = '';
-
-    const map = {
-      'dpb-preflight': ['pré-flight', 'verificando dependências'],
-      'dpb-icmp':      ['conectividade', '1/5'],
-      'dpb-dns':       ['dns', '2/5'],
-      'dpb-http':      ['http', '3/5'],
-      'dpb-pipeline':  ['pipeline', '4/5'],
-      'dpb-done':      ['sumário', '5/5'],
-    };
-    Object.entries(map).forEach(([id, keywords]) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const active  = keywords.some(k => phase.includes(k));
-      const done    = data.status === 'completed'
-                   || (id === 'dpb-preflight' && ['icmp','dns','http','pipeline','sumário'].some(k => phase.includes(k)))
-                   || (id === 'dpb-icmp'      && ['dns','http','pipeline','sumário'].some(k => phase.includes(k)))
-                   || (id === 'dpb-dns'       && ['http','pipeline','sumário'].some(k => phase.includes(k)))
-                   || (id === 'dpb-http'      && ['pipeline','sumário','relatório'].some(k => phase.includes(k)))
-                   || (id === 'dpb-pipeline'  && ['sumário','5/5'].some(k => phase.includes(k)));
-      el.className = 'dpb-step' + (done ? ' dpb-done' : active ? ' dpb-active' : '');
+  function flushLogBuffer() {
+    if (!logBuffer.length || !currentLog) return;
+    const batch = logBuffer.splice(0);
+    apiFetch({ action: 'daily_log_batch', log: currentLog, entries: batch }).catch(() => {
+      logBuffer.unshift(...batch); // re-enfileira se falhar
     });
   }
 
-  // ── Task bar (Pipeline Python) ────────────────────────────────────────────
-  function updateTaskBar(data) {
-    if (!taskBar) return;
-    const t = data.current_task;
-    const done = data.task_done || [];
-    if (!t && !done.length) { taskBar.style.display = 'none'; return; }
-    taskBar.style.display = '';
-    const lbl = document.getElementById('dtb-label');
-    const att = document.getElementById('dtb-attempt');
-    const doneEl = document.getElementById('dtb-done');
-    if (lbl) lbl.textContent = t ? t.label : '—';
-    if (att) att.textContent = t ? `tentativa ${t.attempt}/${t.max}` : '';
-    if (doneEl && done.length) {
-      doneEl.innerHTML = done.map(d => `<span class="dtb-ok">${ICONS.check} ${esc(d)}</span>`).join('');
-    }
+  function appendLog(entry) {
+    logBuffer.push({ ts: Date.now(), ...entry });
+    if (logBuffer.length >= FLUSH_EVERY) flushLogBuffer();
   }
 
-  // ── Warnings / Errors panel ───────────────────────────────────────────────
-  function updateAlerts(data) {
-    if (!alertsEl) return;
-    const warns  = data.warn_list  || [];
-    const errors = data.error_list || [];
-    if (!warns.length && !errors.length) { alertsEl.style.display = 'none'; return; }
-    alertsEl.style.display = '';
-
-    const wrapW = document.getElementById('da-warn-block');
-    const wrapE = document.getElementById('da-error-block');
-    const listW = document.getElementById('da-warn-list');
-    const listE = document.getElementById('da-error-list');
-
-    if (wrapW && listW) {
-      wrapW.style.display = warns.length ? '' : 'none';
-      listW.innerHTML = warns.map(w => `<li>${esc(w)}</li>`).join('');
-    }
-    if (wrapE && listE) {
-      wrapE.style.display = errors.length ? '' : 'none';
-      listE.innerHTML = errors.map(e => `<li>${esc(e)}</li>`).join('');
-    }
-  }
-
-  function setStats(summary, progress, live) {
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
-    const setPct = (id, n, base) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = (n != null && base > 0) ? `${((n / base) * 100).toFixed(1)}%` : '—';
-    };
-    const vc     = progress?.var_counts ?? {};
-    const base   = summary?.inserted ?? progress?.total ?? null;
-    const total  = summary?.inserted ?? progress?.total ?? null;
-    const tcp    = summary?.tcp      ?? vc.tcp_syn      ?? live?.tcp   ?? null;
-    const jitter = summary?.tcp_jitter ?? vc.tcp_jitter ?? null;
-    const synth  = summary?.synthetic  ?? vc.synthetic  ?? live?.synth ?? null;
-    const mtr    = summary?.mtr        ?? vc.mtr_udp    ?? null;
-    const http   = summary?.http       ?? vc.http_curl  ?? live?.http  ?? null;
-    const anom   = summary?.anomalies  ?? null;
-    set('dstat-total',     progress ? `${progress.current} / ${progress.total}` : total);
-    set('dstat-tcp',       tcp);    setPct('dstat-pct-tcp',    tcp,    base);
-    set('dstat-jitter',    jitter); setPct('dstat-pct-jitter', jitter, base);
-    set('dstat-mtr',       mtr);    setPct('dstat-pct-mtr',    mtr,    base);
-    set('dstat-http',      http);   setPct('dstat-pct-http',   http,   base);
-    set('dstat-synth',     synth);  setPct('dstat-pct-synth',  synth,  base);
-    set('dstat-anomalies', anom);
+  // ── UI helpers ───────────────────────────────────────────────────────────
+  function setRunningUI(running) {
+    if (btnStart)  { btnStart.disabled = running; btnStart.innerHTML = running ? ICONS.dot + ' Rodando…' : ICONS.play + ' Iniciar Sonda'; }
+    if (btnCancel) { btnCancel.style.display = running ? '' : 'none'; }
   }
 
   function updateBadge(status) {
@@ -2660,34 +2511,61 @@ function initDailyPage() {
     if (progressWrap) progressWrap.style.display = '';
     if (progressBar)  progressBar.style.width = pct + '%';
     if (progressLbl)  progressLbl.textContent = `${p.current} / ${p.total} — ${pct.toFixed(1)}%`;
-
-    // Comutadores descobertos
     const dstatSw = document.getElementById('dstat-switches');
     if (dstatSw && p.switch_count > 0) dstatSw.textContent = p.switch_count;
-
-    // Tabela fixa — atualizada apenas nos checkpoints (quando p.recent existir)
-    // Isso evita re-render a cada cabo e elimina a principal fonte de atraso
-    if (p.recent && p.recent.length && tbody) {
-      if (tableWrap) tableWrap.style.display = '';
-      const prevFirstIdx = tbody.firstElementChild?.dataset?.idx;
-      tbody.innerHTML = p.recent.map((r, i) => {
-        const protoFirst  = (r.proto || 'heuristic').split('+')[0];
-        const protoReal   = !protoFirst.includes('heuristic') && !protoFirst.includes('synthetic');
-        const protoInfo   = parseProto(protoFirst);
-        const protoLabel  = protoInfo.label !== '—' ? protoInfo.label : 'Sint.';
-        const isNew       = i === 0 && String(r.n) !== prevFirstIdx;
-        return `<tr data-idx="${r.n}" class="${isNew ? 'probe-row-new' : ''}">
-          <td>${r.n}</td>
-          <td class="mono">${esc(r.cable_name || r.cable_id)}</td>
-          <td><span class="badge ${protoReal ? 'yes' : ''} ${protoInfo.chipCls || ''}">${esc(protoLabel)}</span></td>
-          <td class="${r.latency_ms > 200 ? 'danger-text' : 'ok-text'}">${r.latency_ms ?? '—'} ms</td>
-          <td class="mono">${r.hops > 0 ? r.hops : '—'}</td>
-          <td class="mono">${r.switches > 0 ? r.switches : '—'}</td>
-        </tr>`;
-      }).join('');
-    }
   }
 
+  function setStats(summary, progress, live) {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    const setPct = (id, n, base) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = (n != null && base > 0) ? `${((n / base) * 100).toFixed(1)}%` : '—';
+    };
+    const vc     = progress?.var_counts ?? {};
+    const base   = summary?.inserted ?? progress?.total ?? null;
+    const tcp    = summary?.tcp        ?? vc.tcp_syn    ?? live?.tcp   ?? null;
+    const jitter = summary?.tcp_jitter ?? vc.tcp_jitter ?? null;
+    const synth  = summary?.synthetic  ?? vc.synthetic  ?? live?.synth ?? null;
+    const mtr    = summary?.mtr        ?? vc.mtr_udp    ?? null;
+    const http   = summary?.http       ?? vc.http_curl  ?? live?.http  ?? null;
+    const anom   = summary?.anomalies  ?? null;
+    set('dstat-total',     progress ? `${progress.current} / ${progress.total}` : (summary?.inserted ?? null));
+    set('dstat-tcp',       tcp);    setPct('dstat-pct-tcp',    tcp,    base);
+    set('dstat-jitter',    jitter); setPct('dstat-pct-jitter', jitter, base);
+    set('dstat-mtr',       mtr);    setPct('dstat-pct-mtr',    mtr,    base);
+    set('dstat-http',      http);   setPct('dstat-pct-http',   http,   base);
+    set('dstat-synth',     synth);  setPct('dstat-pct-synth',  synth,  base);
+    set('dstat-anomalies', anom);
+
+    // Persiste snapshot dos contadores no cache
+    saveCache(progress, { tcp, jitter, synth, mtr, http, anom, base });
+  }
+
+  // ── Restore cache on page open ───────────────────────────────────────────
+  function restoreFromCache() {
+    const c = loadCache();
+    if (!c) return;
+    if (c.progress) updateProgress(c.progress);
+    if (c.stats) {
+      const s = c.stats;
+      const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.textContent = v; };
+      const setPct = (id, n, base) => {
+        const el = document.getElementById(id);
+        if (el && n != null && base > 0) el.textContent = `${((n / base) * 100).toFixed(1)}%`;
+      };
+      set('dstat-total',     c.progress ? `${c.progress.current} / ${c.progress.total}` : s.base);
+      set('dstat-tcp',       s.tcp);    setPct('dstat-pct-tcp',    s.tcp,    s.base);
+      set('dstat-jitter',    s.jitter); setPct('dstat-pct-jitter', s.jitter, s.base);
+      set('dstat-mtr',       s.mtr);    setPct('dstat-pct-mtr',    s.mtr,    s.base);
+      set('dstat-http',      s.http);   setPct('dstat-pct-http',   s.http,   s.base);
+      set('dstat-synth',     s.synth);  setPct('dstat-pct-synth',  s.synth,  s.base);
+      set('dstat-anomalies', s.anom);
+    }
+    if (c.log) currentLog = c.log;
+  }
+
+  // ── Poll ─────────────────────────────────────────────────────────────────
   async function poll() {
     if (!currentLog) return;
     try {
@@ -2695,32 +2573,32 @@ function initDailyPage() {
       const live = { tcp: data.live_tcp || null, synth: data.live_synth || null };
 
       updateBadge(data.status);
-      updatePreflight(data);
-      updatePhaseBar(data);
-      updateTaskBar(data);
-      updateAlerts(data);
-
       if (data.progress) updateProgress(data.progress);
       if (data.summary)  setStats(data.summary, data.progress, live);
       else if (data.progress || live.tcp) setStats(null, data.progress, live);
 
+      // Acumula entradas recentes no buffer de log local
+      if (data.progress?.recent?.length) {
+        data.progress.recent.forEach(r => appendLog({ cable_id: r.cable_id, latency_ms: r.latency_ms, proto: r.proto, hops: r.hops }));
+      }
+
       if (data.status === 'starting') {
-        if (phaseBar) phaseBar.style.display = '';
-        if (progressLbl) progressLbl.textContent = 'Iniciando pré-flight…';
+        if (progressLbl) progressLbl.textContent = 'Iniciando sonda…';
         pollTimer = setTimeout(poll, 4000);
       } else if (data.status === 'running' || data.status === 'already_running') {
-        if (!data.progress && progressLbl) progressLbl.textContent = 'Pré-flight em andamento…';
-        pollTimer = setTimeout(poll, 7000); // checkpoint a cada 10 cabos — 3s é excessivo
+        if (!data.progress && progressLbl) progressLbl.textContent = 'Sonda em andamento…';
+        pollTimer = setTimeout(poll, 7000);
       } else if (data.status === 'idle') {
         const elapsed = probeStartTime ? (Date.now() - probeStartTime) / 1000 : 9999;
-        // Mantém polling por até 15 min após start — containers Railway podem demorar na init
         if (elapsed < 900) {
           if (progressLbl) progressLbl.textContent = elapsed < 120 ? 'Iniciando sonda…' : 'Processando…';
           pollTimer = setTimeout(poll, elapsed < 60 ? 3000 : 6000);
         } else {
+          flushLogBuffer();
           setRunningUI(false);
         }
       } else if (data.status === 'completed') {
+        flushLogBuffer();
         AppState.probeActiveCable = null;
         if (AppState.globePaths.length) refreshGlobeProbeHighlight();
         if (progressBar) progressBar.style.width = '100%';
@@ -2734,14 +2612,14 @@ function initDailyPage() {
     }
   }
 
+  // ── Start ────────────────────────────────────────────────────────────────
   if (btnStart) {
     btnStart.addEventListener('click', async () => {
       const fullScan = document.getElementById('daily-full-scan')?.checked ? '1' : '0';
       setRunningUI(true);
       btnStart.innerHTML = ICONS.clock + ' Iniciando…';
       if (errEl) errEl.style.display = 'none';
-      tableRows = [];
-      if (tbody) tbody.innerHTML = '';
+      logBuffer = [];
       try {
         const data = await apiFetch({ action: 'daily_start', full_scan: fullScan, mtr_cycles: fullScan === '1' ? '30' : '15' });
         if (data.status === 'error') {
@@ -2752,9 +2630,6 @@ function initDailyPage() {
         currentLog     = data.log_file || null;
         probeStartTime = Date.now();
         updateBadge(data.status === 'already_running' ? 'already_running' : 'running');
-        // Mostra a barra de fases imediatamente; progresso/cabo aparecem depois
-        if (phaseBar)    phaseBar.style.display    = '';
-        if (preflightEl) preflightEl.style.display = '';
         if (pollTimer) clearTimeout(pollTimer);
         pollTimer = setTimeout(poll, 4000);
       } catch (err) {
@@ -2764,38 +2639,29 @@ function initDailyPage() {
     });
   }
 
+  // ── Cancel ───────────────────────────────────────────────────────────────
   if (btnCancel) {
     btnCancel.addEventListener('click', async () => {
       btnCancel.disabled = true;
       btnCancel.textContent = 'Cancelando…';
-      try {
-        await apiFetch({ action: 'daily_cancel' });
-      } catch { /* best-effort */ }
+      try { await apiFetch({ action: 'daily_cancel' }); } catch { /* best-effort */ }
       if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-      clearInterval(pvCounterTimer); pvCounterTimer = null;
-      pvLastCable = null; pvPacketCount = 0;
-      if (pvPktN) pvPktN.textContent = '0';
+      flushLogBuffer();
       currentLog     = null;
       probeStartTime = null;
-      tableRows      = [];
+      logBuffer      = [];
       AppState.probeActiveCable = null;
       if (AppState.globePaths.length) refreshGlobeProbeHighlight();
       setRunningUI(false);
       updateBadge('idle');
       if (progressWrap) progressWrap.style.display = 'none';
-      if (cablePanel)   cablePanel.style.display   = 'none';
-      if (tableWrap)    tableWrap.style.display     = 'none';
-      if (tbody) tbody.innerHTML = '';
-      if (preflightEl) preflightEl.style.display = 'none';
-      if (phaseBar)    phaseBar.style.display    = 'none';
-      if (taskBar)     taskBar.style.display     = 'none';
-      if (alertsEl)    alertsEl.style.display    = 'none';
       btnCancel.disabled = false;
     });
   }
 
-  // Check if already running when page is opened
+  // ── Navegação para a página: restaura cache e verifica status ────────────
   document.querySelector('[data-page="daily"]')?.addEventListener('click', async () => {
+    restoreFromCache(); // mostra dados anteriores instantaneamente
     try {
       const data = await apiFetch({ action: 'daily_status' });
       const live = { tcp: data.live_tcp || null, synth: data.live_synth || null };
@@ -2804,30 +2670,16 @@ function initDailyPage() {
         probeStartTime = probeStartTime ?? Date.now();
         updateBadge('running');
         setRunningUI(true);
-        if (phaseBar)    phaseBar.style.display    = '';
-        if (preflightEl) preflightEl.style.display = '';
-        updatePreflight(data);
-        updatePhaseBar(data);
-        updateTaskBar(data);
-        updateAlerts(data);
-        if (data.progress) {
-          if (progressWrap) progressWrap.style.display = '';
-          if (cablePanel)   cablePanel.style.display   = '';
-          updateProgress(data.progress);
-        }
+        if (data.progress) { if (progressWrap) progressWrap.style.display = ''; updateProgress(data.progress); }
         if (data.summary)  setStats(data.summary, data.progress, live);
         else if (live.tcp) setStats(null, data.progress, live);
         if (!pollTimer) pollTimer = setTimeout(poll, 3000);
       } else if (data.status === 'completed') {
         updateBadge('completed');
-        updatePreflight(data);
-        updatePhaseBar(data);
-        updateTaskBar(data);
-        updateAlerts(data);
         if (data.summary) setStats(data.summary, null, null);
         if (progressBar) progressBar.style.width = '100%';
       }
-    } catch { /* silent */ }
+    } catch { /* silent — cache já exibido */ }
   });
 }
 
