@@ -2686,33 +2686,47 @@ function initDailyPage() {
 // ─── Switch probe page ────────────────────────────────────────────────────────
 
 function initSwitchPage() {
-  const runBtn        = document.getElementById('btn-sw-run');
-  const cancelBtn     = document.getElementById('btn-sw-cancel');
-  const cyclesInput   = document.getElementById('sw-mtr-cycles');
-  const stepInput     = document.getElementById('sw-ip-step');
-  const stepWrap      = document.getElementById('sw-step-wrap');
-  const modeToggle    = document.getElementById('sw-mode-toggle');
-  const errorEl       = document.getElementById('sw-error');
-  const statusDot     = document.getElementById('sw-status-dot');
-  const phaseBar      = document.getElementById('sw-phase-bar');
-  const progressWrap  = document.getElementById('sw-progress-wrap');
-  const progressInner = document.getElementById('sw-progress-inner');
-  const progressLabel = document.getElementById('sw-progress-label');
-  const arcFill       = document.getElementById('sw-arc-fill');
-  const arcPct        = document.getElementById('sw-arc-pct');
-  const arcSub        = document.getElementById('sw-arc-sub');
-  const cablePanel    = document.getElementById('sw-cable-panel');
-  const currentCable  = document.getElementById('sw-current-cable');
-  const currentHops   = document.getElementById('sw-current-hops');
+  const runBtn      = document.getElementById('btn-sw-run');
+  const cancelBtn   = document.getElementById('btn-sw-cancel');
+  const cyclesInput = document.getElementById('sw-mtr-cycles');
+  const stepInput   = document.getElementById('sw-ip-step');
+  const stepWrap    = document.getElementById('sw-step-wrap');
+  const modeToggle  = document.getElementById('sw-mode-toggle');
+  const errorEl     = document.getElementById('sw-error');
+  const statusDot   = document.getElementById('sw-status-dot');
+  const phaseBar    = document.getElementById('sw-phase-bar');
 
-  const CIRC = 201.06; // 2π × 32
-
-  let allSegments = [];
-  let allGeo      = [];
-  let liveTimer   = null;
-  let isRunning   = false;
-  let probeMode   = 'cable'; // 'cable' | 'ip_ranges'
+  let liveTimer  = null;
+  let isRunning  = false;
+  let probeMode  = 'cable';
   let lastProgress = { cur: 0, tot: 0 };
+
+  // Acumula IPs/hops/subnets/ISPs em tempo real a partir de live.recent
+  const liveIPs     = new Set();
+  const liveHops    = new Set();
+  const liveSubnets = new Set();
+  const liveISPs    = new Set();
+
+  // ── Cache localStorage ───────────────────────────────────────────────────
+  const CACHE_KEY = 'rmifo_sw_cache';
+
+  function saveCache() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        ts: Date.now(), progress: lastProgress,
+        ips: liveIPs.size, hops: liveHops.size,
+        subnets: liveSubnets.size, isps: liveISPs.size,
+      }));
+    } catch {}
+  }
+
+  function restoreFromCache() {
+    try {
+      const d = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (!d || Date.now() - d.ts > 86400000) return;
+      updateCounters(d.progress, d.ips, d.hops, d.subnets, d.isps);
+    } catch {}
+  }
 
   // ── Seletor de modo ──────────────────────────────────────────────────────
   modeToggle?.querySelectorAll('.sw-mode-btn').forEach(btn => {
@@ -2724,70 +2738,72 @@ function initSwitchPage() {
     });
   });
 
-  function updateArc(pct, cur, tot) {
-    const dash = (pct / 100) * CIRC;
-    if (arcFill) arcFill.setAttribute('stroke-dasharray', `${dash.toFixed(1)} ${CIRC}`);
-    if (arcPct)  arcPct.textContent  = pct + '%';
-    if (arcSub)  arcSub.textContent  = `${cur} / ${tot}`;
-    if (progressInner) progressInner.style.width = pct + '%';
-    if (progressLabel) progressLabel.textContent  = `${cur} / ${tot} — ${pct}%`;
-  }
-
+  // ── Phase bar ────────────────────────────────────────────────────────────
   function updatePhaseBar(pct) {
-    if (!phaseBar) return;
-    phaseBar.style.display = '';
     const steps = {
       'swpb-start': pct === 0,
-      'swpb-mtr':   pct > 0 && pct < 90,
+      'swpb-mtr':   pct > 0  && pct < 90,
       'swpb-geo':   pct >= 90 && pct < 96,
       'swpb-db':    pct >= 96 && pct < 100,
       'swpb-done':  pct >= 100,
     };
     Object.entries(steps).forEach(([id, active]) => {
       const el = document.getElementById(id);
-      if (el) el.className = 'dpb-step' + (active ? ' dpb-active' : '');
+      if (el) el.className = 'dpb-step' + (active ? ' dpb-active' : (pct >= 100 ? ' dpb-done' : ''));
     });
   }
 
-  function updateCounters(liveProgress) {
-    const el = (id) => document.getElementById(id);
-    // Contador: live progress when running, else last known
-    const { cur, tot } = liveProgress || lastProgress;
+  // ── Contadores ───────────────────────────────────────────────────────────
+  // Aceita valores diretos (número) para permitir restore do cache sem Sets
+  function updateCounters(progress, ips, hops, subnets, isps) {
+    const g = id => document.getElementById(id);
+    const { cur, tot } = progress || lastProgress;
     const pct = tot > 0 ? Math.round((cur / tot) * 100) : 0;
-    if (el('swstat-progress')) {
-      el('swstat-progress').textContent = tot > 0 ? `${cur} / ${tot} (${pct}%)` : '—';
-    }
-    // IPs: unique IPs in geo table
-    if (el('swstat-ips'))     el('swstat-ips').textContent     = allGeo.length || '—';
-    // Comutadores: unique hop IPs found in segments
-    const uniqueHops = new Set(allSegments.map(s => s.hop_ip).filter(Boolean)).size;
-    if (el('swstat-hops'))    el('swstat-hops').textContent    = uniqueHops || '—';
-    // Sub-redes: unique /24 prefixes from geo IPs
-    const subnets = new Set(allGeo.map(g => g.hop_ip?.split('.').slice(0, 3).join('.')).filter(Boolean)).size;
-    if (el('swstat-subnets')) el('swstat-subnets').textContent = subnets || '—';
-    // ISP/AS: unique ISP/AS names from geo data
-    const isps = new Set(allGeo.map(g => g.isp || g.org || g.as_name).filter(Boolean)).size;
-    if (el('swstat-isp'))     el('swstat-isp').textContent     = isps || '—';
+
+    if (g('swstat-progress'))     g('swstat-progress').textContent     = tot > 0 ? `${cur} / ${tot}` : '—';
+    if (g('swstat-pct-progress')) g('swstat-pct-progress').textContent = tot > 0 ? `${pct}%` : '—';
+    if (g('swstat-ips'))          g('swstat-ips').textContent          = ips  || '—';
+    if (g('swstat-hops'))         g('swstat-hops').textContent         = hops || '—';
+    if (g('swstat-pct-hops'))     g('swstat-pct-hops').textContent     = (ips && hops) ? `${Math.round((hops / ips) * 100)}%` : '—';
+    if (g('swstat-subnets'))      g('swstat-subnets').textContent      = subnets || '—';
+    if (g('swstat-isp'))          g('swstat-isp').textContent          = isps || '—';
+
+    saveCache();
   }
 
+  // ── Absorve entradas de live.recent nos Sets de tempo real ───────────────
+  function absorbRecent(recent) {
+    if (!Array.isArray(recent)) return;
+    recent.forEach(r => {
+      if (r.ip)     liveIPs.add(r.ip);
+      if (r.hop_ip) liveHops.add(r.hop_ip);
+      const subnet = (r.ip || r.hop_ip || '').split('.').slice(0, 3).join('.');
+      if (subnet)   liveSubnets.add(subnet);
+      if (r.isp || r.org || r.as_name) liveISPs.add(r.isp || r.org || r.as_name);
+    });
+  }
+
+  // ── Carrega dados do DB após conclusão ───────────────────────────────────
   async function loadData() {
-    if (errorEl) errorEl.textContent = '';
     try {
       const [segs, geo] = await Promise.all([
         apiFetch({ action: 'switch_segments' }),
         apiFetch({ action: 'switch_geo' }),
       ]);
-      allSegments = Array.isArray(segs) ? segs : (segs?.registros || []);
-      allGeo      = Array.isArray(geo)  ? geo  : (geo?.registros  || []);
+      const allSegs = Array.isArray(segs) ? segs : (segs?.registros || []);
+      const allGeo  = Array.isArray(geo)  ? geo  : (geo?.registros  || []);
+      const dbIPs     = allGeo.length;
+      const dbHops    = new Set(allSegs.map(s => s.hop_ip).filter(Boolean)).size;
+      const dbSubnets = new Set(allGeo.map(g => (g.hop_ip || '').split('.').slice(0, 3).join('.')).filter(Boolean)).size;
+      const dbISPs    = new Set(allGeo.map(g => g.isp || g.org || g.as_name).filter(Boolean)).size;
+      updateCounters(lastProgress, dbIPs, dbHops, dbSubnets, dbISPs);
     } catch (e) {
       if (errorEl) errorEl.textContent = 'Erro ao carregar dados: ' + e.message;
-      allSegments = [];
-      allGeo      = [];
     }
-    updateCounters();
   }
 
-  function setDot(state) { // 'idle' | 'running' | 'done'
+  // ── Status dot ───────────────────────────────────────────────────────────
+  function setDot(state) {
     if (!statusDot) return;
     statusDot.className = 'sw-status-dot';
     if (state === 'running') { statusDot.className += ' dot-running'; statusDot.title = 'Rodando…'; }
@@ -2804,11 +2820,9 @@ function initSwitchPage() {
         : '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><polygon points="4 2.5 13 8 4 13.5"/></svg> Executar MTR';
     }
     if (cancelBtn) cancelBtn.style.display = running ? '' : 'none';
-    if (!running && phaseBar)      phaseBar.style.display      = 'none';
-    if (!running && progressWrap)  progressWrap.style.display  = 'none';
-    if (!running && cablePanel)    cablePanel.style.display    = 'none';
   }
 
+  // ── Polling live ─────────────────────────────────────────────────────────
   function pollLive() {
     if (liveTimer) clearInterval(liveTimer);
     liveTimer = setInterval(async () => {
@@ -2817,10 +2831,8 @@ function initSwitchPage() {
         if (!live) return;
 
         const status = live.status || (live.current ? 'running' : 'starting');
-        progressWrap.style.display = '';
 
         if (status === 'starting') {
-          updateArc(0, 0, 0);
           updatePhaseBar(0);
           setRunningUI(true);
           setDot('running');
@@ -2832,18 +2844,12 @@ function initSwitchPage() {
           const tot = live.total   || 1;
           const pct = Math.round(live.percent ?? (cur / tot) * 100);
           lastProgress = { cur, tot };
-          updateArc(pct, cur, tot);
           updatePhaseBar(pct);
           setRunningUI(true);
           setDot('running');
-          updateCounters({ cur, tot });
-          // Update "sondando agora" panel with last probed target
-          if (live.recent?.length && currentCable) {
-            const last = live.recent[live.recent.length - 1];
-            currentCable.textContent = last.cable_id || '—';
-            if (currentHops) currentHops.textContent = (last.hops ?? '—') + ' hops';
-            if (cablePanel) cablePanel.style.display = '';
-          }
+          // Acumula IPs/hops de live.recent em tempo real
+          absorbRecent(live.recent);
+          updateCounters({ cur, tot }, liveIPs.size, liveHops.size, liveSubnets.size, liveISPs.size);
         }
 
         if (status === 'completed' || (live.current && live.current >= (live.total || Infinity))) {
@@ -2851,12 +2857,10 @@ function initSwitchPage() {
           const cur = live.current || 0;
           const tot = live.total   || cur;
           lastProgress = { cur, tot };
-          updateArc(100, cur, tot);
           updatePhaseBar(100);
           setRunningUI(false);
           setDot('done');
-          if (cablePanel) cablePanel.style.display = 'none';
-          loadData();
+          loadData(); // substitui contadores pelos valores finais do DB
           return;
         }
 
@@ -2864,34 +2868,30 @@ function initSwitchPage() {
           clearInterval(liveTimer); liveTimer = null;
           setRunningUI(false);
           setDot('idle');
-          if (progressWrap) progressWrap.style.display = 'none';
         }
-      } catch { /* ignore network errors */ }
+      } catch { /* ignora erros de rede */ }
     }, 3000);
   }
 
-  // Executar MTR → (build_ip_ranges se ip_ranges) → switch_start + polling
+  // ── Executar ─────────────────────────────────────────────────────────────
   runBtn?.addEventListener('click', async () => {
     if (isRunning) return;
     const cycles = parseInt(cyclesInput?.value || '20', 10);
-    const step   = parseInt(stepInput?.value  || '8',  10);
+    const step   = parseInt(stepInput?.value   || '8',  10);
     setRunningUI(true);
     setDot('running');
-    progressWrap.style.display = '';
-    updateArc(0, 0, 0);
     updatePhaseBar(0);
-    if (cablePanel)  cablePanel.style.display = 'none';
-    if (errorEl)     errorEl.textContent = '';
+    liveIPs.clear(); liveHops.clear(); liveSubnets.clear(); liveISPs.clear();
+    if (errorEl) errorEl.textContent = '';
     try {
-      // Em modo ip_ranges: constrói/atualiza a tabela de ranges primeiro
       if (probeMode === 'ip_ranges') {
         const built = await apiFetch({ action: 'build_ip_ranges' });
         if (built?.status === 'error') {
           if (errorEl) errorEl.textContent = 'Erro ao construir ranges: ' + (built.message || '');
           setRunningUI(false); setDot('idle'); return;
         }
-        if (errorEl && built?.total === 0) {
-          errorEl.textContent = 'Nenhum range encontrado. Execute a sonda de cabos primeiro para popular o banco.';
+        if (built?.total === 0) {
+          if (errorEl) errorEl.textContent = 'Nenhum range encontrado. Execute a sonda de cabos primeiro.';
           setRunningUI(false); setDot('idle'); return;
         }
       }
@@ -2907,34 +2907,39 @@ function initSwitchPage() {
     }
   });
 
-  // Parar / Cancelar
+  // ── Parar ────────────────────────────────────────────────────────────────
   cancelBtn?.addEventListener('click', async () => {
     cancelBtn.disabled = true;
-    try { await apiFetch({ action: 'switch_cancel' }); } catch { /* best-effort */ }
+    try { await apiFetch({ action: 'switch_cancel' }); } catch {}
     if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
     setRunningUI(false);
     setDot('idle');
-    if (progressWrap) progressWrap.style.display = 'none';
     cancelBtn.disabled = false;
   });
 
-  // Detecta sonda em andamento ao abrir a página
+  // ── Detecta sonda ativa ao abrir a página ────────────────────────────────
   async function detectRunning() {
     try {
       const live = await apiFetch({ action: 'switch_live' });
       if (live && (live.status === 'running' || live.status === 'starting')) {
         setRunningUI(true);
         setDot('running');
-        progressWrap.style.display = '';
+        const pct = live.percent ?? 0;
+        updatePhaseBar(pct);
         pollLive();
       }
-    } catch { /* silent */ }
+    } catch {}
   }
 
   document.querySelectorAll('.nav-link[data-page="switch"]').forEach(a => {
-    a.addEventListener('click', () => { loadData(); detectRunning(); });
+    a.addEventListener('click', () => {
+      restoreFromCache();
+      loadData();
+      detectRunning();
+    });
   });
 
+  restoreFromCache();
   loadData();
   detectRunning();
 }

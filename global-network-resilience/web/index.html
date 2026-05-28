@@ -656,7 +656,7 @@
       </div>
 
       <!-- Barra de fases -->
-      <div class="daily-phase-bar" id="sw-phase-bar" style="display:none">
+      <div class="daily-phase-bar" id="sw-phase-bar">
         <div class="dpb-step" id="swpb-start">Iniciando</div>
         <div class="dpb-arrow">›</div>
         <div class="dpb-step" id="swpb-mtr">MTR Probe</div>
@@ -668,68 +668,36 @@
         <div class="dpb-step" id="swpb-done">Concluído</div>
       </div>
 
-      <!-- Progresso: arco + barra (padrão daily) -->
-      <div id="sw-progress-wrap" style="display:none">
-        <div class="daily-progress-flex">
-          <svg id="sw-arc-svg" width="80" height="80" viewBox="0 0 80 80" aria-hidden="true">
-            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="5"/>
-            <circle id="sw-arc-fill" cx="40" cy="40" r="32" fill="none"
-              stroke="#22c55e" stroke-width="5" stroke-linecap="round"
-              stroke-dasharray="0 201.1" stroke-dashoffset="50.3"/>
-            <text id="sw-arc-pct" x="40" y="36" text-anchor="middle"
-              fill="#22c55e" font-size="12" font-weight="700" font-family="monospace">0%</text>
-            <text id="sw-arc-sub" x="40" y="52" text-anchor="middle"
-              fill="rgba(255,255,255,0.35)" font-size="8">0 / 0</text>
-          </svg>
-          <div class="daily-progress-bar-col">
-            <div class="daily-progress-outer">
-              <div class="daily-progress-inner" id="sw-progress-inner" style="background:linear-gradient(90deg,#22c55e,#86efac)"></div>
-            </div>
-            <div class="daily-progress-label" id="sw-progress-label">0 / 0 — 0%</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Painel do cabo sendo sondado agora -->
-      <div id="sw-cable-panel" style="display:none">
-        <div class="pv-hero">
-          <div class="pv-hero-sup">Sondando agora</div>
-          <div class="pv-hero-name" id="sw-current-cable">—</div>
-          <div class="pv-hero-row">
-            <span class="pv-proto-chip mtr">MTR</span>
-            <span class="pv-ep-pair">
-              <span id="sw-current-host">—</span>
-              <span class="pv-ep-arr">›</span>
-              <span id="sw-current-hops" style="color:var(--muted)">— hops</span>
-            </span>
-          </div>
-        </div>
-      </div>
 
       <!-- Tabela de contadores -->
       <div class="dstat-table-wrap" id="sw-stats">
         <table class="dstat-table">
-          <thead><tr><th>Métrica</th><th>Valor</th></tr></thead>
+          <thead><tr><th>Métrica</th><th>Contagem</th><th>%</th></tr></thead>
           <tbody>
             <tr class="dstat-row">
               <td class="dstat-label">Contador</td>
               <td class="dstat-val" id="swstat-progress">—</td>
+              <td class="dstat-pct" id="swstat-pct-progress">—</td>
             </tr>
             <tr class="dstat-row">
               <td class="dstat-label">Número de IPs</td>
               <td class="dstat-val" id="swstat-ips">—</td>
+              <td class="dstat-pct">—</td>
             </tr>
             <tr class="dstat-row mtr">
               <td class="dstat-label">Número de comutadores</td>
               <td class="dstat-val" id="swstat-hops">—</td>
+              <td class="dstat-pct" id="swstat-pct-hops">—</td>
             </tr>
             <tr class="dstat-row tcp">
               <td class="dstat-label">Sub-redes encontradas</td>
               <td class="dstat-val" id="swstat-subnets">—</td>
+              <td class="dstat-pct">—</td>
             </tr>
             <tr class="dstat-row">
               <td class="dstat-label">ISP / AS encontrados</td>
               <td class="dstat-val" id="swstat-isp">—</td>
+              <td class="dstat-pct">—</td>
             </tr>
           </tbody>
         </table>
