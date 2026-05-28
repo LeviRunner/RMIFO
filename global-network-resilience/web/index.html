@@ -627,17 +627,12 @@
 
         <!-- Controles centralizados -->
         <div class="sw-controls-row">
-          <!-- Seletor de modo -->
-          <div class="sw-mode-toggle" id="sw-mode-toggle">
-            <button class="sw-mode-btn active" data-mode="cable">Cabos</button>
-            <button class="sw-mode-btn" data-mode="ip_ranges">Ranges de IP</button>
-          </div>
           <label class="sw-cycles-wrap" title="Ciclos MTR por alvo">
             <span>Ciclos</span>
-            <input id="sw-mtr-cycles" type="number" min="3" max="50" value="20" class="sw-cycles-input">
+            <input id="sw-mtr-cycles" type="number" min="3" max="50" value="5" class="sw-cycles-input">
           </label>
-          <!-- Passo de amostragem (só em modo ip_ranges) -->
-          <label class="sw-cycles-wrap sw-step-wrap" id="sw-step-wrap" title="Sondar 1 a cada N IPs do range" style="display:none">
+          <!-- Passo de amostragem: 1 a cada N IPs do range -->
+          <label class="sw-cycles-wrap sw-step-wrap" id="sw-step-wrap" title="Sondar 1 a cada N IPs do range">
             <span>Passo</span>
             <input id="sw-ip-step" type="number" min="1" max="64" value="8" class="sw-cycles-input">
           </label>

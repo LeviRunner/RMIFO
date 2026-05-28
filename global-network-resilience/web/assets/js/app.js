@@ -2690,15 +2690,12 @@ function initSwitchPage() {
   const cancelBtn   = document.getElementById('btn-sw-cancel');
   const cyclesInput = document.getElementById('sw-mtr-cycles');
   const stepInput   = document.getElementById('sw-ip-step');
-  const stepWrap    = document.getElementById('sw-step-wrap');
-  const modeToggle  = document.getElementById('sw-mode-toggle');
   const errorEl     = document.getElementById('sw-error');
   const statusDot   = document.getElementById('sw-status-dot');
   const phaseBar    = document.getElementById('sw-phase-bar');
 
-  let liveTimer  = null;
-  let isRunning  = false;
-  let probeMode  = 'cable';
+  let liveTimer    = null;
+  let isRunning    = false;
   let lastProgress = { cur: 0, tot: 0 };
 
   // Acumula IPs/hops/subnets/ISPs em tempo real a partir de live.recent
@@ -2727,16 +2724,6 @@ function initSwitchPage() {
       updateCounters(d.progress, d.ips, d.hops, d.subnets, d.isps);
     } catch {}
   }
-
-  // ── Seletor de modo ──────────────────────────────────────────────────────
-  modeToggle?.querySelectorAll('.sw-mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      modeToggle.querySelectorAll('.sw-mode-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      probeMode = btn.dataset.mode;
-      if (stepWrap) stepWrap.style.display = probeMode === 'ip_ranges' ? '' : 'none';
-    });
-  });
 
   // ── Phase bar ────────────────────────────────────────────────────────────
   function updatePhaseBar(pct) {
@@ -2876,26 +2863,17 @@ function initSwitchPage() {
   // ── Executar ─────────────────────────────────────────────────────────────
   runBtn?.addEventListener('click', async () => {
     if (isRunning) return;
-    const cycles = parseInt(cyclesInput?.value || '20', 10);
-    const step   = parseInt(stepInput?.value   || '8',  10);
+    const cycles = parseInt(cyclesInput?.value || '5', 10);
+    const step   = parseInt(stepInput?.value   || '8', 10);
     setRunningUI(true);
     setDot('running');
     updatePhaseBar(0);
     liveIPs.clear(); liveHops.clear(); liveSubnets.clear(); liveISPs.clear();
     if (errorEl) errorEl.textContent = '';
     try {
-      if (probeMode === 'ip_ranges') {
-        const built = await apiFetch({ action: 'build_ip_ranges' });
-        if (built?.status === 'error') {
-          if (errorEl) errorEl.textContent = 'Erro ao construir ranges: ' + (built.message || '');
-          setRunningUI(false); setDot('idle'); return;
-        }
-        if (built?.total === 0) {
-          if (errorEl) errorEl.textContent = 'Nenhum range encontrado. Execute a sonda de cabos primeiro.';
-          setRunningUI(false); setDot('idle'); return;
-        }
-      }
-      const res = await apiFetch({ action: 'switch_start', mtr_cycles: cycles, probe_mode: probeMode, ip_step: step });
+      // Build IP ranges from DB before starting (silent — failure is non-blocking)
+      await apiFetch({ action: 'build_ip_ranges' }).catch(() => {});
+      const res = await apiFetch({ action: 'switch_start', mtr_cycles: cycles, probe_mode: 'ip_ranges', ip_step: step });
       if (res?.status === 'error') {
         if (errorEl) errorEl.textContent = res.message || 'Erro ao iniciar.';
         setRunningUI(false); setDot('idle'); return;

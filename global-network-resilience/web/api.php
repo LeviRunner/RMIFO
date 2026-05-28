@@ -2454,41 +2454,28 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
         @mkdir($histDir, 0775, true);
         if (file_exists($liveFile)) @unlink($liveFile);
 
-        $mtrCycles  = max(3, min(50, (int)($_reqAll['mtr_cycles'] ?? 20)));
-        $probeMode  = in_array($_reqAll['probe_mode'] ?? '', ['cable', 'ip_ranges'], true)
-                      ? ($_reqAll['probe_mode'] ?? 'cable') : 'cable';
-        $ipStep     = max(1, min(64, (int)($_reqAll['ip_step'] ?? 8)));
-        $nodeBin    = trim((string)shell_exec('which node 2>/dev/null') ?: 'node');
-        $logFile    = $histDir . '/switch_stdout.log';
+        $mtrCycles = max(3, min(50, (int)($_reqAll['mtr_cycles'] ?? 5)));
+        $ipStep    = max(1, min(64, (int)($_reqAll['ip_step']    ?? 8)));
+        $nodeBin   = trim((string)shell_exec('which node 2>/dev/null') ?: 'node');
+        $logFile   = $histDir . '/switch_stdout.log';
 
-        // Monta argumentos de acordo com o modo
-        if ($probeMode === 'ip_ranges') {
-            $cmd = sprintf(
-                'nohup %s %s --ip-ranges-db --ip-step %s --mtr-cycles %s > %s 2>&1 & echo $!',
-                escapeshellarg($nodeBin),
-                escapeshellarg($script),
-                escapeshellarg((string)$ipStep),
-                escapeshellarg((string)$mtrCycles),
-                escapeshellarg($logFile)
-            );
-        } else {
-            $cmd = sprintf(
-                'nohup %s %s --mtr-cycles %s > %s 2>&1 & echo $!',
-                escapeshellarg($nodeBin),
-                escapeshellarg($script),
-                escapeshellarg((string)$mtrCycles),
-                escapeshellarg($logFile)
-            );
-        }
+        $cmd = sprintf(
+            'nohup %s %s --ip-ranges-db --ip-step %s --mtr-cycles %s > %s 2>&1 & echo $!',
+            escapeshellarg($nodeBin),
+            escapeshellarg($script),
+            escapeshellarg((string)$ipStep),
+            escapeshellarg((string)$mtrCycles),
+            escapeshellarg($logFile)
+        );
         exec($cmd, $out);
         $pid = trim($out[0] ?? '');
         if ($pid) {
             file_put_contents($runFile, json_encode([
                 'pid' => $pid, 'started_at' => gmdate('c'), 'mtr_cycles' => $mtrCycles,
-                'probe_mode' => $probeMode, 'ip_step' => $ipStep, 'log_file' => $logFile,
+                'probe_mode' => 'ip_ranges', 'ip_step' => $ipStep, 'log_file' => $logFile,
             ]));
         }
-        jsonResponse(['status' => 'started', 'pid' => $pid, 'mtr_cycles' => $mtrCycles, 'probe_mode' => $probeMode]);
+        jsonResponse(['status' => 'started', 'pid' => $pid, 'mtr_cycles' => $mtrCycles, 'probe_mode' => 'ip_ranges']);
     }
 
     // ── switch_cancel: cancela sonda em execução ──────────────────────────────

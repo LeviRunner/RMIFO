@@ -36,8 +36,9 @@ const argv    = process.argv.slice(2);
 const hasFlag = (f) => argv.includes(f);
 const getArg  = (f, d) => { const i = argv.indexOf(f); return i !== -1 && argv[i+1] ? argv[i+1] : d; };
 
-const MTR_CYCLES     = parseInt(getArg('--mtr-cycles',    '20'),  10);
-const TIMEOUT_S      = parseInt(getArg('--timeout',        '30'),  10);
+const MTR_CYCLES     = parseInt(getArg('--mtr-cycles',    '5'),   10);
+const TIMEOUT_S      = parseInt(getArg('--timeout',        '15'),  10);
+const CONCURRENCY    = Math.max(1, parseInt(getArg('--concurrency', '5'), 10));
 const LIMIT          = parseInt(getArg('--limit',          '999'), 10);
 const IP_STEP        = Math.max(1, parseInt(getArg('--ip-step', '1'), 10)); // sample every Nth IP
 const CABLES_FILE    = getArg('--cables-file',    '');
@@ -160,6 +161,23 @@ function buildTopologySegments(hubs) {
 
 // ── Geolocalização em batch (ip-api.com, free: 45 req/min) ───────────────────
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ── Pool de concorrência (semáforo simples) ────────────────────────────────────
+function makePool(limit) {
+    let active = 0;
+    const queue = [];
+    return (fn) => new Promise((resolve, reject) => {
+        const run = () => {
+            active++;
+            Promise.resolve().then(fn).then(
+                v => { active--; resolve(v); if (queue.length) queue.shift()(); },
+                e => { active--; reject(e);  if (queue.length) queue.shift()(); }
+            );
+        };
+        if (active < limit) run();
+        else queue.push(run);
+    });
+}
 
 async function geoLookupBatch(ips, retryOnLimit = true) {
     if (!ips.length) return [];
@@ -418,7 +436,7 @@ async function buildTargets(db) {
 async function main() {
     const mode = IP_RANGE ? 'ip-range' : (IP_RANGES_FILE ? 'ip-ranges-file' : (IP_RANGES_DB ? 'ip-ranges-db' : 'cabo'));
     log('=== Sonda de Comutadores (MTR dedicado) ===');
-    log(`Modo: ${mode} | Ciclos MTR: ${MTR_CYCLES} | Timeout: ${TIMEOUT_S}s | Step: ${IP_STEP}`);
+    log(`Modo: ${mode} | Ciclos MTR: ${MTR_CYCLES} | Timeout: ${TIMEOUT_S}s | Step: ${IP_STEP} | Concorrência: ${CONCURRENCY}`);
 
     // Conexão DB (opcional)
     const dbUrl = process.env.DATABASE_URL;
@@ -438,87 +456,113 @@ async function main() {
     const total        = targets.length;
     const sessionStart = new Date();
     const geoCache     = new Set();
-    const registros    = [];
-    let done = 0, found = 0;
+    const SESSION_BASE = Date.now();
 
     // Estado inicial: sai do "starting" imediatamente
     writeLive({ current: 0, total, percent: 0, switches_found: 0, updated_at: new Date().toISOString(), recent: [] });
 
-    // Base para sample_id único: evita conflito na UNIQUE (sample_id, hop_number)
-    const SESSION_BASE = Date.now();
+    // ── Fase 1: Probes MTR em paralelo ────────────────────────────────────────
+    let done = 0, found = 0;
+    const rawResults  = [];          // { idx, cableId, cableName, measAt, sampleId, mr, hubs, segments, publicIps }
+    const recentQueue = [];          // últimas 10 entradas para live.recent
 
-    for (const t of targets) {
+    const pool = makePool(CONCURRENCY);
+
+    await Promise.all(targets.map((t, idx) => pool(async () => {
         const cableId   = t.id;
         const cableName = t.label;
         const host      = t.host;
-        const measAt    = new Date(sessionStart.getTime() + done);
-        const sampleId  = SESSION_BASE + done;   // inteiro único por alvo por sessão
-
-        process.stdout.write(`  [${String(done+1).padStart(4)}/${total}]  ${cableId.padEnd(40)} mtr→${host}…`);
+        const measAt    = new Date();
+        const sampleId  = SESSION_BASE + idx;
 
         const mr = await mtrProbe(host, MTR_CYCLES, TIMEOUT_S);
+        done++;
 
         if (!mr || !mr.hubs || !mr.hubs.length) {
-            console.log(' sem resposta MTR');
-            done++;
+            process.stdout.write(`  [${String(done).padStart(4)}/${total}]  ${cableId.padEnd(36)} mtr→${host}  sem resposta\n`);
             writeLive({
                 current: done, total, percent: r1((done / total) * 100),
                 switches_found: found, updated_at: new Date().toISOString(),
-                recent: registros.slice(-10).map(r => ({
-                    cable_id: r.cable_id, hops: r.mtr_hops, rtt_ms: r.mtr_rtt_ms,
-                    segments: r.topology_segments?.length ?? 0,
-                })),
+                recent: recentQueue.slice(-10),
             });
-            continue;
+            return;
         }
 
-        // Classifica hops + constrói segmentos
-        const hubs     = mr.hubs;
-        const segments = buildTopologySegments(hubs);
+        const hubs        = mr.hubs;
+        const segments    = buildTopologySegments(hubs);
         const visibleHops = hubs.filter(h => h.host && h.host !== '???' && (h['Loss%'] || 0) < 100);
         const publicIps   = visibleHops.map(h => h.host).filter(ip => !isPrivateIp(ip));
         found += publicIps.length;
 
-        console.log(` ${hubs.length} hops  ${publicIps.length} públicos  rtt=${mr.rtt}ms`);
+        process.stdout.write(`  [${String(done).padStart(4)}/${total}]  ${cableId.padEnd(36)} mtr→${host}  ${hubs.length} hops  ${publicIps.length} públicos  rtt=${mr.rtt}ms\n`);
 
-        // Geo lookup dos IPs novos (delay 1.4s para respeitar 45 req/min da ip-api.com)
-        const newIps = publicIps.filter(ip => !geoCache.has(ip));
-        let geoMap   = {};
-        if (newIps.length) {
-            await sleep(1400);
-            const geoRes = await geoLookupBatch(newIps);
+        rawResults.push({ idx, cableId, cableName, measAt, sampleId, mr, hubs, segments, publicIps });
+        recentQueue.push({ cable_id: cableId, hops: hubs.length, rtt_ms: mr.rtt,
+                           segments: segments.length, ip: publicIps[0] });
+        if (recentQueue.length > 10) recentQueue.shift();
+
+        writeLive({
+            current: done, total, percent: r1((done / total) * 100),
+            switches_found: found, updated_at: new Date().toISOString(),
+            recent: recentQueue.slice(-10),
+        });
+    })));
+
+    // ── Fase 2: Geo lookup em batch ───────────────────────────────────────────
+    const allPublicIps = [...new Set(rawResults.flatMap(r => r.publicIps))];
+    const newIps = allPublicIps.filter(ip => !geoCache.has(ip));
+    const geoMap = {};
+
+    if (newIps.length) {
+        log(`Geolocalizando ${newIps.length} IPs novos em batches de 100…`);
+        const batches = [];
+        for (let i = 0; i < newIps.length; i += 100) batches.push(newIps.slice(i, i + 100));
+        for (let bi = 0; bi < batches.length; bi++) {
+            if (bi > 0) await sleep(1400); // respeita 45 req/min da ip-api.com
+            const geoRes = await geoLookupBatch(batches[bi]);
             for (const g of geoRes) {
                 if (g.status !== 'success' || !g.lat) continue;
                 geoCache.add(g.query);
                 geoMap[g.query] = g;
-                if (db) {
-                    await db.query(`
-                        INSERT INTO hop_switch_geolocations
-                            (hop_ip, lat, lng, city, region, country, country_code, isp, org, as_number, as_name)
-                        VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                        ON CONFLICT (hop_ip) DO UPDATE SET
-                            lat          = COALESCE(hop_switch_geolocations.lat,          EXCLUDED.lat),
-                            lng          = COALESCE(hop_switch_geolocations.lng,          EXCLUDED.lng),
-                            city         = COALESCE(hop_switch_geolocations.city,         EXCLUDED.city),
-                            region       = COALESCE(hop_switch_geolocations.region,       EXCLUDED.region),
-                            country      = COALESCE(hop_switch_geolocations.country,      EXCLUDED.country),
-                            country_code = COALESCE(hop_switch_geolocations.country_code, EXCLUDED.country_code),
-                            isp          = COALESCE(hop_switch_geolocations.isp,          EXCLUDED.isp),
-                            org          = COALESCE(hop_switch_geolocations.org,          EXCLUDED.org),
-                            as_number    = COALESCE(hop_switch_geolocations.as_number,    EXCLUDED.as_number),
-                            as_name      = COALESCE(hop_switch_geolocations.as_name,      EXCLUDED.as_name),
-                            queried_at   = CASE WHEN hop_switch_geolocations.lat IS NULL
-                                                THEN NOW()
-                                                ELSE hop_switch_geolocations.queried_at END
-                        WHERE hop_switch_geolocations.lat IS NULL
-                    `, [g.query, g.lat, g.lon, g.city, g.regionName, g.country,
-                        g.countryCode, g.isp, g.org, g.as, g.asname]).catch(() => {});
-                }
             }
         }
+        log(`Geolocalizados: ${Object.keys(geoMap).length} / ${newIps.length} IPs.`);
+    }
 
-        // Persiste hops no banco
+    // ── Fase 3: Persistência em batch ─────────────────────────────────────────
+    const registros = [];
+
+    for (const r of rawResults) {
+        const { cableId, cableName, measAt, sampleId, mr, hubs, segments, publicIps } = r;
+
+        // Inserir geo no banco
         if (db) {
+            for (const ip of publicIps) {
+                const g = geoMap[ip];
+                if (!g) continue;
+                await db.query(`
+                    INSERT INTO hop_switch_geolocations
+                        (hop_ip, lat, lng, city, region, country, country_code, isp, org, as_number, as_name)
+                    VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                    ON CONFLICT (hop_ip) DO UPDATE SET
+                        lat=COALESCE(hop_switch_geolocations.lat,EXCLUDED.lat),
+                        lng=COALESCE(hop_switch_geolocations.lng,EXCLUDED.lng),
+                        city=COALESCE(hop_switch_geolocations.city,EXCLUDED.city),
+                        region=COALESCE(hop_switch_geolocations.region,EXCLUDED.region),
+                        country=COALESCE(hop_switch_geolocations.country,EXCLUDED.country),
+                        country_code=COALESCE(hop_switch_geolocations.country_code,EXCLUDED.country_code),
+                        isp=COALESCE(hop_switch_geolocations.isp,EXCLUDED.isp),
+                        org=COALESCE(hop_switch_geolocations.org,EXCLUDED.org),
+                        as_number=COALESCE(hop_switch_geolocations.as_number,EXCLUDED.as_number),
+                        as_name=COALESCE(hop_switch_geolocations.as_name,EXCLUDED.as_name),
+                        queried_at=CASE WHEN hop_switch_geolocations.lat IS NULL THEN NOW()
+                                        ELSE hop_switch_geolocations.queried_at END
+                    WHERE hop_switch_geolocations.lat IS NULL
+                `, [ip, g.lat, g.lon, g.city, g.regionName, g.country,
+                    g.countryCode, g.isp, g.org, g.as, g.asname]).catch(() => {});
+            }
+
+            // Inserir hops
             for (const [idx, h] of hubs.entries()) {
                 const ip   = h.host && h.host !== '???' ? h.host : null;
                 const role = classifyHopRole(h, idx, hubs);
@@ -532,7 +576,7 @@ async function main() {
                     h.Wrst||null, h.StDev||null, h['Loss%']||0, role]).catch(() => {});
             }
 
-            // Persiste segmentos de topologia
+            // Inserir segmentos de topologia
             for (const seg of segments) {
                 await db.query(`
                     INSERT INTO probe_path_segments
@@ -548,20 +592,20 @@ async function main() {
 
         // Registro local completo
         const record = {
-            cable_id:         cableId,
-            cable_name:       cableName,
-            measured_at:      measAt.toISOString(),
-            probe_agent:      PROBE_AGENT,
-            mtr_rtt_ms:       mr.rtt,
-            mtr_hops:         hubs.length,
-            mtr_cycles:       MTR_CYCLES,
-            mtr_hubs_raw:     hubs,
+            cable_id:          cableId,
+            cable_name:        cableName,
+            measured_at:       measAt.toISOString(),
+            probe_agent:       PROBE_AGENT,
+            mtr_rtt_ms:        mr.rtt,
+            mtr_hops:          hubs.length,
+            mtr_cycles:        MTR_CYCLES,
+            mtr_hubs_raw:      hubs,
             topology_segments: segments,
-            gateway_rtt_ms:   segments.find(s => s.segment_type === 'gateway')?.rtt_avg_ms ?? null,
-            isp_edge_rtt_ms:  segments.find(s => s.segment_type === 'isp_edge')?.rtt_avg_ms ?? null,
+            gateway_rtt_ms:    segments.find(s => s.segment_type === 'gateway')?.rtt_avg_ms ?? null,
+            isp_edge_rtt_ms:   segments.find(s => s.segment_type === 'isp_edge')?.rtt_avg_ms ?? null,
             isp_server_rtt_ms: segments.find(s => s.segment_type === 'isp_server')?.rtt_avg_ms ?? null,
-            public_ips:       publicIps,
-            geo:              Object.fromEntries(
+            public_ips:        publicIps,
+            geo:               Object.fromEntries(
                 publicIps.filter(ip => geoMap[ip]).map(ip => [ip, {
                     city: geoMap[ip].city, country: geoMap[ip].country,
                     isp:  geoMap[ip].isp,  lat: geoMap[ip].lat, lng: geoMap[ip].lon,
@@ -572,31 +616,21 @@ async function main() {
 
         // JSONL incremental
         try { fs.appendFileSync(SWITCH_JSONL, JSON.stringify(record) + '\n', 'utf8'); } catch {}
-
-        done++;
-        writeLive({
-            current: done, total, percent: r1((done / total) * 100),
-            switches_found: found, updated_at: new Date().toISOString(),
-            recent: registros.slice(-10).map(r => ({
-                cable_id: r.cable_id, hops: r.mtr_hops, rtt_ms: r.mtr_rtt_ms,
-                segments: r.topology_segments?.length ?? 0,
-            })),
-        });
     }
 
-    // Enriquecimento final: IPs com lat IS NULL (seeds de build_ip_ranges não cobertos pelo MTR)
+    // Enriquecimento final: IPs pendentes no banco sem lat (seeds de build_ip_ranges)
     if (db) {
         const pendingRes = await db.query(
             `SELECT hop_ip::text AS ip FROM hop_switch_geolocations WHERE lat IS NULL LIMIT 500`
         ).catch(() => ({ rows: [] }));
-        const pendingIps = pendingRes.rows.map(r => r.ip).filter(ip => !geoCache.has(ip));
+        const pendingIps = pendingRes.rows.map(row => row.ip).filter(ip => !geoCache.has(ip));
         if (pendingIps.length) {
             log(`Enriquecendo ${pendingIps.length} IPs pendentes em hop_switch_geolocations…`);
             const batches = [];
             for (let i = 0; i < pendingIps.length; i += 100) batches.push(pendingIps.slice(i, i + 100));
-            for (const batch of batches) {
-                await sleep(1400); // respeita 45 req/min da ip-api.com
-                const geoRes = await geoLookupBatch(batch);
+            for (let bi = 0; bi < batches.length; bi++) {
+                if (bi > 0) await sleep(1400);
+                const geoRes = await geoLookupBatch(batches[bi]);
                 for (const g of geoRes) {
                     if (g.status !== 'success' || !g.lat) continue;
                     geoCache.add(g.query);
@@ -614,10 +648,8 @@ async function main() {
             }
             ok(`Enriquecimento final: ${geoCache.size} IPs geolocalizados no total`);
         }
+        await db.end().catch(() => {});
     }
-
-    // Aguarda geo queue
-    if (db) await db.end().catch(() => {});
 
     // Salva switch_full_*.json
     if (registros.length) {
@@ -628,16 +660,17 @@ async function main() {
             medido_em:   sessionStart.toISOString(),
             probe_agent: PROBE_AGENT,
             mtr_cycles:  MTR_CYCLES,
-            totais: { cabos: registros.length, hops_publicos: found },
+            concurrency: CONCURRENCY,
+            totais: { alvos: total, encontrados: done, hops_publicos: found, geolocalizados: geoCache.size },
             registros,
         }, null, 2), 'utf8');
-        ok(`switch_full salvo: ${path.basename(fullFile)} (${registros.length} cabos, ${found} IPs públicos)`);
+        ok(`switch_full salvo: ${path.basename(fullFile)} (${registros.length} alvos, ${found} IPs públicos)`);
     }
 
     console.log('');
-    console.log(`Cabos sondados: ${done}/${total}`);
+    console.log(`Alvos sondados:         ${done}/${total}`);
     console.log(`IPs públicos descobertos: ${found}`);
-    console.log(`IPs geolocalizados: ${geoCache.size}`);
+    console.log(`IPs geolocalizados:      ${geoCache.size}`);
     ok('=== Sonda de Comutadores concluída ===');
 }
 
