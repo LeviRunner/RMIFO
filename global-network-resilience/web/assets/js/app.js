@@ -853,9 +853,9 @@ async function initGlobe() {
 
   // ── Layer visibility toggles ──────────────────────────────────────────────
   const layerGroups = {
-    cables:    ['cables-layer', 'switch-lp-lines-layer'],
+    cables:    ['cables-layer'],
     endpoints: ['points-layer'],
-    isp:       ['switch-hops-layer', 'switch-as-links-layer'],
+    isp:       ['switch-hops-layer', 'switch-as-links-layer', 'switch-lp-lines-layer'],
   };
 
   function setLayerGroupVisibility(map, group, visible) {
