@@ -200,9 +200,6 @@
     <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
     <li><a href="#" class="nav-link" data-page="search">Explorador DB</a></li>
     <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
-    <li><a href="#" class="nav-link" data-page="routes">Top 3 Rotas</a></li>
-    <li><a href="#" class="nav-link" data-page="risk">Risco de Endpoints</a></li>
-    <li><a href="#" class="nav-link" data-page="cuts">Cortes Críticos</a></li>
     <li><a href="#" class="nav-link" data-page="probe">Histórico de Janela</a></li>
     <li class="drawer-divider"></li>
     <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
@@ -417,54 +414,6 @@
         <div class="detail-summary" id="detail-summary"></div>
         <div class="subhead">Endpoints e Geografia</div>
         <div class="endpoint-list" id="endpoint-list"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PÁGINA: ROTAS -->
-  <!-- PÁGINA: TOP 3 ROTAS -->
-  <section class="page" id="page-routes">
-    <div class="page-inner probe-layout">
-      <div class="fn-card probe-card">
-        <div class="fn-name">Top 3 Rotas</div>
-        <div class="field"><label>País origem</label><select id="route-country-a" class="country-select"></select></div>
-        <div class="field"><label>País destino</label><select id="route-country-b" class="country-select"></select></div>
-        <button class="btn primary fn-action" id="btn-top-routes">Calcular Rotas</button>
-        <div class="error" id="route-error"></div>
-      </div>
-      <div class="probe-result-area">
-        <div class="fn-result" id="route-result">Selecione os países e calcule as rotas.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PÁGINA: RISCO DE ENDPOINTS -->
-  <section class="page" id="page-risk">
-    <div class="page-inner probe-layout">
-      <div class="fn-card probe-card">
-        <div class="fn-name">Risco de Endpoints</div>
-        <div class="field"><label>País</label><select id="risk-country" class="country-select"></select></div>
-        <button class="btn primary fn-action" id="btn-endpoint-risk">Mapear Risco</button>
-        <div class="error" id="risk-error"></div>
-      </div>
-      <div class="probe-result-area">
-        <div class="fn-result" id="risk-result">Selecione um país para mapear o risco dos endpoints.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PÁGINA: CORTES CRÍTICOS -->
-  <section class="page" id="page-cuts">
-    <div class="page-inner probe-layout">
-      <div class="fn-card probe-card">
-        <div class="fn-name">Cortes Críticos</div>
-        <div class="field"><label>País origem</label><select id="cut-country-a" class="country-select"></select></div>
-        <div class="field"><label>País destino</label><select id="cut-country-b" class="country-select"></select></div>
-        <button class="btn primary fn-action" id="btn-critical-cuts">Analisar Isolamento</button>
-        <div class="error" id="cuts-error"></div>
-      </div>
-      <div class="probe-result-area">
-        <div class="fn-result" id="cuts-result">Selecione o par de países para análise de isolamento.</div>
       </div>
     </div>
   </section>
