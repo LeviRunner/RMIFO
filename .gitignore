@@ -1,3 +1,8 @@
+# ── IDE / ferramentas locais ──────────────────────────────────────────────────
+.vscode/
+.claude/
+.idea/
+
 # ── Ambientes Python ──────────────────────────────────────────────────────────
 .venv/
 __pycache__/
@@ -5,9 +10,6 @@ __pycache__/
 *$py.class
 .pytest_cache/
 .coverage
-.vscode
-.venv
-.claude
 
 # ── Build C (artefatos compilados) ────────────────────────────────────────────
 *.o
