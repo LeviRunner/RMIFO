@@ -217,12 +217,13 @@ const Rdr = {
 
   // ── CONNECTIVITY ──────────────────────────────────────────────────────────
   cn: {
-    _data: [], _sort: { col:'availability_pct', asc:true },
+    _data: [], _q: null, _sort: { col:'availability_pct', asc:true }, _metric: 'latency',
     async load(force) {
       if (this._data.length && !force) { this.render(); return; }
       _loaded['radar-connectivity'] = true;
-      const res = await af('connectivity');
+      const [res, q] = await Promise.all([af('connectivity'), af('connectivity_quality')]);
       this._data = res.cables || [];
+      this._q = q || {};
 
       document.getElementById('rdr-cn-kpis').innerHTML =
         kpi('Operacionais', this._data.length, C.pL, '') +
@@ -230,25 +231,72 @@ const Rdr = {
         kpi('Perda media', (res.avg_loss_pct||0).toFixed(3)+'%', (res.avg_loss_pct||0)>.5?C.a:C.tL, '') +
         kpi('Degradados', res.degraded_count||0, (res.degraded_count||0)>0?C.a:C.tL, '');
 
-      mk('rdr-cn-sc', { type:'scatter',
-        data:{ datasets:[{ data:this._data.map(c=>({x:+c.loss_pct||0,y:+c.availability_pct||0,n:c.cable_name})),
-          pointBackgroundColor:this._data.map(c=>ac(+c.availability_pct)), pointRadius:3, pointHoverRadius:5, showLine:false }] },
-        options:{ ...CD, plugins:{ ...CD.plugins, tooltip:{ ...CD.plugins.tooltip, callbacks:{
-          label:ctx=>`${ctx.raw.n}: ${ctx.raw.y.toFixed(2)}% / loss ${ctx.raw.x.toFixed(3)}%`
-        }}},
-        scales:{ x:{...CD.scales.x,title:{display:true,text:'Packet Loss %',color:C.tx2,font:{size:9}}},
-                 y:{...CD.scales.y,title:{display:true,text:'Availability %',color:C.tx2,font:{size:9}}} } },
-      });
-      const b = {'99.9+':0,'99-99.9':0,'95-99':0,'90-95':0,'menos 90':0};
-      this._data.forEach(c => {
-        const a = +c.availability_pct||0;
-        if(a>=99.9)b['99.9+']++; else if(a>=99)b['99-99.9']++; else if(a>=95)b['95-99']++; else if(a>=90)b['90-95']++; else b['menos 90']++;
-      });
-      mk('rdr-cn-bc', { type:'bar',
-        data:{ labels:Object.keys(b), datasets:[{data:Object.values(b),backgroundColor:[C.tL,C.g,C.a,C.co,C.r],borderRadius:4}] },
-        options:CD,
-      });
+      this.renderIqi();
+      this.renderConn();
+      this.renderTs();
       this.render();
+    },
+    _fmtP(m, dec) {
+      if (!m || m.p50 == null) return { big:'\u2014', range:'sem dados', dim:true };
+      const u = m.unit ? ' '+m.unit : '';
+      return {
+        big: (+m.p50).toFixed(dec) + u,
+        range: 'p25 ' + (+m.p25).toFixed(dec) + '  \u00b7  p75 ' + (+m.p75).toFixed(dec),
+        dim: false,
+      };
+    },
+    _card(name, m, dec) {
+      const f = this._fmtP(m, dec);
+      return '<div class="rdr-iqi'+(f.dim?' rdr-iqi-dim':'')+'">'
+        + '<div class="rdr-iqi-n">'+name+'</div>'
+        + '<div class="rdr-iqi-v">'+f.big+'</div>'
+        + '<div class="rdr-iqi-r">'+f.range+'</div></div>';
+    },
+    renderIqi() {
+      const q = (this._q && this._q.iqi) || {};
+      document.getElementById('rdr-cn-iqi').innerHTML =
+        this._card('Largura de banda', q.bandwidth, 0) +
+        this._card('Latencia', q.latency, 1) +
+        this._card('DNS (lookup)', q.dns, 1);
+    },
+    renderConn() {
+      const c = (this._q && this._q.connection) || {};
+      document.getElementById('rdr-cn-conn').innerHTML =
+        this._card('Download', c.download, 0) +
+        this._card('Upload', c.upload, 0) +
+        this._card('Latencia idle', c.latency_idle, 1) +
+        this._card('Latencia loaded', c.latency_loaded, 1) +
+        this._card('Jitter', c.jitter, 1) +
+        this._card('Packet loss', c.packet_loss, 2);
+    },
+    setMetric(m) {
+      this._metric = m;
+      document.querySelectorAll('.rdr-mt-btn').forEach(b => b.classList.toggle('active', b.dataset.m === m));
+      this.renderTs();
+    },
+    renderTs() {
+      const ts = this._q && this._q.timeseries; if (!ts) return;
+      const m = this._metric;
+      const s = ts[m] || { p25:[], p50:[], p75:[] };
+      const labels = ts.buckets || [];
+      const empty = !s.p50 || !s.p50.length || s.p50.every(v => v == null);
+      const col = m === 'latency' ? C.p : m === 'bandwidth' ? C.tL : C.a;
+      if (empty) {
+        mk('rdr-cn-ts', { type:'line',
+          data:{ labels:['sem dados'], datasets:[{ data:[null] }] },
+          options:{ ...CD, plugins:{ ...CD.plugins, legend:{display:false},
+            title:{ display:true, text:m==='dns'?'DNS nao coletado — estrutura pronta':'Sem dados', color:C.tx2, font:{size:11} } } } });
+        return;
+      }
+      mk('rdr-cn-ts', { type:'line',
+        data:{ labels, datasets:[
+          { label:'p75', data:s.p75, borderColor:'transparent', backgroundColor:col+'22', fill:1, pointRadius:0, tension:.3 },
+          { label:'p25', data:s.p25, borderColor:'transparent', backgroundColor:'transparent', fill:false, pointRadius:0, tension:.3 },
+          { label:'p50', data:s.p50, borderColor:col, backgroundColor:col, borderWidth:2, fill:false, pointRadius:0, tension:.3 },
+        ]},
+        options:{ ...CD, plugins:{ ...CD.plugins, legend:{display:false},
+          tooltip:{ ...CD.plugins.tooltip, callbacks:{ label:ctx=>ctx.dataset.label+': '+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(1):'-') } } },
+          scales:{ x:{ ...CD.scales.x, ticks:{ ...CD.scales.x.ticks, maxTicksLimit:8 } }, y:CD.scales.y } } });
     },
     sort(col) { this._sort.asc = this._sort.col === col ? !this._sort.asc : true; this._sort.col = col; this.render(); },
     render() {
