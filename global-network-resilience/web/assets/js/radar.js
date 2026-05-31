@@ -96,7 +96,6 @@ function initSidebar() {
   if (!sb) return;
   const toggle = document.getElementById('sb-toggle');
 
-  // Toggle: alterna entre expandido (sb-exp) e recolhido (sb-col)
   function setCollapsed(collapsed) {
     sb.classList.toggle('sb-col', collapsed);
     sb.classList.toggle('sb-exp', !collapsed);
@@ -107,11 +106,25 @@ function initSidebar() {
     setCollapsed(sb.classList.contains('sb-exp'));
   });
 
+  function navigate(page, item) {
+    // Delega ao nav-link oculto correspondente (preserva toda a logica do app.js)
+    const link = document.querySelector('.nav-link[data-page="' + page + '"]');
+    if (link) {
+      link.click();
+    } else if (typeof Router !== 'undefined') {
+      Router.go(page);
+    }
+    // Carrega dados das paginas de radar
+    if (page.indexOf('radar-') === 0) _loadPage(page);
+    sb.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+    if (item) item.classList.add('active');
+  }
+
   sb.querySelectorAll('.sb-item').forEach(item => {
     const page = item.dataset.page;
     const name = item.querySelector('.sb-name');
 
-    // Clicar no item quando RECOLHIDO: apenas expande a barra, nao navega
+    // Clique no item quando RECOLHIDO: apenas expande, nao navega
     item.addEventListener('click', (e) => {
       if (sb.classList.contains('sb-col')) {
         e.preventDefault();
@@ -120,15 +133,12 @@ function initSidebar() {
       }
     });
 
-    // Clicar no NOME quando EXPANDIDO: navega para a ferramenta
+    // Clique no NOME quando EXPANDIDO: navega
     if (name) {
       name.addEventListener('click', (e) => {
         if (sb.classList.contains('sb-exp')) {
           e.stopPropagation();
-          if (typeof Router !== 'undefined') Router.go(page);
-          sb.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
-          item.classList.add('active');
-          _loadPage(page);
+          navigate(page, item);
         }
       });
     }
