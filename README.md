@@ -1,6 +1,8 @@
 # RMIFO — Resilience Map of International Fiber Optics
 
-Plataforma open-source de monitoramento e análise de cabos submarinos de fibra ótica. Coleta telemetria TCP/MTR/HTTP/BGP/SNMP, realiza enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS) e descoberta avançada de roteadores (SSH banner, TLS, gNMI, RIPE Atlas, RouteViews MRT, RIPE RIS, Looking Glass, IRR/WHOIS), persiste em PostgreSQL e apresenta os dados no dashboard analitico **RMIFO Radar** (graficos e tabelas interativas via Chart.js). Implantada no Railway com suporte a PWA offline e arquitetura de microsservicos de probe independentes.
+Plataforma open-source de monitoramento e análise de resiliência de cabos submarinos de fibra ótica. Coleta telemetria ativa (TCP, ICMP, MTR, HTTP, BGP), enriquece IPs e roteadores descobertos no caminho, persiste tudo em PostgreSQL e transforma os dados em análises no dashboard **RMIFO Radar**. Em produção no Railway com PWA offline e arquitetura de microsserviços de probe.
+
+Produção: https://rmifo.up.railway.app
 
 ---
 
@@ -9,394 +11,162 @@ Plataforma open-source de monitoramento e análise de cabos submarinos de fibra 
 | Camada | Tecnologia |
 |---|---|
 | Frontend | HTML5 · CSS3 · JavaScript (Vanilla) · Chart.js 4.4.3 |
-| Backend | PHP 8.2 · PDO PostgreSQL (`pdo_pgsql`) |
-| Banco de dados | PostgreSQL 16 — Railway gerenciado / socket local |
-| Deploy | Railway · Nixpacks · Node.js 20 |
-| Pipeline de sonda | Python 3.12 · Node.js 20 · Bash |
-| Microsserviços | Node.js 20 · Express — repo [`rmifo-services`](https://github.com/LeviRunner/rmifo-services) |
-| PWA | Service Worker (`rmifo-v39`) · Web App Manifest |
+| Backend | PHP 8.2 · PDO PostgreSQL |
+| Banco de dados | PostgreSQL 16 |
+| Microsserviços | Node.js 20 · Express ([`rmifo-services`](https://github.com/LeviRunner/rmifo-services)) |
+| Coleta | Python 3.12 · Node.js 20 · Bash |
+| Deploy | Railway · Nixpacks · PWA (Service Worker `rmifo-v39`) |
+
+Linguagens: JavaScript · PHP · Python · CSS · HTML · Shell.
 
 ---
 
-## Linguagens
-
-| Linguagem |
-|---|
-| JavaScript |
-| PHP |
-| Python |
-| CSS |
-| HTML |
-| Shell |
-
----
-
-## Estrutura do projeto
+## Estrutura de arquivos
 
 ```
 RMIFO/
-└── global-network-resilience/         ← Raiz do deploy Railway
-    ├── nixpacks.toml
-    ├── railway.json
-    ├── package.json
-    ├── start.sh
+└── global-network-resilience/         ← raiz do deploy
     ├── web/
-    │   ├── index.html                 ← SPA com dashboard Radar + barra lateral fixa
-    │   ├── api.php                    ← Backend REST PHP (~2 600 linhas)
-    │   ├── sw.js                      ← Service Worker PWA (rmifo-v39)
-    │   ├── manifest.json
-    │   └── assets/
-    │       ├── css/app.css
-    │       ├── js/app.js              ← SPA frontend (~3 200 linhas)
-    │       ├── js/radar.js            ← Dashboard Radar — 6 secoes + barra lateral fixa
-    │       └── js/ui-enhancements.js ← Visualizações live (arc, scatter, heatmap, grafo)
+    │   ├── index.html                 ← SPA: dashboard Radar + barra lateral fixa
+    │   ├── api.php                    ← backend REST (consultas analíticas + roteamento de probe)
+    │   ├── assets/css/app.css
+    │   ├── assets/js/app.js           ← núcleo da SPA (roteador, páginas, sonda)
+    │   ├── assets/js/radar.js         ← dashboard Radar — 6 seções
+    │   ├── assets/js/ui-enhancements.js ← visualizações (arc, scatter, heatmap, grafo)
+    │   ├── sw.js                      ← Service Worker PWA
+    │   └── manifest.json
     ├── db/
-    │   ├── schema.sql                 ← 13 tabelas PostgreSQL principais
-    │   ├── seed.sql
-    │   └── setup.sh
+    │   ├── schema.sql                 ← definição das tabelas e relações
+    │   └── seed.sql
     └── scripts/
-        ├── rmifo_pipeline.sh          ← Orquestrador (daily / pipeline / enrich / reach / all)
-        ├── sonda.js                   ← Sonda TCP/MTR/Jitter Node.js (699 cabos)
-        ├── rmifo_probe.py             ← Motor unificado (telemetry / multi / validate / all)
-        ├── rmifo_advanced_reach.py    ← Descoberta avançada Vetores A-G (~1 800 linhas)
-        ├── rmifo_ip_enrich.py         ← Enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS)
-        ├── rmifo_realtime_probe.py    ← Medição real de latência sem APIs de terceiros
-        ├── rmifo_analytics.py         ← Rollup + exportação CSV (rollup / export / all)
-        ├── rmifo_catalog.py           ← Gerenciamento do catálogo (seed / import / history)
-        ├── rmifo_dev.sh               ← Utilitários locais (postgres / bootstrap / web / all)
-        └── requirements.txt
+        ├── sonda.js                   ← sonda TCP/MTR/Jitter/HTTP (Node.js)
+        ├── rmifo_probe.py             ← motor de telemetria (Python)
+        ├── rmifo_ip_enrich.py         ← enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS)
+        ├── rmifo_advanced_reach.py    ← descoberta avançada de roteadores
+        ├── rmifo_realtime_probe.py    ← medição real de latência
+        ├── rmifo_analytics.py         ← rollup e exportação
+        └── rmifo_catalog.py           ← gestão do catálogo de cabos
 ```
+
+Repositórios irmãos: **[rmifo-services](https://github.com/LeviRunner/rmifo-services)** (microsserviços de probe) e **RMIFO_TEST_API** (staging de integração).
 
 ---
 
-## Banco de dados
+## Modelo de dados — como as tabelas se comunicam
 
-### Tabelas principais — `schema.sql`
+O banco gira em torno da entidade **`cables`**. Cada cabo se conecta a pontos de aterrissagem, acumula amostras de telemetria ao longo do tempo, e cada amostra desdobra-se em saltos de rota geolocalizados.
 
-| Tabela | Descrição |
-|---|---|
-| `cables` | 699 cabos catalogados com metadata completa |
-| `landing_points` | ~1 900 pontos de aterrissagem geolocalizados |
-| `cable_landing_points` | Relação cabo ↔ endpoint |
-| `endpoint_ip_samples` | IPs amostrados por endpoint (ponto de aterrissagem) |
-| `cable_telemetry_samples` | Amostras TCP/MTR/HTTP por cabo (UNIQUE cable_id + measured_at) |
-| `cable_telemetry_hops` | Saltos hop-by-hop de MTR por amostra |
-| `cable_telemetry_reference` | Baseline de referência por cabo |
-| `hop_switch_geolocations` | Geolocalização e enriquecimento completo de comutadores descobertos |
-| `geoip_mapping` | Mapeamento IP → país/cidade para geolocalização de hops |
-| `nodes` | Nós de roteamento da topologia |
-| `telemetry_alerts` | Alertas ativos e histórico |
-| `api_rate_limit` | Controle de rate limit por IP |
+```
+nodes ──< cables >── cable_metadata (1:1)
+            │
+            ├──< cable_landing_points >── landing_points ──< endpoint_ip_samples
+            │
+            ├──< cable_telemetry_samples ──< cable_telemetry_hops ··> hop_switch_geolocations
+            │                                            (liga por hop_ip)
+            ├── cable_telemetry_reference (1:1, baseline)
+            │
+            └──< telemetry_alerts
+```
 
-#### Campos de enriquecimento em `hop_switch_geolocations`
+### Caminhos de junção
 
-Populados pelo `rmifo_ip_enrich.py` sem APIs de terceiros:
+| De | Para | Chave de junção | Cardinalidade |
+|---|---|---|---|
+| `cables` | `cable_landing_points` | `cable_id` | 1:N |
+| `cable_landing_points` | `landing_points` | `endpoint_id` | N:1 |
+| `landing_points` | `endpoint_ip_samples` | `endpoint_id` | 1:N |
+| `cables` | `cable_telemetry_samples` | `cable_id` | 1:N |
+| `cable_telemetry_samples` | `cable_telemetry_hops` | `sample_id` | 1:N |
+| `cable_telemetry_hops` | `hop_switch_geolocations` | `hop_ip` (INET) | N:1 |
+| `cables` | `cable_telemetry_reference` | `cable_id` | 1:1 |
+| `cables` | `telemetry_alerts` | `cable_id` | 1:N |
+| `cables` | `nodes` | `source_node_id` / `destination_node_id` | N:1 |
 
-| Campo | Fonte | Descrição |
+Toda relação direta com `cables` usa `ON DELETE CASCADE` — remover um cabo limpa suas amostras, hops, baseline, alertas e vínculos de aterrissagem. A geolocalização de hops (`hop_switch_geolocations`) é desacoplada por `hop_ip`: o mesmo roteador descoberto em vários cabos é enriquecido uma única vez e reaproveitado em todas as junções.
+
+### O que cada tabela guarda
+
+| Tabela | Conteúdo | Liga-se a |
 |---|---|---|
-| `hostname` | DNS PTR | Hostname reverso do IP |
-| `timezone` | Código IATA no PTR | Timezone derivada do hostname (tabela de 200 cidades) |
-| `asn_route` | WHOIS TCP/43 | Prefixo BGP anunciado (`route:`) |
-| `asn_domain` | WHOIS OrgURL / email | Domínio do operador do ASN |
-| `asn_type` | WHOIS org-type + keywords | `isp` / `hosting` / `business` / `edu` / `gov` |
-| `company_domain` | WHOIS | Domínio da empresa |
-| `company_type` | WHOIS | Tipo da empresa |
-| `abuse_email` | WHOIS abuse-mailbox | Email de abuso/incidentes |
-| `abuse_network` | WHOIS inetnum | Bloco de rede declarado |
-| `privacy_vpn` | Port scan UDP/TCP | Porta VPN aberta (WireGuard/IKE/OpenVPN/PPTP) |
-| `privacy_proxy` | Port scan + HTTP CONNECT | Proxy HTTP/SOCKS confirmado |
-| `privacy_tor` | Port scan 9001/9030 | Relay Tor (ORPort ou DirPort) |
-| `privacy_relay` | Padrão PTR | iCloud Private Relay / Cloudflare WARP |
-| `privacy_hosting` | PTR + ASN + /24 sweep | Data center / CDN edge |
-| `tls_san_count` | TLS handshake TCP/443 | Número de SANs no certificado |
-| `tls_san_sample` | TLS handshake TCP/443 | Primeiros 20 domínios do SAN |
-
-### Tabelas de descoberta avançada — criadas por `rmifo_advanced_reach.py`
-
-| Tabela | Vetor | Descrição |
-|---|---|---|
-| `switch_banners` | A | Banners SSH/TLS/Telnet/BGP-179 + fingerprint JA3S + headers HTTP |
-| `netconf_state` | B | Estado XML/JSON coletado via NETCONF/RESTCONF (porta 830/8080) |
-| `mrt_bgp_peers` | C | Roteadores BGP encontrados em dumps MRT (RouteViews + RIPE RIS) com BGP Communities |
-| `mpls_lsr_map` | D | Label Switch Routers descobertos via MPLS traceroute |
-| `ixp_peering_lan` | D | Switches de peering em LANs de IXPs (via PeeringDB) |
-| `gnmi_telemetry_samples` | F | Telemetria OpenConfig via gNMI/gRPC (porta 57400/6030) |
-| `ripe_atlas_measurements` | G | Medições públicas e traceroutes do RIPE Atlas |
-| `looking_glass_routes` | C | Rotas BGP ao vivo via Looking Glass (HE + RIPE Stat) |
-| `whois_irr_records` | C | Registros IRR/WHOIS passivos (RIPE, ARIN, APNIC) |
+| `cables` | 699 cabos catalogados (capacidade, comprimento, operadores) | núcleo |
+| `cable_metadata` | metadata estendida do cabo | `cables` |
+| `landing_points` | pontos de aterrissagem geolocalizados | — |
+| `cable_landing_points` | junção cabo ↔ ponto de aterrissagem | `cables`, `landing_points` |
+| `endpoint_ip_samples` | faixas/IPs amostrados por ponto de aterrissagem | `landing_points` |
+| `cable_telemetry_samples` | medições por cabo no tempo (latência, jitter, perda, throughput, disponibilidade) | `cables` |
+| `cable_telemetry_hops` | saltos MTR de cada amostra (RTT, perda por hop) | `cable_telemetry_samples` |
+| `hop_switch_geolocations` | geo + enriquecimento de cada roteador (ASN, ISP, privacy, TLS) | via `hop_ip` |
+| `cable_telemetry_reference` | baseline de referência por cabo (janela 7 dias) | `cables` |
+| `telemetry_alerts` | anomalias detectadas | `cables` |
+| `geoip_mapping` | mapeamento IP → país/cidade | autônoma |
+| `nodes` | nós de topologia de roteamento | referenciada por `cables` |
 
 ---
 
 ## Funcionalidades
 
-### Homepage
+### RMIFO Radar — dashboard analítico
 
-- Contadores animados ao vivo: cabos, operacionais, amostras, landing points, países, tabelas, comutadores geolocalizados, relações cabo→LP
-- Badges de linguagens com ícones DevIcons
-- Título, descrição e botão de acesso ao dashboard
+Integrado ao app, acessível pela barra lateral fixa à direita (recolhível, ícones SVG). Seis seções:
 
-### RMIFO Radar (dashboard analítico)
-
-Dashboard integrado ao app, acessível pela barra lateral fixa à direita (recolhível, com ícones SVG). Seis seções:
-
-| Seção | Estado | Conteúdo |
+| Seção | Estado | Entrega |
 |---|---|---|
-| **Overview** | Completo | KPIs globais, distribuição de disponibilidade, latência média por região, alertas recentes, piores cabos |
-| **Connectivity** | Completo | Disponibilidade e perda por cabo, scatter availability×loss, tabela filtrável e ordenável |
-| **Routing** | Completo | Hops MTR geolocalizados, top ISPs no caminho, distribuição de RTT, ASNs e países únicos |
-| **Tools** | Completo | TCP Probe, BGP Lookup, ASN Info, Top Rotas entre países |
-| **Security** | Parcial | Alertas por severidade, hops com flags VPN/Proxy/Tor — banner indica o que falta implementar |
-| **Traffic** | Parcial | Throughput estimado, capacidade declarada, utilização — banner indica o que falta implementar |
-
-Endpoints de dados servidos por `api.php`: `?action=connectivity`, `routing`, `security`, `traffic`. Os gráficos usam Chart.js; a navegação é feita pela barra lateral fixa, que delega aos handlers do app preservando toda a lógica de carregamento.
-
-### Mapa de cabos
-
-- Cabos como `LineString` GeoJSON — cor por status: verde (operacional), roxo (telemetria TCP verificada), âmbar (alerta ativo), vermelho (inativo), amarelo (sonda ao vivo)
-- Pontos de aterrissagem como círculos coloridos
-- Comutadores de rota (hops geolocalizados) com painel lateral exibindo enriquecimento completo (ASN type, privacy flags, TLS SANs)
-- Linhas comutador → landing point traçando rotas descobertas
-- Painel lateral com metadata do cabo/comutador e botões "Sondar" e "Ver Detalhes"
-
+| **Overview** | Completo | KPIs globais, distribuição de disponibilidade, latência média por região, alertas, piores cabos |
+| **Connectivity** | Completo | Disponibilidade e perda por cabo, scatter availability×loss, tabela filtrável/ordenável |
+| **Routing** | Completo | Hops geolocalizados, top ISPs no caminho, distribuição de RTT, ASNs e países únicos |
+| **Tools** | Completo | TCP Probe, BGP Lookup, ASN Info, Top Rotas entre países (probe sob demanda) |
+| **Security** | Parcial | Alertas por severidade, hops com flags VPN/Proxy/Tor |
+| **Traffic** | Parcial | Throughput estimado, capacidade declarada, utilização |
 
 ### Sonda Diária
 
-- Inicia via botão ou API `daily_start`
-- Sonda 699 cabos com múltiplos protocolos e variações calibradas:
-  - **MTR UDP** — 15 ciclos padrão (30 em sonda completa), orçamento 300 ciclos totais
-  - **TCP SYN-ACK** — conexão na porta ativa, timeout 4 s
-  - **TCP Jitter** — 50 pacotes por variação, portas abertas detectadas automaticamente
-  - **HTTP/curl** — 3 tentativas, timeout 8 s
-  - **Sintético** — fallback heurístico quando sem resposta real
-- **Arc progress SVG** — arco animado mostra porcentagem e contagem `atual / 699`
-- **Scatter ao vivo** — gráfico Chart.js plota RTT ms de cada cabo sondado em tempo real (colorido por faixa de latência)
-- Barra de progresso com nome do cabo atual, chip de protocolo, latência e hops em tempo real
-- Contador de pacotes animado: 0 → `var_target` por variação
-- Barra de fases: PRÉ-FLIGHT → ICMP → DNS → HTTP → Pipeline → Sumário
-- PRÉ-FLIGHT: checks de dependências, DNS, HTTP e conectividade (grid de probes ICMP)
-- Contadores acumulados por protocolo: TCP SYN-ACK, TCP Jitter, Sintético, MTR, HTTP, Comutadores, Anomalias
-- Tabela ao vivo com últimas 15 sondas: #, Cabo, Protocolo (chip colorido), Latência, Hops, Comutadores
-- Múltiplas execuções por dia — logs com timestamp (`run_daily_HHMMSS.log`)
-- Live JSON `.probe_live.json` com `var_counts` e `var_target` por variação
+Mede os 699 cabos com múltiplos protocolos calibrados (MTR, TCP SYN-ACK, TCP Jitter de 50 pacotes, HTTP, e fallback sintético). Mostra progresso ao vivo: arco animado, scatter de RTT em tempo real, barra de fases (pré-flight → ICMP → DNS → HTTP → pipeline), contadores por protocolo e tabela das últimas sondas. Cada execução grava amostras em `cable_telemetry_samples`, saltos em `cable_telemetry_hops` e novos IPs de roteador em `hop_switch_geolocations`.
 
-### Sonda & Telemetria (por cabo)
+### Histórico e telemetria por cabo
 
-- Histórico de janela: 6h / 24h / 3d / 7d / 30d
-- Gráficos de latência, jitter, perda de pacotes, throughput, disponibilidade
-- Barra de protocolos: contagem por TCP / Sintético / MTR / HTTP com filtro por clique
-- Rastreamento hop-by-hop via MTR ao vivo
-- Painel de geolocalização de comutadores
+Janelas de 6h a 30d com gráficos de latência, jitter, perda, throughput e disponibilidade; heatmap de latência; filtro por protocolo, status (real/sintético) e anomalias; rastreamento hop-by-hop.
 
-### Histórico
+### Cortes Críticos e Análise de Rotas
 
-- Toolbar com filtros: data, cabo, protocolo, status (Real/Sintético), faixa de latência, anomalias
-- **Heatmap de latência** — barras horizontais coloridas por RTT antes da tabela (verde < 50ms → vermelho ≥ 300ms)
-- Chips de vetor avançado (A/B/C/D/E) filtram cabos descobertos por cada método
-- Sumário: total, TCP Real, Sintético, MTR, HTTP, Anomalias, horário de conclusão
-
-### Cortes Críticos
-
-- Identificação de cabos que isolam conectividade entre dois países
-- **Grafo SVG interativo** — mostra origem, destino e cabos intermediários; cabos críticos em vermelho tracejado; badge de isolamento detectado
-- Tabela de cabos críticos com contagem de rotas impactadas e nível de impacto
-
-### Análise de Rotas / Risco
-
-- Top 3 rotas entre países com score de resiliência
-- Mapa de risco de endpoints por país: grau de conexão, alcance, risco, perda estimada, congestionamento
+Identifica cabos que isolam a conectividade entre dois países (grafo SVG interativo) e calcula as top rotas entre países com score de resiliência e mapa de risco por endpoint.
 
 ### Explorador DB
 
-- Navega e filtra qualquer tabela PostgreSQL diretamente no browser
-- Filtros por coluna/operador/valor, paginação, breadcrumb
-- `hop_switch_geolocations` exibe todos os 17 campos de enriquecimento
+Navega e filtra qualquer tabela diretamente no browser, expondo inclusive os campos de enriquecimento de `hop_switch_geolocations`.
+
+### Coleta e enriquecimento
+
+- **Sonda ativa** (`sonda.js`): TCP/MTR/Jitter/HTTP sobre os cabos.
+- **Enriquecimento nativo** (`rmifo_ip_enrich.py`): para cada IP descoberto extrai hostname (PTR), timezone, ASN/rota/tipo (WHOIS), flags de privacidade (VPN/Proxy/Tor/relay/hosting) e SANs TLS — usando apenas protocolos de rede padrão, sem APIs de terceiros.
+- **Descoberta avançada** (`rmifo_advanced_reach.py`): alcança roteadores invisíveis a SNMP/ICMP por banners SSH/TLS/BGP, NETCONF/RESTCONF, dumps MRT (RouteViews/RIPE RIS), Looking Glass, IRR/WHOIS, MPLS, IXP/PeeringDB, gNMI e RIPE Atlas, com fingerprint de vendor (Cisco, Juniper, Arista, Huawei, Nokia, Ciena, Infinera, etc.).
 
 ---
 
-## Pipeline de Sonda
+## Uso de dados nas análises
 
-```
-bash rmifo_pipeline.sh all
-│
-├── daily
-│   ├── PRÉ-FLIGHT: deps + ping + DNS + HTTP
-│   ├── sonda.js → TCP SYN-ACK + TCP Jitter (50 pkt) + MTR (15 ciclos) + HTTP
-│   │              → .probe_live.json (progress, var_counts, var_target)
-│   │              → novos hop IPs → hop_switch_geolocations (geo básico)
-│   └── rmifo_ip_enrich.py → IPs sem enriched_at ou stale > ENRICH_STALE_DAYS
-│                            → hostname + timezone + asn_type + privacy_* + tls_san_*
-│
-├── pipeline
-│   ├── rmifo_probe.py telemetry   → cable_telemetry_samples
-│   ├── rmifo_analytics.py rollup  → rollups 5m/1h
-│   └── rmifo_catalog.py history   → histórico JSON
-│
-└── reach (banner scan — sem credenciais)
-    └── rmifo_advanced_reach.py --mode banner → switch_banners
+Cada seção do Radar deriva sua análise de junções específicas, servidas pelo `api.php`:
 
-rmifo_probe.py multi --mode bgp|snmp|netflow|full
-  ├── BGP mode     → RIPE STAT REST API
-  ├── SNMP mode    → pysnmp-lextudio
-  └── NetFlow mode → Scapy passive capture (root opcional)
-```
-
-### Subcomandos do orquestrador
-
-| Subcomando | Descrição |
-|---|---|
-| `daily` | Pré-flight + sonda Node.js + enriquecimento automático de IPs novos |
-| `pipeline` | Ingestão Python: telemetria → rollup → histórico |
-| `enrich` | Enriquecimento nativo isolado (DNS/WHOIS/TCP/TLS) |
-| `reach` | Descoberta avançada de switches (Vetores A-G) |
-| `all` | Sequência completa: daily + pipeline + enrich + reach |
-
-```bash
-bash rmifo_pipeline.sh enrich --stale 3 --field hostname,whois
-bash rmifo_pipeline.sh reach --mode atlas
-REACH_SKIP=1 bash rmifo_pipeline.sh all   # sem reach
-```
-
----
-
-## Enriquecimento Nativo de IPs (`rmifo_ip_enrich.py`)
-
-Extrai 16 campos por IP usando apenas protocolos de rede padrão — sem APIs de terceiros:
-
-| Campo | Protocolo | Técnica |
+| Seção | Origem dos dados | Análise produzida |
 |---|---|---|
-| `hostname` | DNS PTR (UDP 53) | `socket.gethostbyaddr()` |
-| `timezone` | — | Código IATA no PTR → tabela de 200 cidades IATA→IANA |
-| `asn_route`, `asn_domain`, `asn_type`, `abuse_*` | WHOIS (TCP 43) | `whois` subprocess + parse de org-type e keywords |
-| `privacy_vpn` | UDP/TCP | WireGuard handshake (51820) + IKEv2 SA_INIT (500) + OpenVPN (1194) + PPTP (1723) |
-| `privacy_proxy` | TCP + HTTP | Port scan 3128/1080/8080 + HTTP CONNECT probe (detecta 407 também) |
-| `privacy_tor` | TCP | Port scan 9001 + DirPort 9030 com verificação de consenso |
-| `privacy_relay` | — | Padrão PTR (`privaterelay`, `warp.cloudflare`) |
-| `privacy_hosting` | DNS + TCP | PTR regex de CDN/cloud + ASN keywords + sweep PTR do /24 |
-| `tls_san_count/sample` | TLS (TCP 443) | Handshake TLS → `getpeercert()` → SANs do certificado |
+| Overview | `cable_telemetry_reference` ⋈ `cables` ⋈ `cable_landing_points` ⋈ `landing_points` | médias globais, distribuição por faixa, agregação de latência por região (a partir do país do 1º landing point) |
+| Connectivity | `cable_telemetry_reference` ⋈ `cables` | disponibilidade e perda por cabo, contagem de degradados (<99%), correlação availability×loss |
+| Routing | `cable_telemetry_hops` ⋈ `cables` ⋈ `hop_switch_geolocations` (por `hop_ip`) | ranking de ISPs no caminho, distribuição de RTT por hop, contagem de ASNs e países únicos |
+| Security | `telemetry_alerts` ⋈ `cables` + `hop_switch_geolocations` (flags `privacy_*`) | alertas por severidade, roteadores anonimizadores no caminho |
+| Traffic | `cable_telemetry_reference` ⋈ `cables` | throughput estimado, utilização vs `capacity_gbps`, throughput×latência |
+| Tools | probe ao vivo (microsserviços) + RIPE STAT | medições sob demanda, não tocam o banco |
 
-```bash
-python3 scripts/rmifo_ip_enrich.py --ip 8.8.8.8 --dry-run
-python3 scripts/rmifo_ip_enrich.py --stale 7 --limit 500
-python3 scripts/rmifo_ip_enrich.py --field hostname,whois  # sem port scan
-```
-
----
-
-## Medição Real de Latência (`rmifo_realtime_probe.py`)
-
-Mede latência real de cabos sem depender do `public_url` (que geralmente aponta para CDN):
-
-| Protocolo | Porta | Técnica |
-|---|---|---|
-| TCP SYN timing | qualquer aberta | Handshake completo → RTT real |
-| TCP Jitter | qualquer aberta | N conexões → stdev → jitter real |
-| HTTP/HTTPS | 80/443 | DNS + TCP + TLS + TTFB |
-| STUN | UDP 3478 | Binding Request/Response RFC 5389 — UDP puro |
-| DNS | UDP 53 | Query manual via socket — mede resolver no caminho |
-| ICMP | — | Via `ping` (disponível sem root via setuid) |
-
-```bash
-python3 scripts/rmifo_realtime_probe.py --demo
-python3 scripts/rmifo_realtime_probe.py aec-1 --ips 196.200.16.1 41.203.64.1
-python3 scripts/rmifo_realtime_probe.py aec-1 --mode tcp --pkts 50
-```
-
----
-
-## Descoberta Avançada de Comutadores (`rmifo_advanced_reach.py`)
-
-Sete vetores complementares que alcançam switches invisíveis a SNMP/MTR/ICMP:
-
-| Modo CLI | Vetor | Técnica |
-|---|---|---|
-| `--mode banner` | A | SSH banner (porta 22) + TLS cert CN/SAN (443/8443) + Telnet banner (23) + BGP OPEN AS (179) + HTTP headers fingerprint + JA3S TLS hash |
-| `--mode netconf` | B | NETCONF `<get-config>` (porta 830) + RESTCONF JSON (8080/443) |
-| `--mode mrt` | C | RouteViews MRT dump — AS path + BGP Communities (type 8/32) |
-| `--mode ris` | C | RIPE RIS bview dump — second source (`--rrc rrc00/rrc01`) |
-| `--mode lg` | C | Looking Glass ao vivo — Hurricane Electric + RIPE Stat |
-| `--mode whois` | C | IRR/WHOIS passivo — RIPE, ARIN, APNIC via `whois` subprocess |
-| `--mode mpls` | D | MPLS traceroute UDP/3503 + TCP/443 — revela LSRs ocultos |
-| `--mode ixp` | D | PeeringDB — scan de switches em peering LANs de IXPs |
-| `--mode shodan` | E | Shodan API — sysDescr/banners sem gerar tráfego |
-| `--mode dns` | E | DNS PTR bulk — extrai tipo (sw/cr/pe) e localidade |
-| `--mode gnmi` | F | gNMI/gRPC OpenConfig (porta 57400/6030) — telemetria estruturada |
-| `--mode atlas` | G | RIPE Atlas — lê medições públicas; cria traceroutes com `RIPE_ATLAS_KEY` |
-| `--mode full` | A-G | Pipeline completo de todos os vetores |
-
-**Fingerprint de vendor** (banners SSH/TLS/Telnet/Shodan): Cisco, Juniper, Arista, Huawei, Nokia, Extreme, MikroTik, Cumulus, **Ciena, Infinera, Coriant, Ribbon/GENBAND** (optical/DWDM).
-
----
-
-## Variáveis de Ambiente
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `DATABASE_URL` / `PGHOST` etc. | — | Conexão PostgreSQL |
-| `MTR_CYCLES` | `15` | Ciclos MTR por cabo (30 em full scan) |
-| `MTR_BUDGET` | `300` | Orçamento total de ciclos MTR por execução |
-| `TCP_JITTER_PKTS` | `50` | Pacotes por variação TCP Jitter |
-| `ENRICH_LIMIT` | `200` | Máximo de IPs enriquecidos por execução daily |
-| `ENRICH_STALE_DAYS` | `7` | Re-enriquece IPs com `enriched_at` mais antigo que N dias |
-| `ENRICH_FIELDS` | `hostname,whois,privacy,tls` | Grupos de campos a processar |
-| `REACH_MODE` | `banner` | Vetor padrão no subcomando `reach` |
-| `REACH_SKIP` | `0` | `1` para pular o reach no subcomando `all` |
-| `NETCONF_USER` / `NETCONF_PASS` | — | Credenciais NETCONF/RESTCONF (Vetor B) |
-| `GNMI_USER` / `GNMI_PASS` | — | Credenciais gNMI (Vetor F) |
-| `RIPE_ATLAS_KEY` | — | Chave de API RIPE Atlas para criar medições (Vetor G) |
-| `SHODAN_API_KEY` | — | Chave Shodan (Vetor E) |
-| `PROBE_WORKERS` | `30` | Threads paralelas na descoberta avançada |
-| `PROBE_TIMEOUT` | `5` | Timeout por conexão (segundos) |
-
----
-
-## Dependências Python
-
-```
-psycopg2-binary>=2.9
-requests>=2.31
-pysnmp-lextudio>=6.2   # SNMP (Python 3.12+)
-scapy>=2.5             # NetFlow passivo (root opcional)
-ncclient>=0.6          # NETCONF/RESTCONF (Vetor B)
-mrtparse>=2.2          # MRT dump parsing (Vetores C RouteViews + RIPE RIS)
-# pygnmi>=0.8          # gNMI (Vetor F) — instalar se usar --mode gnmi
-# shodan>=1.31         # Shodan (Vetor E) — instalar se tiver API key
-```
+A baseline (`cable_telemetry_reference`) é recalculada por janela de 7 dias a partir de `cable_telemetry_samples`, servindo de referência estável para detectar desvios e alimentar as seções analíticas sem varrer todo o histórico.
 
 ---
 
 ## Microsserviços de probe
 
-As ferramentas de medição ativa foram extraídas para microsserviços independentes no repositório [`rmifo-services`](https://github.com/LeviRunner/rmifo-services). Cada ferramenta é auto-contida, deployável sozinha no Railway e escalável em paralelo — adicionar uma ferramenta nova não toca nas existentes.
+As ferramentas de medição ativa rodam como microsserviços independentes ([`rmifo-services`](https://github.com/LeviRunner/rmifo-services)) — `tcp`, `ping`, `mtr`, `http`, `bgp`, `switch` e `telemetry`. Cada um é auto-contido e escala em paralelo.
 
-| Serviço | Função | Endpoint |
-|---|---|---|
-| `tcp` | TCP connect + jitter | `POST /probe` |
-| `ping` | ICMP ping | `POST /probe` |
-| `mtr` | Traceroute (MTR) | `POST /probe` |
-| `http` | HTTP HEAD | `POST /probe` |
-| `bgp` | BGP/ROA via RIPE STAT | `POST /prefix`, `/asn` |
-| `switch` | Scan de switches em CIDR | `POST /scan`, `/batch` |
-| `telemetry` | Orquestrador de cabos (batch assíncrono) | `POST /scan`, `/batch` |
-
-O `api.php` roteia as chamadas de probe para cada serviço via variáveis `TCP_SERVICE_URL`, `PING_SERVICE_URL`, `MTR_SERVICE_URL`, `HTTP_SERVICE_URL`, `BGP_SERVICE_URL`, `SWITCH_SERVICE_URL`, `TELEMETRY_SERVICE_URL` (rede interna Railway). O ambiente de staging `RMIFO_TEST_API` valida essa integração sem usar `exec()`/`shell_exec()`.
-
----
-
-## Deploy (Railway)
-
-```toml
-# nixpacks.toml
-[phases.setup]
-nixPkgs = ["nodejs_20", "php82", "php82Extensions.pdo_pgsql", "mtr", "curl", "python312"]
-
-[start]
-cmd = "bash start.sh"
-```
-
-O `start.sh` inicializa o PostgreSQL local via socket Unix e sobe o servidor PHP embutido. Em Railway, `DATABASE_URL` aponta para o PostgreSQL gerenciado.
+**Utilização em produção:** o `api.php` atua como gateway. Seções de dados (Overview, Connectivity, Routing, Security, Traffic) consultam o PostgreSQL diretamente; ações de medição ativa (Tools, Sonda) são delegadas por HTTP ao microsserviço correspondente pela rede interna do Railway, configurada via variáveis `*_SERVICE_URL`. Ferramentas não provisionadas simplesmente não são chamadas, então o sistema degrada com elegância e novas ferramentas entram sem reiniciar as existentes.
 
 ---
 
 ## PWA
 
-Service Worker `sw.js` (`rmifo-v39`) com estratégia cache-first para assets estáticos (`/`, `index.html`, `app.css?v=4`, `app.js`, `radar.js?v=4`, `ui-enhancements.js`, manifest, ícones). Assets versionados por query string (`app.css?v=4`, `radar.js?v=4`) para cache-busting. API (`api.php`) sempre vai à rede — fallback `{ error: 'Offline' }` quando sem conexão. Instalável como app nativo em Android/iOS/Desktop.
+Service Worker (`rmifo-v39`) com cache-first para assets estáticos e assets versionados por query string (`app.css?v=4`, `radar.js?v=4`) para cache-busting. A API sempre vai à rede, com fallback offline. Instalável como app nativo em Android, iOS e Desktop.
