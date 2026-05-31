@@ -3060,6 +3060,67 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'degraded_count'       => $outages,
                 ]);
 
+            case 'connectivity_quality':
+                // Estrutura IQI (Cloudflare-like): percentis p25/p50/p75.
+                // Disponivel a partir dos dados: banda (throughput), latencia, jitter, perda.
+                // Indisponivel (null, estrutura pronta): DNS, upload, latencia loaded.
+                $cqRow = $pdo->query(
+                    "SELECT
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY baseline_throughput_mbps) AS bw_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY baseline_throughput_mbps) AS bw_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY baseline_throughput_mbps) AS bw_p75,
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY baseline_latency_ms)      AS lat_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY baseline_latency_ms)      AS lat_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY baseline_latency_ms)      AS lat_p75,
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY baseline_jitter_ms)       AS jit_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY baseline_jitter_ms)       AS jit_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY baseline_jitter_ms)       AS jit_p75,
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY baseline_packet_loss_pct) AS loss_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY baseline_packet_loss_pct) AS loss_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY baseline_packet_loss_pct) AS loss_p75
+                     FROM cable_telemetry_reference"
+                )->fetch() ?: [];
+                $cqTs = $pdo->query(
+                    "SELECT to_char(date_trunc('day', measured_at), 'YYYY-MM-DD') AS bucket,
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY latency_ms)      AS lat_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms)      AS lat_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY latency_ms)      AS lat_p75,
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p75
+                     FROM cable_telemetry_samples
+                     WHERE measured_at > NOW() - INTERVAL '30 days'
+                     GROUP BY 1 ORDER BY 1"
+                )->fetchAll() ?: [];
+                $cqN  = function ($v) { return ($v !== null && $v !== '') ? round((float) $v, 3) : null; };
+                $cqMp = function ($r, $a) use ($cqN) {
+                    return ['p25' => $cqN($r[$a.'_p25'] ?? null), 'p50' => $cqN($r[$a.'_p50'] ?? null), 'p75' => $cqN($r[$a.'_p75'] ?? null)];
+                };
+                $cqCol = function ($a) use ($cqTs, $cqN) {
+                    return array_map(function ($r) use ($a, $cqN) { return $cqN($r[$a] ?? null); }, $cqTs);
+                };
+                jsonResponse([
+                    'iqi' => [
+                        'bandwidth' => array_merge($cqMp($cqRow, 'bw'),  ['unit' => 'Mbps', 'available' => true]),
+                        'latency'   => array_merge($cqMp($cqRow, 'lat'), ['unit' => 'ms',   'available' => true]),
+                        'dns'       => ['p25' => null, 'p50' => null, 'p75' => null, 'unit' => 'ms', 'available' => false],
+                    ],
+                    'timeseries' => [
+                        'buckets'   => array_column($cqTs, 'bucket'),
+                        'bandwidth' => ['p25' => $cqCol('bw_p25'),  'p50' => $cqCol('bw_p50'),  'p75' => $cqCol('bw_p75')],
+                        'latency'   => ['p25' => $cqCol('lat_p25'), 'p50' => $cqCol('lat_p50'), 'p75' => $cqCol('lat_p75')],
+                        'dns'       => ['p25' => [], 'p50' => [], 'p75' => []],
+                    ],
+                    'connection' => [
+                        'download'       => array_merge($cqMp($cqRow, 'bw'),  ['unit' => 'Mbps', 'available' => true]),
+                        'upload'         => ['p25' => null, 'p50' => null, 'p75' => null, 'unit' => 'Mbps', 'available' => false],
+                        'latency_idle'   => array_merge($cqMp($cqRow, 'lat'), ['unit' => 'ms', 'available' => true]),
+                        'latency_loaded' => ['p25' => null, 'p50' => null, 'p75' => null, 'unit' => 'ms', 'available' => false],
+                        'jitter'         => array_merge($cqMp($cqRow, 'jit'),  ['unit' => 'ms', 'available' => true]),
+                        'packet_loss'    => array_merge($cqMp($cqRow, 'loss'), ['unit' => '%',  'available' => true]),
+                    ],
+                ]);
+
             case 'routing':
                 // MTR hop data with geolocation for routing visualization
                 $routeStmt = $pdo->query(
