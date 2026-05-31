@@ -19,14 +19,24 @@
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/app.css">
 <style id="radar-styles">
-.drawer-cols{display:flex;height:calc(100% - 49px);overflow:hidden}
-.drawer-cols>.drawer-nav{flex:1;overflow-y:auto;padding-bottom:16px}
-.radar-col{width:130px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.08);overflow-y:auto;padding-bottom:16px}
-.radar-col-lbl{padding:12px 12px 4px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.28);font-weight:600}
-.radar-link{display:flex!important;align-items:center;gap:7px;padding:9px 12px!important;font-size:12px!important;color:#AFA9EC!important;text-decoration:none;transition:background .15s;white-space:nowrap}
-.radar-link:hover{background:rgba(127,119,221,.1);color:#c4beff!important}
-.radar-link.active{background:rgba(127,119,221,.15);color:#7F77DD!important}
-.radar-link svg{width:14px;height:14px;flex-shrink:0}
+/* ── Radar Sidebar (barra lateral fixa direita) ─────────────────────────── */
+#rdr-sb{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:300;display:flex;flex-direction:column;background:rgba(13,13,26,.96);border:1px solid rgba(127,119,221,.18);border-right:none;border-radius:10px 0 0 10px;overflow:hidden;box-shadow:-4px 0 24px rgba(0,0,0,.45);transition:width .25s ease}
+#rdr-sb.sb-exp{width:158px}
+#rdr-sb.sb-col{width:42px}
+.sb-toggle{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 8px;cursor:pointer;color:rgba(175,169,236,.65);border:none;border-bottom:1px solid rgba(255,255,255,.06);background:none;width:100%;transition:color .15s;font-size:10px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden}
+.sb-toggle:hover{color:#7F77DD}
+.sb-toggle svg{width:14px;height:14px;flex-shrink:0;transition:transform .25s}
+#rdr-sb.sb-col .sb-toggle-lbl{display:none}
+.sb-item{display:flex;align-items:center;padding:9px 11px;color:#AFA9EC;text-decoration:none;background:none;border:none;width:100%;text-align:left;white-space:nowrap;overflow:hidden;cursor:pointer;transition:background .15s}
+.sb-item:hover{background:rgba(127,119,221,.1)}
+.sb-item.active{background:rgba(127,119,221,.16);color:#7F77DD}
+.sb-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.sb-icon svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.5}
+.sb-name{font-size:12px;margin-left:9px;overflow:hidden;transition:opacity .2s,max-width .25s;max-width:120px;cursor:pointer}
+#rdr-sb.sb-col .sb-name{max-width:0;opacity:0;margin-left:0;pointer-events:none}
+#rdr-sb.sb-exp .sb-name{max-width:120px;opacity:1}
+#rdr-sb.sb-col .sb-item{justify-content:center;padding:9px}
+@media(max-width:600px){#rdr-sb.sb-exp{width:140px}}
 .rdr-wrap{padding:20px 16px;max-width:1080px;margin:0 auto}
 .rdr-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
 .rdr-title{font-size:17px;font-weight:600;color:#e2e0d8}
@@ -243,7 +253,6 @@
     <span>Navegação</span>
     <button class="drawer-close" id="drawer-close"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
   </div>
-  <div class="drawer-cols">
     <ul class="drawer-nav">
       <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
       <li><a href="#" class="nav-link" data-page="search">Explorador DB</a></li>
@@ -254,34 +263,6 @@
       <li><a href="#" class="nav-link" data-page="switch">IP Range</a></li>
       <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
     </ul>
-    <div class="radar-col">
-      <div class="radar-col-lbl">Radar</div>
-      <a href="#" class="nav-link radar-link" data-page="radar-overview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg>
-        Overview
-      </a>
-      <a href="#" class="nav-link radar-link" data-page="radar-connectivity">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
-        Connectivity
-      </a>
-      <a href="#" class="nav-link radar-link" data-page="radar-routing">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-        Routing
-      </a>
-      <a href="#" class="nav-link radar-link" data-page="radar-tools">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z"/></svg>
-        Tools
-      </a>
-      <a href="#" class="nav-link radar-link" data-page="radar-security">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
-        Security
-      </a>
-      <a href="#" class="nav-link radar-link" data-page="radar-traffic">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
-        Traffic
-      </a>
-    </div>
-  </div>
 </nav>
 
 <!-- ── PÁGINAS ──────────────────────────────────────────────────────────── -->
@@ -1022,5 +1003,38 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
+<!-- ── RADAR SIDEBAR (barra lateral fixa direita) ──────────────────────────── -->
+<div id="rdr-sb" class="sb-exp">
+  <button class="sb-toggle" id="sb-toggle" title="Ocultar ou mostrar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    <span class="sb-toggle-lbl">Radar</span>
+  </button>
+  <button class="sb-item" data-page="radar-overview">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg></span>
+    <span class="sb-name">Overview</span>
+  </button>
+  <button class="sb-item" data-page="radar-connectivity">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg></span>
+    <span class="sb-name">Connectivity</span>
+  </button>
+  <button class="sb-item" data-page="radar-routing">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg></span>
+    <span class="sb-name">Routing</span>
+  </button>
+  <button class="sb-item" data-page="radar-tools">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z"/></svg></span>
+    <span class="sb-name">Tools</span>
+  </button>
+  <button class="sb-item" data-page="radar-security">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg></span>
+    <span class="sb-name">Security</span>
+  </button>
+  <button class="sb-item" data-page="radar-traffic">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
+    <span class="sb-name">Traffic</span>
+  </button>
+</div>
+
 </body>
 </html>
