@@ -75,28 +75,73 @@ if (typeof Router !== 'undefined' && Router.titles) {
   });
 }
 
-// ── Gatilho de carregamento ao navegar ────────────────────────────────────────
+// ── Barra lateral fixa direita ────────────────────────────────────────────────
 const _loaded = {};
-document.querySelectorAll('.radar-link').forEach(a => {
-  a.addEventListener('click', () => {
-    const pg = a.dataset.page;
-    if (!_loaded[pg]) {
-      const map = {
-        'radar-overview':     () => Rdr.ov.load(),
-        'radar-connectivity': () => Rdr.cn.load(),
-        'radar-routing':      () => Rdr.rt.load(),
-        'radar-tools':        () => Rdr.tools.init(),
-        'radar-security':     () => Rdr.se.load(),
-        'radar-traffic':      () => Rdr.tr.load(),
-      };
-      if (map[pg]) { map[pg](); _loaded[pg] = true; }
+
+function _loadPage(pg) {
+  if (_loaded[pg]) return;
+  const map = {
+    'radar-overview':     () => Rdr.ov.load(),
+    'radar-connectivity': () => Rdr.cn.load(),
+    'radar-routing':      () => Rdr.rt.load(),
+    'radar-tools':        () => Rdr.tools.init(),
+    'radar-security':     () => Rdr.se.load(),
+    'radar-traffic':      () => Rdr.tr.load(),
+  };
+  if (map[pg]) { map[pg](); _loaded[pg] = true; }
+}
+
+function initSidebar() {
+  const sb = document.getElementById('rdr-sb');
+  if (!sb) return;
+  const toggle = document.getElementById('sb-toggle');
+
+  // Toggle: alterna entre expandido (sb-exp) e recolhido (sb-col)
+  function setCollapsed(collapsed) {
+    sb.classList.toggle('sb-col', collapsed);
+    sb.classList.toggle('sb-exp', !collapsed);
+    const chev = toggle.querySelector('svg');
+    if (chev) chev.style.transform = collapsed ? 'rotate(180deg)' : '';
+  }
+  toggle.addEventListener('click', () => {
+    setCollapsed(sb.classList.contains('sb-exp'));
+  });
+
+  sb.querySelectorAll('.sb-item').forEach(item => {
+    const page = item.dataset.page;
+    const name = item.querySelector('.sb-name');
+
+    // Clicar no item quando RECOLHIDO: apenas expande a barra, nao navega
+    item.addEventListener('click', (e) => {
+      if (sb.classList.contains('sb-col')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setCollapsed(false);
+      }
+    });
+
+    // Clicar no NOME quando EXPANDIDO: navega para a ferramenta
+    if (name) {
+      name.addEventListener('click', (e) => {
+        if (sb.classList.contains('sb-exp')) {
+          e.stopPropagation();
+          if (typeof Router !== 'undefined') Router.go(page);
+          sb.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+          item.classList.add('active');
+          _loadPage(page);
+        }
+      });
     }
   });
-});
+}
 
-// ══════════════════════════════════════════════════════════════════════════════
-// RADAR NAMESPACE
-// ══════════════════════════════════════════════════════════════════════════════
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initSidebar);
+} else {
+  initSidebar();
+}
+
+
 const Rdr = {
 
   // ── OVERVIEW ──────────────────────────────────────────────────────────────
