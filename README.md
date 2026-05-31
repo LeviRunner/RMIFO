@@ -13,7 +13,7 @@ Produção: https://rmifo.up.railway.app
 | Frontend | HTML5 · CSS3 · JavaScript (Vanilla) · Chart.js 4.4.3 |
 | Backend | PHP 8.2 · PDO PostgreSQL |
 | Banco de dados | PostgreSQL 16 |
-| Microsserviços | Node.js 20 · Express ([`rmifo-services`](https://github.com/LeviRunner/rmifo-services)) |
+| Probe API / Microsserviços | Node.js 20 · Express (pastas `api/` e `services/` do próprio repo) |
 | Coleta | Python 3.12 · Node.js 20 · Bash |
 | Deploy | Railway · Nixpacks · PWA (Service Worker `rmifo-v39`) |
 
@@ -23,9 +23,22 @@ Linguagens: JavaScript · PHP · Python · CSS · HTML · Shell.
 
 ## Estrutura de arquivos
 
+Monorepo único: o site, a API de probe monolítica e os microsserviços convivem em pastas separadas na raiz, cada uma com seu próprio Root Directory no Railway.
+
 ```
 RMIFO/
-└── global-network-resilience/         ← raiz do deploy
+├── global-network-resilience/         ← site + dashboard (Root Directory: global-network-resilience)
+│   └── ...                            (estrutura detalhada abaixo)
+├── api/                               ← probe API monolítica (Root Directory: api)
+│   ├── server.js                      ← todas as ferramentas num só serviço
+│   ├── lib/                           ← tcp, icmp, mtr, http, bgp, switch, scanner, synthetic
+│   ├── data/probe/                    ← dados de exemplo para teste sem banco
+│   ├── package.json · railway.json · nixpacks.toml
+└── services/                          ← microsserviços (Root Directory: services/<tool>)
+    ├── tcp/  ping/  mtr/  http/  bgp/  switch/  telemetry/
+    └── cada um: server.js · lib/ · package.json · railway.json · nixpacks.toml
+
+global-network-resilience/             ← detalhe do site
     ├── web/
     │   ├── index.html                 ← SPA: dashboard Radar + barra lateral fixa
     │   ├── api.php                    ← backend REST (consultas analíticas + roteamento de probe)
@@ -48,7 +61,6 @@ RMIFO/
         └── rmifo_catalog.py           ← gestão do catálogo de cabos
 ```
 
-Repositórios irmãos: **[rmifo-services](https://github.com/LeviRunner/rmifo-services)** (microsserviços de probe) e **RMIFO_TEST_API** (staging de integração).
 
 ---
 
@@ -159,13 +171,45 @@ A baseline (`cable_telemetry_reference`) é recalculada por janela de 7 dias a p
 
 ---
 
-## Microsserviços de probe
+## Probe API e microsserviços (monorepo)
 
-As ferramentas de medição ativa rodam como microsserviços independentes ([`rmifo-services`](https://github.com/LeviRunner/rmifo-services)) — `tcp`, `ping`, `mtr`, `http`, `bgp`, `switch` e `telemetry`. Cada um é auto-contido e escala em paralelo.
+As ferramentas de medição ativa (TCP, ICMP/ping, MTR, HTTP, BGP, switch, telemetry) vivem no próprio repositório, em duas formas que você escolhe deployar:
 
-**Utilização em produção:** o `api.php` atua como gateway. Seções de dados (Overview, Connectivity, Routing, Security, Traffic) consultam o PostgreSQL diretamente; ações de medição ativa (Tools, Sonda) são delegadas por HTTP ao microsserviço correspondente pela rede interna do Railway, configurada via variáveis `*_SERVICE_URL`. Ferramentas não provisionadas simplesmente não são chamadas, então o sistema degrada com elegância e novas ferramentas entram sem reiniciar as existentes.
+- **`api/`** — monolito: um único serviço com todas as ferramentas. Mais simples de operar; ideal para começar.
+- **`services/<tool>/`** — microsserviços: cada ferramenta isolada, escalável em paralelo. Adicionar uma nova não toca nas existentes.
 
----
+O `api.php` atua como gateway: seções de dados (Overview, Connectivity, Routing, Security, Traffic) consultam o PostgreSQL diretamente; ações de medição (`?action=probe_tcp`, `probe_bgp`, `probe_asn`, `probe_health`) são delegadas por HTTP. Para cada ferramenta, o gateway tenta primeiro o microsserviço dedicado e cai no monolito se ele não estiver configurado.
+
+### Configuração no Railway
+
+Cada pasta é um serviço Railway separado, definido pelo **Root Directory**:
+
+| Serviço | Root Directory | Healthcheck |
+|---|---|---|
+| Site + dashboard | `global-network-resilience` | — |
+| Probe API (monolito) | `api` | `/health` |
+| Microsserviço por ferramenta | `services/tcp`, `services/ping`, `services/mtr`, `services/http`, `services/bgp`, `services/switch`, `services/telemetry` | `/health` |
+
+### Variáveis no gateway (serviço do site)
+
+Defina **uma** das abordagens (ou ambas — microsserviço tem prioridade, monolito é fallback):
+
+```
+# Monolito — uma URL atende todas as ferramentas
+PROBE_API_URL=http://api.railway.internal:3000
+
+# Microsserviços — uma URL por ferramenta que você subir
+TCP_SERVICE_URL=http://tcp.railway.internal:3000
+PING_SERVICE_URL=http://ping.railway.internal:3000
+MTR_SERVICE_URL=http://mtr.railway.internal:3000
+HTTP_SERVICE_URL=http://http.railway.internal:3000
+BGP_SERVICE_URL=http://bgp.railway.internal:3000
+SWITCH_SERVICE_URL=http://switch.railway.internal:3000
+TELEMETRY_SERVICE_URL=http://telemetry.railway.internal:3000
+```
+
+Ferramentas sem URL configurada simplesmente não são chamadas. Verifique o que está ativo em `?action=probe_health`.
+
 
 ## PWA
 
