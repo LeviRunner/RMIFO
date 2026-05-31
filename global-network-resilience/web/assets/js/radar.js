@@ -96,59 +96,46 @@ function initSidebar() {
   if (!sb) return;
   const toggle = document.getElementById('sb-toggle');
 
-  // Estado inicial do chevron conforme classe atual (colapsado por padrao)
-  (function () {
-    const c0 = sb.classList.contains('sb-col');
-    const chev0 = toggle && toggle.querySelector('svg');
-    if (chev0) chev0.style.transform = c0 ? 'rotate(180deg)' : '';
-  })();
-
   function setCollapsed(collapsed) {
     sb.classList.toggle('sb-col', collapsed);
     sb.classList.toggle('sb-exp', !collapsed);
-    const chev = toggle.querySelector('svg');
+    const chev = toggle && toggle.querySelector('svg');
     if (chev) chev.style.transform = collapsed ? 'rotate(180deg)' : '';
   }
-  toggle.addEventListener('click', () => {
-    setCollapsed(sb.classList.contains('sb-exp'));
-  });
+
+  // Estado inicial do chevron conforme a classe atual
+  setCollapsed(sb.classList.contains('sb-col'));
+
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      setCollapsed(sb.classList.contains('sb-exp'));
+    });
+  }
 
   function navigate(page, item) {
-    // Delega ao nav-link oculto correspondente (preserva toda a logica do app.js)
+    // Delega ao nav-link oculto (preserva toda a logica do app.js)
     const link = document.querySelector('.nav-link[data-page="' + page + '"]');
     if (link) {
       link.click();
     } else if (typeof Router !== 'undefined') {
       Router.go(page);
     }
-    // Carrega dados das paginas de radar
     if (page.indexOf('radar-') === 0) _loadPage(page);
-    sb.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+    sb.querySelectorAll('.sb-item').forEach(function (i) { i.classList.remove('active'); });
     if (item) item.classList.add('active');
   }
 
-  sb.querySelectorAll('.sb-item').forEach(item => {
-    const page = item.dataset.page;
-    const name = item.querySelector('.sb-name');
-
-    // Clique no item quando RECOLHIDO: apenas expande, nao navega
-    item.addEventListener('click', (e) => {
+  sb.querySelectorAll('.sb-item').forEach(function (item) {
+    item.addEventListener('click', function (e) {
+      e.preventDefault();
       if (sb.classList.contains('sb-col')) {
-        e.preventDefault();
-        e.stopPropagation();
+        // Recolhido: apenas expande, nao abre a ferramenta
         setCollapsed(false);
+      } else {
+        // Expandido: navega para a ferramenta
+        navigate(item.dataset.page, item);
       }
     });
-
-    // Clique no NOME quando EXPANDIDO: navega
-    if (name) {
-      name.addEventListener('click', (e) => {
-        if (sb.classList.contains('sb-exp')) {
-          e.stopPropagation();
-          navigate(page, item);
-        }
-      });
-    }
   });
 }
 
