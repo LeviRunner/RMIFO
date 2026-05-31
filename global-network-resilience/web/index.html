@@ -17,8 +17,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/app.css?v=3">
 <style id="radar-styles">
+
+/* Drawer e hamburger ocultos — navegacao agora pela barra lateral fixa */
+#hamburger-btn{display:none!important}
+#drawer,#drawer-overlay{display:none!important}
+
 /* ── Radar Sidebar (barra lateral fixa direita) ─────────────────────────── */
 #rdr-sb{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:300;display:flex;flex-direction:column;background:rgba(13,13,26,.96);border:1px solid rgba(127,119,221,.18);border-right:none;border-radius:10px 0 0 10px;overflow:hidden;box-shadow:-4px 0 24px rgba(0,0,0,.45);transition:width .25s ease}
 #rdr-sb.sb-exp{width:158px}
@@ -26,7 +31,6 @@
 .sb-toggle{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 8px;cursor:pointer;color:rgba(175,169,236,.65);border:none;border-bottom:1px solid rgba(255,255,255,.06);background:none;width:100%;transition:color .15s;font-size:10px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden}
 .sb-toggle:hover{color:#7F77DD}
 .sb-toggle svg{width:14px;height:14px;flex-shrink:0;transition:transform .25s}
-#rdr-sb.sb-col .sb-toggle-lbl{display:none}
 .sb-item{display:flex;align-items:center;padding:9px 11px;color:#AFA9EC;text-decoration:none;background:none;border:none;width:100%;text-align:left;white-space:nowrap;overflow:hidden;cursor:pointer;transition:background .15s}
 .sb-item:hover{background:rgba(127,119,221,.1)}
 .sb-item.active{background:rgba(127,119,221,.16);color:#7F77DD}
@@ -36,7 +40,13 @@
 #rdr-sb.sb-col .sb-name{max-width:0;opacity:0;margin-left:0;pointer-events:none}
 #rdr-sb.sb-exp .sb-name{max-width:120px;opacity:1}
 #rdr-sb.sb-col .sb-item{justify-content:center;padding:9px}
-@media(max-width:600px){#rdr-sb.sb-exp{width:140px}}
+
+#rdr-sb{max-height:90vh;overflow-y:auto}
+#rdr-sb::-webkit-scrollbar{width:0}
+.sb-div{height:1px;background:rgba(255,255,255,.08);margin:4px 8px;flex-shrink:0}
+#rdr-sb.sb-col .sb-div{margin:4px 6px}
+.sb-toggle{justify-content:center}
+@media(max-width:600px){#rdr-sb.sb-exp{width:148px}}
 .rdr-wrap{padding:20px 16px;max-width:1080px;margin:0 auto}
 .rdr-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
 .rdr-title{font-size:17px;font-weight:600;color:#e2e0d8}
@@ -262,6 +272,12 @@
       <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
       <li><a href="#" class="nav-link" data-page="switch">IP Range</a></li>
       <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-overview">Overview</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-connectivity">Connectivity</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-routing">Routing</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-tools">Tools</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-security">Security</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-traffic">Traffic</a></li>
     </ul>
 </nav>
 
@@ -553,7 +569,7 @@
       <!-- Header -->
       <div class="daily-header">
         <div>
-          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v2</span></div>
+          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v3</span></div>
           <div class="daily-subtitle">Verificação ICMP real + latência TCP em 699 cabos submarinos</div>
         </div>
         <div class="daily-actions">
@@ -1004,12 +1020,40 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-<!-- ── RADAR SIDEBAR (barra lateral fixa direita) ──────────────────────────── -->
+<!-- ── BARRA LATERAL FIXA DIREITA (navegacao completa) ─────────────────────── -->
 <div id="rdr-sb" class="sb-exp">
   <button class="sb-toggle" id="sb-toggle" title="Ocultar ou mostrar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    <span class="sb-toggle-lbl">Radar</span>
   </button>
+  <button class="sb-item" data-page="map">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></svg></span>
+    <span class="sb-name">Mapa Global</span>
+  </button>
+  <button class="sb-item" data-page="search">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg></span>
+    <span class="sb-name">Explorador DB</span>
+  </button>
+  <button class="sb-item" data-page="detail">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></span>
+    <span class="sb-name">Detalhes do Cabo</span>
+  </button>
+  <button class="sb-item" data-page="probe">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3 8.25V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18V8.25m-18 0V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 6v2.25m-18 0h18M5.25 6h.008v.008H5.25V6zM7.5 6h.008v.008H7.5V6zm2.25 0h.008v.008H9.75V6z"/></svg></span>
+    <span class="sb-name">Histórico de Janela</span>
+  </button>
+  <button class="sb-item" data-page="daily">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg></span>
+    <span class="sb-name">Sonda Diária</span>
+  </button>
+  <button class="sb-item" data-page="switch">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008V8.25zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008V8.25z"/></svg></span>
+    <span class="sb-name">IP Range</span>
+  </button>
+  <button class="sb-item" data-page="history">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span>
+    <span class="sb-name">Histórico</span>
+  </button>
+  <div class="sb-div"></div>
   <button class="sb-item" data-page="radar-overview">
     <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg></span>
     <span class="sb-name">Overview</span>
@@ -1035,6 +1079,5 @@ if ('serviceWorker' in navigator) {
     <span class="sb-name">Traffic</span>
   </button>
 </div>
-
 </body>
 </html>
