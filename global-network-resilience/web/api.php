@@ -2976,6 +2976,152 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'history_file' => $historyFile,
                 ]);
 
+
+            case 'connectivity':
+                // Aggregate connectivity stats from cable_telemetry_reference
+                $connStmt = $pdo->query(
+                    "SELECT c.cable_id, c.cable_name, c.length_km,
+                            c.landing_points_count AS landing_points,
+                            cr.baseline_availability_pct  AS availability_pct,
+                            cr.baseline_packet_loss_pct   AS loss_pct,
+                            cr.baseline_latency_ms        AS latency_ms,
+                            cr.baseline_jitter_ms         AS jitter_ms,
+                            cr.baseline_throughput_mbps   AS throughput_mbps,
+                            cr.updated_at,
+                            (SELECT lp.country_name
+                             FROM cable_landing_points clp2
+                             JOIN landing_points lp ON lp.endpoint_id = clp2.endpoint_id
+                             WHERE clp2.cable_id = c.cable_id
+                             ORDER BY clp2.endpoint_order LIMIT 1) AS primary_country
+                     FROM cables c
+                     JOIN cable_telemetry_reference cr ON cr.cable_id = c.cable_id
+                     WHERE c.is_operational = TRUE
+                     ORDER BY cr.baseline_availability_pct ASC NULLS LAST
+                     LIMIT 600"
+                );
+                $connRows = $connStmt->fetchAll();
+                $avg_avail = array_sum(array_column($connRows,'availability_pct')) / max(1,count($connRows));
+                $avg_loss  = array_sum(array_column($connRows,'loss_pct'))         / max(1,count($connRows));
+                $avg_lat   = array_sum(array_column($connRows,'latency_ms'))       / max(1,count($connRows));
+                $outages   = count(array_filter($connRows, fn($r) => ($r['availability_pct']??100) < 99));
+                jsonResponse([
+                    'cables'       => $connRows,
+                    'total'        => count($connRows),
+                    'avg_availability_pct' => round($avg_avail, 3),
+                    'avg_loss_pct'         => round($avg_loss,  3),
+                    'avg_latency_ms'       => round($avg_lat,   2),
+                    'degraded_count'       => $outages,
+                ]);
+
+            case 'routing':
+                // MTR hop data with geolocation for routing visualization
+                $routeStmt = $pdo->query(
+                    "SELECT cth.cable_id, c.cable_name,
+                            cth.hop_number, cth.hop_ip,
+                            ROUND(cth.rtt_avg_ms::numeric, 2)  AS rtt_ms,
+                            ROUND(cth.loss_pct::numeric,   1)  AS loss_pct,
+                            cth.hop_role,
+                            hsg.country_code, hsg.city,
+                            hsg.isp, hsg.as_number, hsg.asn_type,
+                            hsg.lat, hsg.lng
+                     FROM cable_telemetry_hops cth
+                     JOIN cables c ON c.cable_id = cth.cable_id
+                     LEFT JOIN hop_switch_geolocations hsg ON hsg.hop_ip = cth.hop_ip
+                     WHERE cth.hop_ip IS NOT NULL AND cth.rtt_avg_ms IS NOT NULL
+                     ORDER BY cth.cable_id, cth.hop_number
+                     LIMIT 3000"
+                );
+                $hops = $routeStmt->fetchAll();
+                // Aggregate: unique ASNs, countries, ISPs
+                $asns      = array_unique(array_filter(array_column($hops,'as_number')));
+                $countries = array_unique(array_filter(array_column($hops,'country_code')));
+                $isps      = array_unique(array_filter(array_column($hops,'isp')));
+                // Top ISPs by hop count
+                $ispCount = [];
+                foreach ($hops as $h) {
+                    if ($h['isp']) $ispCount[$h['isp']] = ($ispCount[$h['isp']] ?? 0) + 1;
+                }
+                arsort($ispCount);
+                jsonResponse([
+                    'hops'          => $hops,
+                    'total_hops'    => count($hops),
+                    'unique_asns'   => count($asns),
+                    'unique_countries' => count($countries),
+                    'top_isps'      => array_slice($ispCount, 0, 15, true),
+                ]);
+
+            case 'security':
+                // BGP hijack alerts + privacy flags from hop geolocations
+                $secAlerts = [];
+                try {
+                    $aStmt = $pdo->query(
+                        "SELECT ta.alert_id, ta.cable_id, c.cable_name,
+                                ta.metric, ta.severity,
+                                ROUND(ta.current_value::numeric,  3) AS current_value,
+                                ROUND(ta.baseline_value::numeric, 3) AS baseline_value,
+                                ta.detected_at, ta.description
+                         FROM telemetry_alerts ta
+                         LEFT JOIN cables c ON c.cable_id = ta.cable_id
+                         ORDER BY ta.detected_at DESC LIMIT 500"
+                    );
+                    $secAlerts = $aStmt->fetchAll();
+                } catch (Throwable $__e) {}
+
+                $privHops = [];
+                try {
+                    $pStmt = $pdo->query(
+                        "SELECT hop_ip, country_code, city, isp, as_number,
+                                privacy_vpn, privacy_proxy, privacy_tor, privacy_hosting,
+                                lat, lng
+                         FROM hop_switch_geolocations
+                         WHERE privacy_vpn = true OR privacy_proxy = true
+                            OR privacy_tor = true OR privacy_hosting = true"
+                    );
+                    $privHops = $pStmt->fetchAll();
+                } catch (Throwable $__e) {}
+
+                $sev = ['critical'=>0,'high'=>0,'medium'=>0,'low'=>0];
+                foreach ($secAlerts as $a) {
+                    $k = strtolower($a['severity'] ?? 'low');
+                    if (isset($sev[$k])) $sev[$k]++;
+                }
+                jsonResponse([
+                    'alerts'           => $secAlerts,
+                    'privacy_hops'     => $privHops,
+                    'alert_count'      => count($secAlerts),
+                    'severity_summary' => $sev,
+                    'privacy_hop_count'=> count($privHops),
+                ]);
+
+            case 'traffic':
+                // Throughput estimates from cable_telemetry_reference
+                $trafStmt = $pdo->query(
+                    "SELECT c.cable_id, c.cable_name,
+                            c.capacity_gbps, c.length_km,
+                            c.landing_points_count,
+                            ROUND(cr.baseline_throughput_mbps::numeric,  1) AS throughput_mbps,
+                            ROUND(cr.baseline_latency_ms::numeric,       2) AS latency_ms,
+                            ROUND(cr.baseline_availability_pct::numeric, 3) AS availability_pct,
+                            cr.updated_at
+                     FROM cables c
+                     JOIN cable_telemetry_reference cr ON cr.cable_id = c.cable_id
+                     WHERE c.is_operational = TRUE
+                       AND cr.baseline_throughput_mbps IS NOT NULL
+                     ORDER BY cr.baseline_throughput_mbps DESC
+                     LIMIT 300"
+                );
+                $trafRows = $trafStmt->fetchAll();
+                $totalThroughput = array_sum(array_column($trafRows,'throughput_mbps'));
+                $totalCapacity   = array_sum(array_filter(array_column($trafRows,'capacity_gbps'))) * 1000;
+                jsonResponse([
+                    'cables'             => $trafRows,
+                    'total'              => count($trafRows),
+                    'total_throughput_mbps' => round($totalThroughput, 1),
+                    'total_capacity_gbps'   => round($totalCapacity / 1000, 1),
+                    'utilization_pct'    => $totalCapacity > 0
+                        ? round($totalThroughput / $totalCapacity * 100, 2) : null,
+                ]);
+
             default:
                 jsonResponse(['error' => 'Modo desconhecido.'], 400);
         }
