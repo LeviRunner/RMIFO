@@ -1,7 +1,8 @@
-const CACHE = 'rmifo-v37';
+const CACHE = 'rmifo-v38';
 const STATIC = [
-  '/assets/css/app.css',
+  '/assets/css/app.css?v=4',
   '/assets/js/app.js',
+  '/assets/js/radar.js',
   '/assets/js/ui-enhancements.js',
   '/manifest.json',
   '/assets/icons/icon-192.png',
