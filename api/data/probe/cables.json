@@ -1,0 +1,3 @@
+[
+  { "cable_id": "example-1", "cable_name": "Example Cable 1", "length_km": 9000, "capacity_gbps": 144, "landing_points": 2, "probe_ips": [] }
+]
