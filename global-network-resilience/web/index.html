@@ -18,6 +18,53 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/app.css">
+<style id="radar-styles">
+.drawer-cols{display:flex;height:calc(100% - 49px);overflow:hidden}
+.drawer-cols>.drawer-nav{flex:1;overflow-y:auto;padding-bottom:16px}
+.radar-col{width:130px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.08);overflow-y:auto;padding-bottom:16px}
+.radar-col-lbl{padding:12px 12px 4px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.28);font-weight:600}
+.radar-link{display:flex!important;align-items:center;gap:7px;padding:9px 12px!important;font-size:12px!important;color:#AFA9EC!important;text-decoration:none;transition:background .15s;white-space:nowrap}
+.radar-link:hover{background:rgba(127,119,221,.1);color:#c4beff!important}
+.radar-link.active{background:rgba(127,119,221,.15);color:#7F77DD!important}
+.radar-link svg{width:14px;height:14px;flex-shrink:0}
+.rdr-wrap{padding:20px 16px;max-width:1080px;margin:0 auto}
+.rdr-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.rdr-title{font-size:17px;font-weight:600;color:#e2e0d8}
+.rdr-sub{font-size:11px;color:#888780;margin-top:2px}
+.rdr-kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.rdr-kpi{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;transition:transform .18s}
+.rdr-kpi:hover{transform:translateY(-2px)}
+.rdr-kl{font-size:10px;color:#888780;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.rdr-kv{font-size:21px;font-weight:700;font-family:monospace}
+.rdr-ks{font-size:11px;color:#888780;margin-top:3px}
+.rdr-g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.rdr-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:16px;margin-bottom:14px}
+.rdr-ct{font-size:10px;color:#888780;text-transform:uppercase;letter-spacing:.07em;font-weight:500;margin-bottom:12px}
+.rdr-tw{overflow-x:auto}
+.rdr-tw table{width:100%;border-collapse:collapse;font-size:12px}
+.rdr-tw th{text-align:left;color:#888780;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer}
+.rdr-tw td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle}
+.rdr-tw tr:hover td{background:rgba(127,119,221,.04)}
+.rdr-tf{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.rdr-tf input,.rdr-tf select{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#e2e0d8;font-size:12px;padding:7px 11px;flex:1;min-width:100px;outline:none}
+.rdr-tf input:focus{border-color:#7F77DD}
+.rdr-rb{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#5DCAA5;min-height:80px;max-height:260px;overflow-y:auto;line-height:1.8;white-space:pre-wrap}
+.rdr-gap{background:rgba(239,159,39,.07);border:1px solid rgba(239,159,39,.22);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.rdr-gap-t{font-size:12px;font-weight:600;color:#EF9F27;margin-bottom:6px}
+.rdr-gap-b{font-size:11px;color:#888780;line-height:1.75}
+.rdr-gap-b code{background:rgba(255,255,255,.07);border-radius:4px;padding:1px 5px;font-family:monospace;font-size:10px;color:#AFA9EC}
+.rdr-bk{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600}
+.rdr-ok{background:rgba(29,158,117,.15);color:#5DCAA5}
+.rdr-wn{background:rgba(239,159,39,.15);color:#EF9F27}
+.rdr-er{background:rgba(226,75,74,.15);color:#E24B4A}
+.rdr-in{background:rgba(127,119,221,.15);color:#AFA9EC}
+.rdr-bar{height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;min-width:50px;display:inline-block;vertical-align:middle}
+.rdr-bar-f{height:100%;border-radius:4px}
+.rdr-sk{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:rdrsk 1.4s ease infinite;border-radius:6px;height:13px;margin:5px 0}
+.rdr-lod{text-align:center;color:#888780;padding:30px;font-size:12px}
+@keyframes rdrsk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(max-width:600px){.rdr-kgrid{grid-template-columns:1fr 1fr}.rdr-g2{grid-template-columns:1fr}.radar-col{width:110px}}
+</style>
 </head>
 <body>
 
@@ -189,23 +236,52 @@
   </div>
 </header>
 
-<!-- ── MENU SANDUÍCHE (DRAWER) ─────────────────────────────────────────── -->
+<!-- ── MENU SANDUICHE (DRAWER) ─────────────────────────────────────────── -->
 <div class="drawer-overlay" id="drawer-overlay"></div>
 <nav class="drawer" id="drawer">
   <div class="drawer-header">
     <span>Navegação</span>
     <button class="drawer-close" id="drawer-close"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
   </div>
-  <ul class="drawer-nav">
-    <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
-    <li><a href="#" class="nav-link" data-page="search">Explorador DB</a></li>
-    <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
-    <li><a href="#" class="nav-link" data-page="probe">Histórico de Janela</a></li>
-    <li class="drawer-divider"></li>
-    <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
-    <li><a href="#" class="nav-link" data-page="switch">IP Range</a></li>
-    <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
-  </ul>
+  <div class="drawer-cols">
+    <ul class="drawer-nav">
+      <li><a href="#" class="nav-link active" data-page="map">Mapa Global</a></li>
+      <li><a href="#" class="nav-link" data-page="search">Explorador DB</a></li>
+      <li><a href="#" class="nav-link" data-page="detail">Detalhes do Cabo</a></li>
+      <li><a href="#" class="nav-link" data-page="probe">Histórico de Janela</a></li>
+      <li class="drawer-divider"></li>
+      <li><a href="#" class="nav-link" data-page="daily">Sonda Diária</a></li>
+      <li><a href="#" class="nav-link" data-page="switch">IP Range</a></li>
+      <li><a href="#" class="nav-link" data-page="history">Histórico</a></li>
+    </ul>
+    <div class="radar-col">
+      <div class="radar-col-lbl">Radar</div>
+      <a href="#" class="nav-link radar-link" data-page="radar-overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg>
+        Overview
+      </a>
+      <a href="#" class="nav-link radar-link" data-page="radar-connectivity">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+        Connectivity
+      </a>
+      <a href="#" class="nav-link radar-link" data-page="radar-routing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+        Routing
+      </a>
+      <a href="#" class="nav-link radar-link" data-page="radar-tools">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z"/></svg>
+        Tools
+      </a>
+      <a href="#" class="nav-link radar-link" data-page="radar-security">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+        Security
+      </a>
+      <a href="#" class="nav-link radar-link" data-page="radar-traffic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+        Traffic
+      </a>
+    </div>
+  </div>
 </nav>
 
 <!-- ── PÁGINAS ──────────────────────────────────────────────────────────── -->
@@ -763,6 +839,162 @@
     </div>
   </section>
 
+
+  <!-- ── RADAR: OVERVIEW ──────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-overview">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr">
+        <div><div class="rdr-title">Overview</div><div class="rdr-sub">Saude global dos 699 cabos submarinos</div></div>
+        <button class="btn primary" onclick="Rdr.ov.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button>
+      </div>
+      <div class="rdr-kgrid" id="rdr-ov-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-g2">
+        <div class="rdr-card"><div class="rdr-ct">Distribuicao de disponibilidade</div><div style="height:200px"><canvas id="rdr-ov-ac"></canvas></div></div>
+        <div class="rdr-card"><div class="rdr-ct">Latencia media por regiao</div><div style="height:200px"><canvas id="rdr-ov-lc"></canvas></div></div>
+      </div>
+      <div class="rdr-card"><div class="rdr-ct">Alertas recentes</div><div id="rdr-ov-al"><div class="rdr-lod">Carregando...</div></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Cabos com menor disponibilidade</div>
+        <div class="rdr-tw"><table><thead><tr><th>Cabo</th><th>Pais</th><th>Disponib.</th><th>Perda</th><th>Latencia</th><th>Barra</th></tr></thead><tbody id="rdr-ov-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: CONNECTIVITY ───────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-connectivity">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr">
+        <div><div class="rdr-title">Connectivity</div><div class="rdr-sub">Disponibilidade e perda de pacotes por cabo</div></div>
+        <button class="btn primary" onclick="Rdr.cn.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button>
+      </div>
+      <div class="rdr-kgrid" id="rdr-cn-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-tf">
+        <input id="rdr-cn-s" placeholder="Filtrar cabo..." oninput="Rdr.cn.render()">
+        <select id="rdr-cn-f" onchange="Rdr.cn.render()">
+          <option value="">Todos</option><option value="ok">Disponivel 99%+</option>
+          <option value="wn">Degradado 95-99%</option><option value="er">Critico menos de 95%</option>
+        </select>
+      </div>
+      <div class="rdr-g2">
+        <div class="rdr-card"><div class="rdr-ct">Availability vs Packet Loss</div><div style="height:200px"><canvas id="rdr-cn-sc"></canvas></div></div>
+        <div class="rdr-card"><div class="rdr-ct">Cabos por faixa de disponibilidade</div><div style="height:200px"><canvas id="rdr-cn-bc"></canvas></div></div>
+      </div>
+      <div class="rdr-card"><div class="rdr-ct">Todos os cabos</div>
+        <div class="rdr-tw"><table><thead><tr><th onclick="Rdr.cn.sort('cable_name')">Cabo</th><th>Pais</th><th onclick="Rdr.cn.sort('availability_pct')">Disponib.</th><th onclick="Rdr.cn.sort('loss_pct')">Perda</th><th onclick="Rdr.cn.sort('latency_ms')">Latencia</th><th>Jitter</th></tr></thead><tbody id="rdr-cn-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: ROUTING ────────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-routing">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr">
+        <div><div class="rdr-title">Routing</div><div class="rdr-sub">MTR hops geolocalizados, ASNs e ISPs no caminho</div></div>
+        <button class="btn primary" onclick="Rdr.rt.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button>
+      </div>
+      <div class="rdr-kgrid" id="rdr-rt-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-g2">
+        <div class="rdr-card"><div class="rdr-ct">Top ISPs no caminho dos cabos</div><div style="height:240px"><canvas id="rdr-rt-ic"></canvas></div></div>
+        <div class="rdr-card"><div class="rdr-ct">Distribuicao de RTT por hop</div><div style="height:200px"><canvas id="rdr-rt-rc"></canvas></div></div>
+      </div>
+      <div class="rdr-card"><div class="rdr-ct">Hops geolocalizados</div>
+        <div class="rdr-tw"><table><thead><tr><th>IP</th><th>Cabo</th><th>Hop</th><th>RTT</th><th>Perda</th><th>Pais e Cidade</th><th>ISP e AS</th></tr></thead><tbody id="rdr-rt-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: TOOLS ──────────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-tools">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr"><div><div class="rdr-title">Tools</div><div class="rdr-sub">TCP Probe, BGP Lookup, ASN Info, Rotas</div></div></div>
+      <div class="rdr-g2">
+        <div class="rdr-card"><div class="rdr-ct">TCP Probe</div>
+          <div class="rdr-tf">
+            <select id="rdr-t-cb" style="flex:2"><option value="">Selecione um cabo...</option></select>
+            <input id="rdr-t-ip" placeholder="IP (opcional)" style="flex:1.5">
+            <button class="btn primary" onclick="Rdr.tools.probe()" style="font-size:12px;padding:7px 12px">Probe</button>
+          </div>
+          <div class="rdr-rb" id="rdr-t-pr">Aguardando...</div>
+        </div>
+        <div class="rdr-card"><div class="rdr-ct">BGP Prefix Lookup</div>
+          <div class="rdr-tf">
+            <input id="rdr-t-pf" placeholder="Ex: 177.0.0.0/11" style="flex:2">
+            <button class="btn primary" onclick="Rdr.tools.bgp()" style="font-size:12px;padding:7px 12px">Lookup</button>
+          </div>
+          <div class="rdr-rb" id="rdr-t-bg">Aguardando...</div>
+        </div>
+        <div class="rdr-card"><div class="rdr-ct">ASN Info</div>
+          <div class="rdr-tf">
+            <input id="rdr-t-as" placeholder="ASN ou IP: AS3356 / 8.8.8.8" style="flex:2">
+            <button class="btn primary" onclick="Rdr.tools.asn()" style="font-size:12px;padding:7px 12px">Lookup</button>
+          </div>
+          <div class="rdr-rb" id="rdr-t-ar">Aguardando...</div>
+        </div>
+        <div class="rdr-card"><div class="rdr-ct">Top Rotas entre paises</div>
+          <div class="rdr-tf">
+            <input id="rdr-t-or" placeholder="Origem ex: Brazil" style="flex:1">
+            <input id="rdr-t-ds" placeholder="Destino ex: Japan" style="flex:1">
+            <button class="btn primary" onclick="Rdr.tools.routes()" style="font-size:12px;padding:7px 12px">Calcular</button>
+          </div>
+          <div class="rdr-rb" id="rdr-t-rr">Aguardando...</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: SECURITY ───────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-security">
+    <div class="rdr-wrap">
+      <div class="rdr-gap">
+        <div class="rdr-gap-t">Secao parcialmente implementada</div>
+        <div class="rdr-gap-b">
+          O que falta para completar:<br>
+          Deteccao de DDoS e Threat Intelligence: integrar feeds externos via <code>api.php?action=security_enrich</code><br>
+          BGP hijacking em tempo real: adicionar campo roa_status no pipeline de sonda.js e salvar em cable_telemetry_reference<br>
+          Alertas automaticos: configurar webhook quando telemetry_alerts.severity for critical
+        </div>
+      </div>
+      <div class="rdr-hdr">
+        <div><div class="rdr-title">Security</div><div class="rdr-sub">Alertas de anomalia e hops com flags de privacidade</div></div>
+        <button class="btn primary" onclick="Rdr.se.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button>
+      </div>
+      <div class="rdr-kgrid" id="rdr-se-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-g2">
+        <div class="rdr-card"><div class="rdr-ct">Alertas por severidade</div><div style="height:200px"><canvas id="rdr-se-sc"></canvas></div></div>
+        <div class="rdr-card"><div class="rdr-ct">Hops com flags VPN, Proxy e Tor</div><div id="rdr-se-pl" style="max-height:210px;overflow-y:auto"><div class="rdr-lod">Carregando...</div></div></div>
+      </div>
+      <div class="rdr-card"><div class="rdr-ct">Alertas de telemetria</div>
+        <div class="rdr-tw"><table><thead><tr><th>Cabo</th><th>Metrica</th><th>Severidade</th><th>Valor</th><th>Baseline</th><th>Detectado</th></tr></thead><tbody id="rdr-se-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: TRAFFIC ────────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-traffic">
+    <div class="rdr-wrap">
+      <div class="rdr-gap">
+        <div class="rdr-gap-t">Secao parcialmente implementada — throughput estimado via RTT</div>
+        <div class="rdr-gap-b">
+          O que falta para completar:<br>
+          Throughput real: adicionar coleta NetFlow/sFlow em sonda.js salvando cable_telemetry_samples.throughput_mbps com medicao real<br>
+          Breakdown por protocolo: integrar SNMP ifInOctets/ifOutOctets via <code>api.php?action=snmp_traffic</code><br>
+          Capacidade real: campo capacity_gbps esta nulo em 40% dos cabos, preencher via <code>rmifo_catalog.py --enrich-capacity</code>
+        </div>
+      </div>
+      <div class="rdr-hdr">
+        <div><div class="rdr-title">Traffic</div><div class="rdr-sub">Throughput estimado, capacidade e utilizacao</div></div>
+        <button class="btn primary" onclick="Rdr.tr.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button>
+      </div>
+      <div class="rdr-kgrid" id="rdr-tr-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-g2">
+        <div class="rdr-card"><div class="rdr-ct">Top 15 por throughput estimado</div><div style="height:260px"><canvas id="rdr-tr-bc"></canvas></div></div>
+        <div class="rdr-card"><div class="rdr-ct">Throughput vs Latencia</div><div style="height:200px"><canvas id="rdr-tr-sc"></canvas></div></div>
+      </div>
+      <div class="rdr-card"><div class="rdr-ct">Todos os cabos com dados de trafego</div>
+        <div class="rdr-tw"><table><thead><tr><th>Cabo</th><th>Throughput est.</th><th>Capacidade</th><th>Utilizacao</th><th>Latencia</th><th>Disponib.</th></tr></thead><tbody id="rdr-tr-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- ── MODAL: RESULTADO DA SONDA ─────────────────────────────────────────── -->
@@ -782,6 +1014,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js" defer></script>
 <script src="assets/js/app.js"></script>
 <script src="assets/js/ui-enhancements.js" defer></script>
+<script src="assets/js/radar.js" defer></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -789,14 +1022,5 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
-
-  <!-- ── RADAR BUTTON ──────────────────────────────────────────────────── -->
-  <a href="radar.html" style="position:fixed;bottom:24px;right:24px;z-index:999;
-    background:#7F77DD;color:#fff;border:none;border-radius:12px;padding:10px 18px;
-    font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;
-    box-shadow:0 4px 20px rgba(127,119,221,.4);display:flex;align-items:center;gap:8px;
-    transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-    📡 <span>Radar</span>
-  </a>
 </body>
 </html>
