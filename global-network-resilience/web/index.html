@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/app.css?v=4">
+<link rel="stylesheet" href="assets/css/app.css?v=5">
 <style id="radar-styles">
 
 /* Drawer e hamburger ocultos — navegacao agora pela barra lateral fixa */
@@ -46,6 +46,23 @@
 .sb-div{height:1px;background:rgba(255,255,255,.08);margin:4px 8px;flex-shrink:0}
 #rdr-sb.sb-col .sb-div{margin:4px 6px}
 .sb-toggle{justify-content:center}
+
+.rdr-sec-t{font-size:13px;font-weight:600;color:#e2e0d8;margin:20px 0 2px}
+.rdr-sub2{font-size:11px;color:#888780;margin-bottom:12px}
+.rdr-iqi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.rdr-iqi{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;transition:transform .18s}
+.rdr-iqi:hover{transform:translateY(-2px)}
+.rdr-iqi-dim{opacity:.45}
+.rdr-iqi-n{font-size:10px;color:#888780;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.rdr-iqi-v{font-size:20px;font-weight:700;font-family:monospace;color:#AFA9EC}
+.rdr-iqi-r{font-size:10px;color:#888780;margin-top:5px;font-family:monospace}
+.rdr-ct-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.rdr-ct-row .rdr-ct{margin-bottom:0}
+.rdr-mt{display:flex;gap:4px;flex-shrink:0}
+.rdr-mt-btn{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#888780;font-size:10px;padding:4px 10px;border-radius:6px;cursor:pointer;transition:all .15s}
+.rdr-mt-btn:hover{color:#AFA9EC}
+.rdr-mt-btn.active{background:rgba(127,119,221,.15);border-color:#7F77DD;color:#AFA9EC}
+@media(max-width:600px){.rdr-iqi-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){#rdr-sb.sb-exp{width:148px}}
 .rdr-wrap{padding:20px 16px;max-width:1080px;margin:0 auto}
 .rdr-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
@@ -471,7 +488,7 @@
       <!-- Header -->
       <div class="daily-header">
         <div>
-          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v4</span></div>
+          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v5</span></div>
           <div class="daily-subtitle">Verificação ICMP real + latência TCP em 699 cabos submarinos</div>
         </div>
         <div class="daily-actions">
@@ -762,20 +779,36 @@
   <section class="page" id="page-radar-connectivity">
     <div class="rdr-wrap">
       <div class="rdr-hdr">
-        <div><div class="rdr-title">Connectivity</div><div class="rdr-sub">Disponibilidade e perda de pacotes por cabo</div></div>
+        <div><div class="rdr-title">Connectivity</div><div class="rdr-sub">Qualidade de conexao dos cabos — indice IQI e caracteristicas de conexao</div></div>
         <button class="btn primary" onclick="Rdr.cn.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button>
       </div>
       <div class="rdr-kgrid" id="rdr-cn-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+
+      <div class="rdr-sec-t">Internet Quality Index (IQI)</div>
+      <div class="rdr-sub2">Percentis p25 / mediana / p75 agregados sobre os cabos monitorados</div>
+      <div class="rdr-iqi-grid" id="rdr-cn-iqi"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-card">
+        <div class="rdr-ct-row">
+          <div class="rdr-ct">Serie temporal — ultimos 30 dias (faixa p25–p75, linha p50)</div>
+          <div class="rdr-mt">
+            <button class="rdr-mt-btn active" data-m="latency" onclick="Rdr.cn.setMetric('latency')">Latencia</button>
+            <button class="rdr-mt-btn" data-m="bandwidth" onclick="Rdr.cn.setMetric('bandwidth')">Banda</button>
+            <button class="rdr-mt-btn" data-m="dns" onclick="Rdr.cn.setMetric('dns')">DNS</button>
+          </div>
+        </div>
+        <div style="height:220px"><canvas id="rdr-cn-ts"></canvas></div>
+      </div>
+
+      <div class="rdr-sec-t">Connection Quality</div>
+      <div class="rdr-sub2">Caracteristicas observadas — velocidade, latencia idle/loaded, jitter e perda</div>
+      <div class="rdr-iqi-grid" id="rdr-cn-conn"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+
       <div class="rdr-tf">
         <input id="rdr-cn-s" placeholder="Filtrar cabo..." oninput="Rdr.cn.render()">
         <select id="rdr-cn-f" onchange="Rdr.cn.render()">
           <option value="">Todos</option><option value="ok">Disponivel 99%+</option>
           <option value="wn">Degradado 95-99%</option><option value="er">Critico menos de 95%</option>
         </select>
-      </div>
-      <div class="rdr-g2">
-        <div class="rdr-card"><div class="rdr-ct">Availability vs Packet Loss</div><div style="height:200px"><canvas id="rdr-cn-sc"></canvas></div></div>
-        <div class="rdr-card"><div class="rdr-ct">Cabos por faixa de disponibilidade</div><div style="height:200px"><canvas id="rdr-cn-bc"></canvas></div></div>
       </div>
       <div class="rdr-card"><div class="rdr-ct">Todos os cabos</div>
         <div class="rdr-tw"><table><thead><tr><th onclick="Rdr.cn.sort('cable_name')">Cabo</th><th>Pais</th><th onclick="Rdr.cn.sort('availability_pct')">Disponib.</th><th onclick="Rdr.cn.sort('loss_pct')">Perda</th><th onclick="Rdr.cn.sort('latency_ms')">Latencia</th><th>Jitter</th></tr></thead><tbody id="rdr-cn-tb"></tbody></table></div>
@@ -913,7 +946,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js" defer></script>
 <script src="assets/js/app.js"></script>
 <script src="assets/js/ui-enhancements.js" defer></script>
-<script src="assets/js/radar.js?v=4" defer></script>
+<script src="assets/js/radar.js?v=5" defer></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
