@@ -31,6 +31,53 @@ function _env(string $key, string $default = ''): string {
     return $default;
 }
 
+// ── Conexão a API/Services de probe (monolito ou microsserviços) ──────────────
+// Cada ferramenta tenta primeiro seu microsserviço dedicado (<TOOL>_SERVICE_URL)
+// e cai no monolito (PROBE_API_URL) quando o microsserviço não está configurado.
+// Pasta no monorepo: api/ (monolito) e services/<tool>/ (microsserviços).
+function probeBase(string $tool): ?string {
+    $svc = _env(strtoupper($tool) . '_SERVICE_URL');
+    if ($svc !== '') return rtrim($svc, '/');
+    $mono = _env('PROBE_API_URL');
+    return $mono !== '' ? rtrim($mono, '/') : null;
+}
+function probeHasMicro(string $tool): bool {
+    return _env(strtoupper($tool) . '_SERVICE_URL') !== '';
+}
+// Requisição HTTP JSON ao serviço de probe.
+function probeHttp(string $url, string $method = 'GET', ?array $body = null, int $timeoutS = 30): array {
+    $ch = curl_init($url);
+    $headers = ['Accept: application/json'];
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutS);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body ?? []));
+        $headers[] = 'Content-Type: application/json';
+    } elseif ($method === 'DELETE') {
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    $resp = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false) return ['ok' => false, 'error' => $err ?: 'connection failed', 'http_code' => $code];
+    return ['ok' => $code >= 200 && $code < 300, 'http_code' => $code, 'data' => json_decode($resp, true)];
+}
+// Resolve base (microsserviço dedicado ou monolito) e a rota correta, e chama.
+// No monolito as rotas são compostas (/probe/tcp, /network/bgp); nos microsserviços
+// a rota é local ao serviço (/probe, /prefix).
+function probeCall(string $tool, string $monoPath, string $microPath, string $method = 'POST', ?array $body = null): array {
+    $base = probeBase($tool);
+    if ($base === null) {
+        return ['ok' => false, 'error' => 'Nenhum serviço de probe configurado (defina PROBE_API_URL ou ' . strtoupper($tool) . '_SERVICE_URL).'];
+    }
+    $path = probeHasMicro($tool) ? $microPath : $monoPath;
+    return probeHttp($base . $path, $method, $body);
+}
+
 // DATABASE_URL > DATABASE_PUBLIC_URL > PGHOST vars > local socket
 $_dbUrl = _env('DATABASE_URL');
 if ($_dbUrl === '') $_dbUrl = _env('DATABASE_PUBLIC_URL');
@@ -3121,6 +3168,44 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'utilization_pct'    => $totalCapacity > 0
                         ? round($totalThroughput / $totalCapacity * 100, 2) : null,
                 ]);
+
+            case 'probe_health':
+                // Saúde do monolito (api/) e/ou microsserviços (services/) configurados.
+                $health = [];
+                $monoBase = _env('PROBE_API_URL');
+                if ($monoBase !== '') {
+                    $h = probeHttp(rtrim($monoBase, '/') . '/health');
+                    $health['monolith'] = ['url' => $monoBase, 'ok' => $h['ok'], 'data' => $h['data'] ?? null];
+                }
+                foreach (['tcp','ping','mtr','http','bgp','switch','telemetry'] as $t) {
+                    if (!probeHasMicro($t)) continue;
+                    $svc = _env(strtoupper($t) . '_SERVICE_URL');
+                    $h = probeHttp(rtrim($svc, '/') . '/health');
+                    $health[$t] = ['url' => $svc, 'ok' => $h['ok'], 'data' => $h['data'] ?? null];
+                }
+                jsonResponse(['configured' => count($health) > 0, 'services' => $health]);
+
+            case 'probe_tcp':
+                // Probe TCP via microsserviço dedicado ou monolito. Não usa exec().
+                $host = trim((string) ($req['host'] ?? $q ?? ''));
+                if ($host === '') throw new InvalidArgumentException('Informe host para o probe TCP.');
+                $ports = $req['ports'] ?? [443, 80, 22];
+                if (is_string($ports)) $ports = array_values(array_filter(array_map('intval', explode(',', $ports))));
+                jsonResponse(probeCall('tcp', '/probe/tcp', '/probe', 'POST', [
+                    'host'    => $host,
+                    'ports'   => $ports,
+                    'packets' => (int) ($req['packets'] ?? 20),
+                ]));
+
+            case 'probe_bgp':
+                $prefix = trim((string) ($req['prefix'] ?? $q ?? ''));
+                if ($prefix === '') throw new InvalidArgumentException('Informe um prefixo BGP.');
+                jsonResponse(probeCall('bgp', '/network/bgp', '/prefix', 'POST', ['prefix' => $prefix]));
+
+            case 'probe_asn':
+                $ip = trim((string) ($req['ip'] ?? $q ?? ''));
+                if ($ip === '') throw new InvalidArgumentException('Informe um IP para lookup de ASN.');
+                jsonResponse(probeCall('bgp', '/network/bgp/ip', '/asn', 'POST', ['ip' => $ip]));
 
             default:
                 jsonResponse(['error' => 'Modo desconhecido.'], 400);
