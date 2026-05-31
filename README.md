@@ -1,6 +1,6 @@
 # RMIFO — Resilience Map of International Fiber Optics
 
-Plataforma open-source de monitoramento e análise de cabos submarinos de fibra ótica. Coleta telemetria TCP/MTR/HTTP/BGP/SNMP, realiza enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS) e descoberta avançada de roteadores (SSH banner, TLS, gNMI, RIPE Atlas, RouteViews MRT, RIPE RIS, Looking Glass, IRR/WHOIS), persiste em PostgreSQL e exibe em globo 3D interativo via MapLibre GL JS. Implantada no Railway com suporte a PWA offline.
+Plataforma open-source de monitoramento e análise de cabos submarinos de fibra ótica. Coleta telemetria TCP/MTR/HTTP/BGP/SNMP, realiza enriquecimento nativo de IPs (DNS/WHOIS/TCP/TLS) e descoberta avançada de roteadores (SSH banner, TLS, gNMI, RIPE Atlas, RouteViews MRT, RIPE RIS, Looking Glass, IRR/WHOIS), persiste em PostgreSQL e apresenta os dados no dashboard analitico **RMIFO Radar** (graficos e tabelas interativas via Chart.js). Implantada no Railway com suporte a PWA offline e arquitetura de microsservicos de probe independentes.
 
 ---
 
@@ -8,12 +8,13 @@ Plataforma open-source de monitoramento e análise de cabos submarinos de fibra 
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | HTML5 · CSS3 · JavaScript (Vanilla) · MapLibre GL JS 4.7.1 · Chart.js 4.4.3 |
+| Frontend | HTML5 · CSS3 · JavaScript (Vanilla) · Chart.js 4.4.3 |
 | Backend | PHP 8.2 · PDO PostgreSQL (`pdo_pgsql`) |
 | Banco de dados | PostgreSQL 16 — Railway gerenciado / socket local |
 | Deploy | Railway · Nixpacks · Node.js 20 |
 | Pipeline de sonda | Python 3.12 · Node.js 20 · Bash |
-| PWA | Service Worker (`rmifo-v24`) · Web App Manifest |
+| Microsserviços | Node.js 20 · Express — repo [`rmifo-services`](https://github.com/LeviRunner/rmifo-services) |
+| PWA | Service Worker (`rmifo-v39`) · Web App Manifest |
 
 ---
 
@@ -40,13 +41,14 @@ RMIFO/
     ├── package.json
     ├── start.sh
     ├── web/
-    │   ├── index.html                 ← SPA com 9 páginas
+    │   ├── index.html                 ← SPA com dashboard Radar + barra lateral fixa
     │   ├── api.php                    ← Backend REST PHP (~2 600 linhas)
-    │   ├── sw.js                      ← Service Worker PWA (rmifo-v24)
+    │   ├── sw.js                      ← Service Worker PWA (rmifo-v39)
     │   ├── manifest.json
     │   └── assets/
     │       ├── css/app.css
     │       ├── js/app.js              ← SPA frontend (~3 200 linhas)
+    │       ├── js/radar.js            ← Dashboard Radar — 6 secoes + barra lateral fixa
     │       └── js/ui-enhancements.js ← Visualizações live (arc, scatter, heatmap, grafo)
     ├── db/
     │   ├── schema.sql                 ← 13 tabelas PostgreSQL principais
@@ -131,24 +133,31 @@ Populados pelo `rmifo_ip_enrich.py` sem APIs de terceiros:
 
 - Contadores animados ao vivo: cabos, operacionais, amostras, landing points, países, tabelas, comutadores geolocalizados, relações cabo→LP
 - Badges de linguagens com ícones DevIcons
-- Fluxo "Como funciona" em 3 etapas: Sonda Diária → PostgreSQL → Globo 3D
-- Status ao vivo: PostgreSQL, API PHP, alertas ativos, hops de rota
-- Última medição registrada no banco
+- Título, descrição e botão de acesso ao dashboard
 
-### Mapa Global
+### RMIFO Radar (dashboard analítico)
 
-- Globo interativo **MapLibre GL JS 4.7.1** com projeção `globe` (WebGL)
-- Cabos como `LineString` GeoJSON — cor por status:
-  - Verde — operacional
-  - Roxo — com telemetria TCP verificada
-  - Âmbar — com alerta ativo
-  - Vermelho — inativo
-  - Amarelo — sonda ao vivo
+Dashboard integrado ao app, acessível pela barra lateral fixa à direita (recolhível, com ícones SVG). Seis seções:
+
+| Seção | Estado | Conteúdo |
+|---|---|---|
+| **Overview** | Completo | KPIs globais, distribuição de disponibilidade, latência média por região, alertas recentes, piores cabos |
+| **Connectivity** | Completo | Disponibilidade e perda por cabo, scatter availability×loss, tabela filtrável e ordenável |
+| **Routing** | Completo | Hops MTR geolocalizados, top ISPs no caminho, distribuição de RTT, ASNs e países únicos |
+| **Tools** | Completo | TCP Probe, BGP Lookup, ASN Info, Top Rotas entre países |
+| **Security** | Parcial | Alertas por severidade, hops com flags VPN/Proxy/Tor — banner indica o que falta implementar |
+| **Traffic** | Parcial | Throughput estimado, capacidade declarada, utilização — banner indica o que falta implementar |
+
+Endpoints de dados servidos por `api.php`: `?action=connectivity`, `routing`, `security`, `traffic`. Os gráficos usam Chart.js; a navegação é feita pela barra lateral fixa, que delega aos handlers do app preservando toda a lógica de carregamento.
+
+### Mapa de cabos
+
+- Cabos como `LineString` GeoJSON — cor por status: verde (operacional), roxo (telemetria TCP verificada), âmbar (alerta ativo), vermelho (inativo), amarelo (sonda ao vivo)
 - Pontos de aterrissagem como círculos coloridos
-- **Comutadores de rota** (hops geolocalizados) — pontos âmbar/vermelho por número de cabos associados; painel lateral exibe enriquecimento completo (ASN type, privacy flags, TLS SANs)
-- Linhas comutador → landing point (traçado de rota descoberta, linha tracejada ciano)
-- Hover tip throttled via `requestAnimationFrame`
-- Painel lateral: metadata do cabo/comutador, botões "Sondar" e "Ver Detalhes"
+- Comutadores de rota (hops geolocalizados) com painel lateral exibindo enriquecimento completo (ASN type, privacy flags, TLS SANs)
+- Linhas comutador → landing point traçando rotas descobertas
+- Painel lateral com metadata do cabo/comutador e botões "Sondar" e "Ver Detalhes"
+
 
 ### Sonda Diária
 
@@ -355,6 +364,24 @@ mrtparse>=2.2          # MRT dump parsing (Vetores C RouteViews + RIPE RIS)
 
 ---
 
+## Microsserviços de probe
+
+As ferramentas de medição ativa foram extraídas para microsserviços independentes no repositório [`rmifo-services`](https://github.com/LeviRunner/rmifo-services). Cada ferramenta é auto-contida, deployável sozinha no Railway e escalável em paralelo — adicionar uma ferramenta nova não toca nas existentes.
+
+| Serviço | Função | Endpoint |
+|---|---|---|
+| `tcp` | TCP connect + jitter | `POST /probe` |
+| `ping` | ICMP ping | `POST /probe` |
+| `mtr` | Traceroute (MTR) | `POST /probe` |
+| `http` | HTTP HEAD | `POST /probe` |
+| `bgp` | BGP/ROA via RIPE STAT | `POST /prefix`, `/asn` |
+| `switch` | Scan de switches em CIDR | `POST /scan`, `/batch` |
+| `telemetry` | Orquestrador de cabos (batch assíncrono) | `POST /scan`, `/batch` |
+
+O `api.php` roteia as chamadas de probe para cada serviço via variáveis `TCP_SERVICE_URL`, `PING_SERVICE_URL`, `MTR_SERVICE_URL`, `HTTP_SERVICE_URL`, `BGP_SERVICE_URL`, `SWITCH_SERVICE_URL`, `TELEMETRY_SERVICE_URL` (rede interna Railway). O ambiente de staging `RMIFO_TEST_API` valida essa integração sem usar `exec()`/`shell_exec()`.
+
+---
+
 ## Deploy (Railway)
 
 ```toml
@@ -372,4 +399,4 @@ O `start.sh` inicializa o PostgreSQL local via socket Unix e sobe o servidor PHP
 
 ## PWA
 
-Service Worker `sw.js` (`rmifo-v24`) com estratégia cache-first para assets estáticos (`/`, `index.html`, `app.css`, `app.js`, `ui-enhancements.js`, manifest, ícones). API (`api.php`) sempre vai à rede — fallback `{ error: 'Offline' }` quando sem conexão. Instalável como app nativo em Android/iOS/Desktop.
+Service Worker `sw.js` (`rmifo-v39`) com estratégia cache-first para assets estáticos (`/`, `index.html`, `app.css?v=4`, `app.js`, `radar.js?v=4`, `ui-enhancements.js`, manifest, ícones). Assets versionados por query string (`app.css?v=4`, `radar.js?v=4`) para cache-busting. API (`api.php`) sempre vai à rede — fallback `{ error: 'Offline' }` quando sem conexão. Instalável como app nativo em Android/iOS/Desktop.
