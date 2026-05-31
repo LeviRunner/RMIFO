@@ -1,1 +1,365 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RMIFO Radar</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d1a;--bg2:rgba(255,255,255,.04);--bg3:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --text:#e2e0d8;--text2:#888780;
+  --purple:#7F77DD;--purpleL:#AFA9EC;
+  --teal:#1D9E75;--tealL:#5DCAA5;
+  --amber:#EF9F27;--coral:#D85A30;--red:#E24B4A;--green:#639922;
+  --r:10px;
+}
+*{box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+a{color:var(--purpleL);text-decoration:none}
+.topbar{display:flex;align-items:center;gap:0;background:rgba(13,13,26,.96);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;padding:0 16px}
+.brand{font-size:14px;font-weight:600;color:var(--text);padding:12px 16px 12px 0;border-right:1px solid var(--border);margin-right:8px;white-space:nowrap}
+.brand span{color:var(--purple)}
+.tabs{display:flex;overflow-x:auto}
+.tab{padding:14px 13px;cursor:pointer;font-size:12px;color:var(--text2);border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:5px}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--purple);border-bottom-color:var(--purple)}
+.wdot{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.back-link{margin-left:auto;font-size:11px;color:var(--text2);padding:8px 0;white-space:nowrap;flex-shrink:0}
+.main{padding:20px 16px;max-width:1080px;margin:0 auto}
+.panel{display:none}.panel.active{display:block}
+.kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;transition:transform .18s}
+.kpi:hover{transform:translateY(-2px)}
+.kl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.kv{font-size:22px;font-weight:700;font-family:monospace}
+.ks{font-size:11px;color:var(--text2);margin-top:3px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:620px){.kgrid{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.ct{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;font-weight:500}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer}
+td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle}
+tr:hover td{background:rgba(127,119,221,.04)}
+.mn{font-family:monospace}
+.bk{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.ok {background:rgba(29,158,117,.15);color:#5DCAA5}
+.wn {background:rgba(239,159,39,.15);color:#EF9F27}
+.er {background:rgba(226,75,74,.15);color:#E24B4A}
+.in {background:rgba(127,119,221,.15);color:#AFA9EC}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.dok{background:#5DCAA5}.dwn{background:#EF9F27}.der{background:#E24B4A}
+.bw{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;min-width:60px}
+.bf{height:100%;border-radius:4px}
+.gap{background:rgba(239,159,39,.08);border:1px solid rgba(239,159,39,.25);border-radius:var(--r);padding:14px 16px;margin-bottom:16px}
+.gap-t{font-size:13px;font-weight:500;color:var(--amber);margin-bottom:8px}
+.gap-b{font-size:12px;color:var(--text2);line-height:1.75}
+.gap-b code{background:rgba(255,255,255,.07);border-radius:4px;padding:1px 6px;font-family:monospace;font-size:11px;color:var(--purpleL)}
+.tf{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.tf input,.tf select,.fr input,.fr select{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:12px;padding:8px 12px;flex:1;min-width:100px;outline:none}
+.tf input:focus,.fr input:focus{border-color:var(--purple)}
+.btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text);cursor:pointer;font-size:12px;transition:background .15s}
+.btn:hover{background:var(--bg3)}
+.bp{background:var(--purple);border-color:var(--purple);color:#fff}
+.bp:hover{opacity:.9}
+.rb{background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:monospace;font-size:11px;color:var(--tealL);min-height:80px;max-height:300px;overflow-y:auto;line-height:1.8;white-space:pre-wrap}
+.sec{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.st{font-size:17px;font-weight:600}
+.ss{font-size:11px;color:var(--text2);margin-top:2px}
+.fr{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.ch{position:relative;height:200px}
+.lod{text-align:center;color:var(--text2);padding:40px;font-size:12px}
+.sk{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:6px;height:14px;margin:6px 0}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <div class="brand">RMIFO <span>Radar</span></div>
+  <div class="tabs">
+    <div class="tab active" onclick="sw('overview',this)">📡 Overview</div>
+    <div class="tab" onclick="sw('connectivity',this)">⚡ Connectivity</div>
+    <div class="tab" onclick="sw('routing',this)">🔀 Routing</div>
+    <div class="tab" onclick="sw('tools',this)">🔧 Tools</div>
+    <div class="tab" onclick="sw('security',this)"><span class="wdot"></span>&nbsp;Security</div>
+    <div class="tab" onclick="sw('traffic',this)"><span class="wdot"></span>&nbsp;Traffic</div>
+  </div>
+  <a class="back-link" href="/">← Dashboard</a>
+</nav>
+<div class="main">
+
+<!-- OVERVIEW -->
+<div id="p-overview" class="panel active">
+  <div class="sec"><div><div class="st">Global Network Overview</div><div class="ss">Saúde dos 699 cabos submarinos</div></div>
+  <button class="btn bp" onclick="loadOv(1)">↺ Atualizar</button></div>
+  <div class="kgrid" id="ov-k"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">Distribuição de disponibilidade</div><div class="ch"><canvas id="ov-ac"></canvas></div></div>
+    <div class="card"><div class="ct">Latência média por região</div><div class="ch"><canvas id="ov-lc"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">Alertas recentes</div><div id="ov-al"><div class="lod">Carregando…</div></div></div>
+  <div class="card"><div class="ct">Cabos com menor disponibilidade</div>
+  <div class="tw"><table><thead><tr><th>Cabo</th><th>País</th><th>Disponib.</th><th>Perda</th><th>Latência</th><th>Barra</th></tr></thead>
+  <tbody id="ov-tb"></tbody></table></div></div>
+</div>
+
+<!-- CONNECTIVITY -->
+<div id="p-connectivity" class="panel">
+  <div class="sec"><div><div class="st">Connectivity</div><div class="ss">Disponibilidade e perda por cabo</div></div>
+  <button class="btn bp" onclick="loadCn(1)">↺ Atualizar</button></div>
+  <div class="kgrid" id="cn-k"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="fr">
+    <input id="cn-s" placeholder="Filtrar cabo…" oninput="rCn()">
+    <select id="cn-f" onchange="rCn()">
+      <option value="">Todos</option><option value="ok">≥99%</option>
+      <option value="wn">95–99%</option><option value="er">&lt;95%</option>
+    </select>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Availability vs Packet Loss</div><div class="ch"><canvas id="cn-sc"></canvas></div></div>
+    <div class="card"><div class="ct">Cabos por faixa de disponibilidade</div><div class="ch"><canvas id="cn-bc"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">Todos os cabos</div>
+  <div class="tw"><table><thead><tr>
+    <th onclick="sCn('cable_name')">Cabo</th><th>País</th>
+    <th onclick="sCn('availability_pct')">Disponib.</th>
+    <th onclick="sCn('loss_pct')">Perda</th>
+    <th onclick="sCn('latency_ms')">Latência</th>
+    <th>Jitter</th>
+  </tr></thead><tbody id="cn-tb"></tbody></table></div></div>
+</div>
+
+<!-- ROUTING -->
+<div id="p-routing" class="panel">
+  <div class="sec"><div><div class="st">Routing</div><div class="ss">MTR hops geolocalizados · ASNs · ISPs</div></div>
+  <button class="btn bp" onclick="loadRt(1)">↺ Atualizar</button></div>
+  <div class="kgrid" id="rt-k"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">Top ISPs no caminho dos cabos</div><div class="ch" style="height:240px"><canvas id="rt-ic"></canvas></div></div>
+    <div class="card"><div class="ct">Distribuição de RTT por hop</div><div class="ch"><canvas id="rt-rc"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">Hops geolocalizados (amostra)</div>
+  <div class="tw"><table><thead><tr><th>IP</th><th>Cabo</th><th>Hop</th><th>RTT</th><th>Perda</th><th>País · Cidade</th><th>ISP / AS</th></tr></thead>
+  <tbody id="rt-tb"></tbody></table></div></div>
+</div>
+
+<!-- TOOLS -->
+<div id="p-tools" class="panel">
+  <div class="sec"><div><div class="st">Tools</div><div class="ss">TCP Probe · BGP Lookup · ASN Info · Rotas</div></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">TCP Probe</div>
+      <div class="tf"><select id="t-cb" style="flex:2"><option value="">Selecione um cabo…</option></select>
+      <input id="t-ip" placeholder="IP (opcional)" style="flex:1.5">
+      <button class="btn bp" onclick="rPr()">▶ Probe</button></div>
+      <div class="rb" id="t-pr">Aguardando…</div></div>
+    <div class="card"><div class="ct">BGP Prefix Lookup</div>
+      <div class="tf"><input id="t-pf" placeholder="Ex: 177.0.0.0/11" style="flex:2">
+      <button class="btn bp" onclick="rBg()">▶ Lookup</button></div>
+      <div class="rb" id="t-bg">Aguardando…</div></div>
+    <div class="card"><div class="ct">ASN Info</div>
+      <div class="tf"><input id="t-as" placeholder="ASN ou IP — ex: AS3356 / 8.8.8.8" style="flex:2">
+      <button class="btn bp" onclick="rAs()">▶ Lookup</button></div>
+      <div class="rb" id="t-ar">Aguardando…</div></div>
+    <div class="card"><div class="ct">Top Rotas entre países</div>
+      <div class="tf"><input id="t-or" placeholder="Origem ex: Brazil" style="flex:1">
+      <input id="t-ds" placeholder="Destino ex: Japan" style="flex:1">
+      <button class="btn bp" onclick="rRo()">▶ Calcular</button></div>
+      <div class="rb" id="t-rr">Aguardando…</div></div>
+  </div>
+</div>
+
+<!-- SECURITY -->
+<div id="p-security" class="panel">
+  <div class="gap"><div class="gap-t">⚠ Seção parcialmente implementada</div>
+  <div class="gap-b">O que falta para completar esta seção:<br>
+  • <strong>DDoS / Threat Intelligence</strong> — integrar feeds externos (AbuseIPDB, Shodan) via <code>api.php?action=security_enrich</code><br>
+  • <strong>BGP hijacking em tempo real</strong> — adicionar campo <code>roa_status</code> no pipeline de <code>sonda.js</code> e salvar em <code>cable_telemetry_reference</code><br>
+  • <strong>Alertas automáticos</strong> — configurar webhook quando <code>telemetry_alerts.severity = critical</code></div></div>
+  <div class="sec"><div><div class="st">Security</div><div class="ss">Alertas de anomalia · Hops com flags de privacidade</div></div>
+  <button class="btn bp" onclick="loadSe(1)">↺ Atualizar</button></div>
+  <div class="kgrid" id="se-k"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">Alertas por severidade</div><div class="ch"><canvas id="se-sc"></canvas></div></div>
+    <div class="card"><div class="ct">Hops com flags VPN/Proxy/Tor</div>
+    <div id="se-pl" style="max-height:210px;overflow-y:auto"><div class="lod">Carregando…</div></div></div>
+  </div>
+  <div class="card"><div class="ct">Alertas de telemetria</div>
+  <div class="tw"><table><thead><tr><th>Cabo</th><th>Métrica</th><th>Severidade</th><th>Valor</th><th>Baseline</th><th>Detectado</th></tr></thead>
+  <tbody id="se-tb"></tbody></table></div></div>
+</div>
+
+<!-- TRAFFIC -->
+<div id="p-traffic" class="panel">
+  <div class="gap"><div class="gap-t">⚠ Seção parcialmente implementada — throughput estimado via RTT</div>
+  <div class="gap-b">O que falta para completar esta seção:<br>
+  • <strong>Throughput real</strong> — adicionar coleta NetFlow/sFlow em <code>sonda.js</code> salvando <code>cable_telemetry_samples.throughput_mbps</code> com medição real<br>
+  • <strong>Breakdown por protocolo</strong> — integrar SNMP <code>ifInOctets/ifOutOctets</code> via <code>api.php?action=snmp_traffic</code><br>
+  • <strong>Capacidade real</strong> — campo <code>capacity_gbps</code> está nulo em ~40% dos cabos; preencher via <code>rmifo_catalog.py --enrich-capacity</code></div></div>
+  <div class="sec"><div><div class="st">Traffic</div><div class="ss">Throughput estimado · Capacidade · Utilização</div></div>
+  <button class="btn bp" onclick="loadTr(1)">↺ Atualizar</button></div>
+  <div class="kgrid" id="tr-k"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">Top 15 por throughput estimado</div><div class="ch" style="height:260px"><canvas id="tr-bc"></canvas></div></div>
+    <div class="card"><div class="ct">Throughput vs Latência</div><div class="ch"><canvas id="tr-sc"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">Todos os cabos com dados de tráfego</div>
+  <div class="tw"><table><thead><tr><th>Cabo</th><th>Throughput est.</th><th>Capacidade</th><th>Utilização</th><th>Latência</th><th>Disponib.</th></tr></thead>
+  <tbody id="tr-tb"></tbody></table></div></div>
+</div>
+
+</div>
+<script>
+const API='api.php';
+const C={p:'#7F77DD',pL:'#AFA9EC',t:'#1D9E75',tL:'#5DCAA5',a:'#EF9F27',co:'#D85A30',r:'#E24B4A',g:'#639922',gr:'#888780',bg:'rgba(13,13,26,.95)',bd:'rgba(255,255,255,.08)',tx:'#e2e0d8',tx2:'#888780'};
+const CD={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:C.bg,borderColor:C.bd,borderWidth:1,titleColor:C.tx,bodyColor:C.tx2,padding:8,cornerRadius:6}},scales:{x:{ticks:{color:C.tx2,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'},border:{display:false}},y:{ticks:{color:C.tx2,font:{size:9}},grid:{color:'rgba(255,255,255,.04)'},border:{display:false}}}};
+async function af(action,p={}){const q=new URLSearchParams({action,...p});const r=await fetch(`${API}?${q}`);return r.json();}
+function lc(ms){return !ms?C.gr:ms<50?C.tL:ms<150?C.a:C.co;}
+function ac(a){return a==null?C.gr:a>=99?C.tL:a>=95?C.a:C.r;}
+function ab(a){if(a==null)return`<span class="bk in">—</span>`;if(a>=99)return`<span class="bk ok">${(+a).toFixed(2)}%</span>`;if(a>=95)return`<span class="bk wn">${(+a).toFixed(2)}%</span>`;return`<span class="bk er">${(+a).toFixed(2)}%</span>`;}
+function sb(s){const m={critical:'er',high:'er',medium:'wn',low:'in'};return`<span class="bk ${m[s]||'in'}">${s||'?'}</span>`;}
+function fm(v){return v!=null?`${(+v).toFixed(1)} ms`:'—';}
+function fM(v){if(!v)return'—';if(v>1e6)return(v/1e6).toFixed(1)+' Tbps';if(v>1e3)return(v/1e3).toFixed(1)+' Gbps';return(+v).toFixed(0)+' Mbps';}
+function br(pct,col){return`<div class="bw"><div class="bf" style="width:${Math.min(100,pct||0).toFixed(1)}%;background:${col}"></div></div>`;}
+function mk(id,cfg){const e=document.getElementById(id);if(!e)return;const x=Chart.getChart(e);if(x)x.destroy();return new Chart(e,cfg);}
+const LD={};
+function sw(id,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));el.classList.add('active');document.getElementById('p-'+id).classList.add('active');if(!LD[id]){const fx={overview:loadOv,connectivity:loadCn,routing:loadRt,tools:loadTo,security:loadSe,traffic:loadTr};if(fx[id])fx[id]();}}
+
+// OVERVIEW
+let OV=null;
+async function loadOv(f){
+  if(OV&&!f)return;LD.overview=1;
+  const[cr,ar]=await Promise.all([af('connectivity'),af('alerts')]);
+  const cc=cr.cables||[],al=ar.alerts||[];OV={cc,al};
+  const aa=cr.avg_availability_pct||0,lg=cr.degraded_count||0;
+  document.getElementById('ov-k').innerHTML=`
+    <div class="kpi"><div class="kl">Cabos operacionais</div><div class="kv" style="color:var(--purpleL)">${cc.length}</div><div class="ks">de 699 catalogados</div></div>
+    <div class="kpi"><div class="kl">Disponib. média</div><div class="kv" style="color:${ac(aa)}">${aa.toFixed(2)}%</div><div class="ks">baseline 7 dias</div></div>
+    <div class="kpi"><div class="kl">Degradados &lt;99%</div><div class="kv" style="color:${lg>0?C.a:C.tL}">${lg}</div></div>
+    <div class="kpi"><div class="kl">Alertas ativos</div><div class="kv" style="color:${al.length>0?C.r:C.tL}">${al.length}</div></div>`;
+  const bk={'≥99.9':0,'99–99.9':0,'95–99':0,'<95':0};
+  cc.forEach(c=>{const a=+c.availability_pct||0;if(a>=99.9)bk['≥99.9']++;else if(a>=99)bk['99–99.9']++;else if(a>=95)bk['95–99']++;else bk['<95']++;});
+  mk('ov-ac',{type:'doughnut',data:{labels:Object.keys(bk),datasets:[{data:Object.values(bk),backgroundColor:[C.tL,C.g,C.a,C.r],borderWidth:0}]},options:{...CD,plugins:{...CD.plugins,legend:{display:true,position:'right',labels:{color:C.tx2,font:{size:10},boxWidth:10}}}}});
+  const RM={...(["United States","Brazil","Chile","Argentina"].reduce((o,k)=>(o[k]="Americas",o),{})),...(["United Kingdom","France","Germany","Italy","Netherlands"].reduce((o,k)=>(o[k]="Europe",o),{})),...(["Japan","Singapore","Australia","China","India"].reduce((o,k)=>(o[k]="Asia-Pac",o),{})),...(["South Africa","Nigeria","Kenya","Egypt"].reduce((o,k)=>(o[k]="Africa",o),{}))};
+  const rl={},rc={};cc.forEach(c=>{const r=RM[c.primary_country]||'Other';rl[r]=(rl[r]||0)+(+c.latency_ms||0);rc[r]=(rc[r]||0)+1;});
+  const rg=Object.keys(rl).sort();
+  mk('ov-lc',{type:'bar',data:{labels:rg,datasets:[{data:rg.map(r=>Math.round(rl[r]/rc[r])),backgroundColor:rg.map((_,i)=>[C.p,C.t,C.a,C.co,C.pL,C.tL][i%6]),borderRadius:4}]},options:CD});
+  const ae=document.getElementById('ov-al');
+  ae.innerHTML=!al.length?'<div style="color:var(--tealL);font-size:12px;padding:8px">✔ Nenhum alerta ativo</div>':al.slice(0,8).map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="font-size:12px">${a.cable_name||a.cable_id}</span><span style="font-size:11px;color:var(--text2);margin:0 12px">${a.metric||'—'}</span>${sb(a.severity)}</div>`).join('');
+  const ws=[...cc].sort((a,b)=>(+a.availability_pct||0)-(+b.availability_pct||0)).slice(0,15);
+  document.getElementById('ov-tb').innerHTML=ws.map(c=>`<tr><td class="mn" style="font-size:11px">${c.cable_name}</td><td style="color:var(--text2);font-size:11px">${c.primary_country||'—'}</td><td>${ab(+c.availability_pct)}</td><td style="color:${(+c.loss_pct>1)?C.r:C.tx2}">${c.loss_pct!=null?(+c.loss_pct).toFixed(2)+'%':'—'}</td><td style="color:${lc(c.latency_ms)}">${fm(c.latency_ms)}</td><td>${br(+c.availability_pct||0,ac(+c.availability_pct))}</td></tr>`).join('');
+}
+
+// CONNECTIVITY
+let CN=[],CS={c:'availability_pct',a:true};
+async function loadCn(f){
+  if(CN.length&&!f){rCn();return;}LD.connectivity=1;
+  const res=await af('connectivity');CN=res.cables||[];
+  document.getElementById('cn-k').innerHTML=`
+    <div class="kpi"><div class="kl">Operacionais</div><div class="kv" style="color:var(--purpleL)">${CN.length}</div></div>
+    <div class="kpi"><div class="kl">Disponib. média</div><div class="kv" style="color:${ac(res.avg_availability_pct)}">${(res.avg_availability_pct||0).toFixed(2)}%</div></div>
+    <div class="kpi"><div class="kl">Perda média</div><div class="kv" style="color:${(res.avg_loss_pct||0)>.5?C.a:C.tL}">${(res.avg_loss_pct||0).toFixed(3)}%</div></div>
+    <div class="kpi"><div class="kl">Degradados</div><div class="kv" style="color:${(res.degraded_count||0)>0?C.a:C.tL}">${res.degraded_count||0}</div></div>`;
+  mk('cn-sc',{type:'scatter',data:{datasets:[{data:CN.map(c=>({x:+c.loss_pct||0,y:+c.availability_pct||0,n:c.cable_name})),pointBackgroundColor:CN.map(c=>ac(+c.availability_pct)),pointRadius:3,pointHoverRadius:5,showLine:false}]},options:{...CD,plugins:{...CD.plugins,tooltip:{...CD.plugins.tooltip,callbacks:{label:ctx=>`${ctx.raw.n}: avail=${ctx.raw.y.toFixed(2)}% loss=${ctx.raw.x.toFixed(3)}%`}}},scales:{x:{...CD.scales.x,title:{display:true,text:'Packet Loss %',color:C.tx2,font:{size:9}}},y:{...CD.scales.y,title:{display:true,text:'Availability %',color:C.tx2,font:{size:9}}}}}});
+  const b={'≥99.9':0,'99–99.9':0,'95–99':0,'90–95':0,'<90':0};
+  CN.forEach(c=>{const a=+c.availability_pct||0;if(a>=99.9)b['≥99.9']++;else if(a>=99)b['99–99.9']++;else if(a>=95)b['95–99']++;else if(a>=90)b['90–95']++;else b['<90']++;});
+  mk('cn-bc',{type:'bar',data:{labels:Object.keys(b),datasets:[{data:Object.values(b),backgroundColor:[C.tL,C.g,C.a,C.co,C.r],borderRadius:4}]},options:CD});
+  rCn();
+}
+function sCn(c){CS.a=CS.c===c?!CS.a:true;CS.c=c;rCn();}
+function rCn(){
+  const q=document.getElementById('cn-s').value.toLowerCase(),ft=document.getElementById('cn-f').value;
+  let rs=CN.filter(c=>{if(q&&!c.cable_name.toLowerCase().includes(q))return false;const a=+c.availability_pct||0;if(ft==='ok'&&a<99)return false;if(ft==='wn'&&(a>=99||a<95))return false;if(ft==='er'&&a>=95)return false;return true;});
+  rs.sort((a,b)=>{const av=+a[CS.c]||0,bv=+b[CS.c]||0;return CS.a?(typeof a[CS.c]==='string'?a[CS.c].localeCompare(b[CS.c]):av-bv):(typeof b[CS.c]==='string'?b[CS.c].localeCompare(a[CS.c]):bv-av);});
+  document.getElementById('cn-tb').innerHTML=rs.map(c=>`<tr><td class="mn" style="font-size:11px">${c.cable_name}</td><td style="color:var(--text2);font-size:11px">${c.primary_country||'—'}</td><td>${ab(+c.availability_pct)}</td><td style="color:${(+c.loss_pct>1)?C.r:C.tx2}">${c.loss_pct!=null?(+c.loss_pct).toFixed(3)+'%':'—'}</td><td style="color:${lc(c.latency_ms)}">${fm(c.latency_ms)}</td><td style="color:var(--text2)">${c.jitter_ms!=null?(+c.jitter_ms).toFixed(1)+' ms':'—'}</td></tr>`).join('');
+}
+
+// ROUTING
+async function loadRt(f){
+  if(LD.routing&&!f)return;LD.routing=1;
+  const res=await af('routing');const hp=res.hops||[],is=res.top_isps||{};
+  document.getElementById('rt-k').innerHTML=`
+    <div class="kpi"><div class="kl">Total hops</div><div class="kv" style="color:var(--purpleL)">${hp.length.toLocaleString()}</div></div>
+    <div class="kpi"><div class="kl">ASNs únicos</div><div class="kv" style="color:var(--tealL)">${res.unique_asns||0}</div></div>
+    <div class="kpi"><div class="kl">Países</div><div class="kv" style="color:var(--amber)">${res.unique_countries||0}</div></div>
+    <div class="kpi"><div class="kl">ISPs distintos</div><div class="kv" style="color:var(--purpleL)">${Object.keys(is).length}</div></div>`;
+  const il=Object.keys(is).slice(0,12);
+  mk('rt-ic',{type:'bar',data:{labels:il,datasets:[{data:il.map(k=>is[k]),backgroundColor:C.p+'88',borderRadius:3}]},options:{...CD,indexAxis:'y',scales:{x:{...CD.scales.x,title:{display:true,text:'Hops',color:C.tx2,font:{size:9}}},y:{...CD.scales.y,ticks:{...CD.scales.y.ticks,font:{size:9}}}}}});
+  const rt=hp.map(h=>+h.rtt_ms||0).filter(v=>v>0&&v<500),rb=Array(10).fill(0);
+  rt.forEach(v=>{const i=Math.min(9,Math.floor(v/50));rb[i]++;});
+  mk('rt-rc',{type:'bar',data:{labels:['0-50','50-100','100-150','150-200','200-250','250-300','300-350','350-400','400-450','450+'].map(l=>l+' ms'),datasets:[{data:rb,backgroundColor:['#5DCAA5','#639922','#EF9F27','#D85A30','#E24B4A','#E24B4A','#E24B4A','#E24B4A','#E24B4A','#E24B4A'],borderRadius:3}]},options:CD});
+  document.getElementById('rt-tb').innerHTML=hp.slice(0,100).map(h=>`<tr><td class="mn" style="font-size:11px">${h.hop_ip}</td><td style="font-size:11px">${h.cable_name||h.cable_id||'—'}</td><td style="text-align:center;color:var(--text2)">${h.hop_number}</td><td style="color:${lc(h.rtt_ms)}">${fm(h.rtt_ms)}</td><td style="color:${(+h.loss_pct>5)?C.r:C.tx2}">${h.loss_pct!=null?(+h.loss_pct).toFixed(0)+'%':'—'}</td><td style="font-size:11px">${h.country_code||'—'}${h.city?' · '+h.city:''}</td><td style="font-size:11px;color:var(--text2)">${h.isp||''}${h.as_number?' AS'+h.as_number:''}</td></tr>`).join('');
+}
+
+// TOOLS
+async function loadTo(){
+  LD.tools=1;const res=await af('all');const sel=document.getElementById('t-cb');
+  (res.data||[]).forEach(c=>{const o=document.createElement('option');o.value=c.cable_id;o.textContent=c.cable_name;sel.appendChild(o);});
+}
+async function rPr(){
+  const el=document.getElementById('t-pr'),cb=document.getElementById('t-cb').value,ip=document.getElementById('t-ip').value.trim();
+  if(!cb){el.textContent='Selecione um cabo.';return;}el.textContent='Executando…';
+  try{const p={q:cb};if(ip)p.ip=ip;const r=await af('probe',p);const rs=r.result||r;
+  el.textContent=[`Cabo:     ${r.cable_id}`,`IP:       ${r.target||'—'}`,`Método:   ${rs.method}`,`Latência: ${fm(rs.avg_rtt_ms)}`,`Jitter:   ${fm(rs.jitter_ms)}`,`Perda:    ${rs.packet_loss_pct!=null?rs.packet_loss_pct+'%':'—'}`,`Portas:   [${(rs.ports_tested||[]).join(', ')}]`,`Elapsed:  ${rs.total_elapsed_ms} ms`,rs.note?'\n'+rs.note:''].filter(Boolean).join('\n');}catch(e){el.textContent='Erro: '+e.message;}
+}
+async function rBg(){
+  const el=document.getElementById('t-bg'),pf=document.getElementById('t-pf').value.trim();
+  if(!pf){el.textContent='Informe um prefixo.';return;}el.textContent='Consultando RIPE STAT…';
+  try{const[vis,rpki]=await Promise.all([fetch(`https://stat.ripe.net/data/visibility/data.json?resource=${encodeURIComponent(pf)}`).then(r=>r.json()),fetch(`https://stat.ripe.net/data/rpki-validation/data.json?resource=${encodeURIComponent(pf)}`).then(r=>r.json())]);
+  const v4=vis?.data?.visibilities?.[0]?.ipv4||{},pk=+v4.ris_peers_seeing||0,tt=+v4.total_ris_peers||1,ro=rpki?.data?.status||'unknown';
+  el.textContent=[`Prefixo:    ${pf}`,`Peers:      ${pk} / ${tt} (${(pk/tt*100).toFixed(1)}%)`,`ROA status: ${ro}`,`Hijack:     ${['invalid','not-found'].includes(ro)?'⚠ RISCO':'✔ OK'}`].join('\n');}catch(e){el.textContent='Erro: '+e.message;}
+}
+async function rAs(){
+  const el=document.getElementById('t-ar'),val=document.getElementById('t-as').value.trim().replace(/^AS/i,'');
+  if(!val){el.textContent='Informe um ASN ou IP.';return;}el.textContent='Consultando…';
+  try{const res=document.getElementById('t-as').value.trim().includes('.')?val:`AS${val}`;
+  const r=await fetch(`https://stat.ripe.net/data/prefix-overview/data.json?resource=${encodeURIComponent(res)}`).then(r=>r.json());
+  const asns=r?.data?.asns||[];el.textContent=asns.map(a=>`ASN:    AS${a.asn}\nHolder: ${a.holder}`).join('\n---\n')||JSON.stringify(r?.data||{},null,2).slice(0,400);}catch(e){el.textContent='Erro: '+e.message;}
+}
+async function rRo(){
+  const el=document.getElementById('t-rr'),or=document.getElementById('t-or').value.trim(),ds=document.getElementById('t-ds').value.trim();
+  if(!or||!ds){el.textContent='Informe origem e destino.';return;}el.textContent='Calculando…';
+  try{const r=await af('top_routes',{origin:or,dest:ds});const rt=r.routes||r.data||[];
+  el.textContent=!rt.length?`Nenhuma rota de ${or} para ${ds}.`:rt.slice(0,3).map((rt,i)=>`Rota ${i+1}:\n${JSON.stringify(rt,null,2)}`).join('\n---\n');}catch(e){el.textContent='Erro: '+e.message;}
+}
+
+// SECURITY
+async function loadSe(f){
+  if(LD.security&&!f)return;LD.security=1;
+  const res=await af('security');const sv=res.severity_summary||{},pr=res.privacy_hops||[];
+  document.getElementById('se-k').innerHTML=`
+    <div class="kpi"><div class="kl">Total alertas</div><div class="kv" style="color:${(res.alert_count||0)>0?C.r:C.tL}">${res.alert_count||0}</div></div>
+    <div class="kpi"><div class="kl">Críticos</div><div class="kv" style="color:var(--red)">${sv.critical||0}</div></div>
+    <div class="kpi"><div class="kl">Altos</div><div class="kv" style="color:var(--coral)">${sv.high||0}</div></div>
+    <div class="kpi"><div class="kl">Hops c/ flags</div><div class="kv" style="color:var(--amber)">${res.privacy_hop_count||0}</div></div>`;
+  mk('se-sc',{type:'doughnut',data:{labels:['Critical','High','Medium','Low'],datasets:[{data:[sv.critical||0,sv.high||0,sv.medium||0,sv.low||0],backgroundColor:[C.r,C.co,C.a,C.g],borderWidth:0}]},options:{...CD,plugins:{...CD.plugins,legend:{display:true,position:'right',labels:{color:C.tx2,font:{size:10},boxWidth:10}}}}});
+  const pe=document.getElementById('se-pl');
+  pe.innerHTML=!pr.length?'<div style="color:var(--tealL);font-size:12px;padding:8px">✔ Nenhum hop com flags detectado</div>':pr.map(h=>{const fl=[h.privacy_vpn&&'VPN',h.privacy_proxy&&'PROXY',h.privacy_tor&&'TOR',h.privacy_hosting&&'HOSTING'].filter(Boolean);return`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span class="mn" style="font-size:11px">${h.hop_ip}</span><span style="font-size:11px;color:var(--text2);margin:0 8px">${h.city||''} ${h.country_code||''}</span><span>${fl.map(f=>`<span class="bk wn">${f}</span>`).join(' ')}</span></div>`;}).join('');
+  const al=res.alerts||[];
+  document.getElementById('se-tb').innerHTML=al.slice(0,50).map(a=>`<tr><td style="font-size:11px">${a.cable_name||a.cable_id||'—'}</td><td class="mn" style="font-size:11px">${a.metric||'—'}</td><td>${sb(a.severity)}</td><td style="color:var(--text2)">${a.current_value!=null?(+a.current_value).toFixed(2):'—'}</td><td style="color:var(--text2)">${a.baseline_value!=null?(+a.baseline_value).toFixed(2):'—'}</td><td style="color:var(--text2);font-size:11px">${a.detected_at?new Date(a.detected_at).toLocaleString('pt-BR'):'—'}</td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">Sem alertas no banco de dados</td></tr>';
+}
+
+// TRAFFIC
+async function loadTr(f){
+  if(LD.traffic&&!f)return;LD.traffic=1;
+  const res=await af('traffic');const ca=res.cables||[];
+  document.getElementById('tr-k').innerHTML=`
+    <div class="kpi"><div class="kl">Cabos c/ dados</div><div class="kv" style="color:var(--purpleL)">${ca.length}</div></div>
+    <div class="kpi"><div class="kl">Throughput total</div><div class="kv" style="color:var(--tealL)">${fM(res.total_throughput_mbps)}</div><div class="ks">estimado</div></div>
+    <div class="kpi"><div class="kl">Capacidade total</div><div class="kv" style="color:var(--amber)">${res.total_capacity_gbps!=null?res.total_capacity_gbps+' Tbps':'—'}</div></div>
+    <div class="kpi"><div class="kl">Utilização est.</div><div class="kv" style="color:${(res.utilization_pct||0)>70?C.r:C.tL}">${res.utilization_pct!=null?res.utilization_pct.toFixed(1)+'%':'—'}</div></div>`;
+  const t15=ca.slice(0,15);
+  mk('tr-bc',{type:'bar',data:{labels:t15.map(c=>c.cable_name.length>20?c.cable_name.slice(0,18)+'…':c.cable_name),datasets:[{data:t15.map(c=>+c.throughput_mbps||0),backgroundColor:C.p+'88',borderRadius:3}]},options:{...CD,indexAxis:'y',scales:{x:{...CD.scales.x,title:{display:true,text:'Mbps (estimado)',color:C.tx2,font:{size:9}}},y:{...CD.scales.y,ticks:{...CD.scales.y.ticks,font:{size:9}}}}}});
+  mk('tr-sc',{type:'scatter',data:{datasets:[{data:ca.filter(c=>c.throughput_mbps&&c.latency_ms).map(c=>({x:+c.latency_ms,y:+c.throughput_mbps,n:c.cable_name})),pointBackgroundColor:C.p+'99',pointRadius:3,pointHoverRadius:5,showLine:false}]},options:{...CD,plugins:{...CD.plugins,tooltip:{...CD.plugins.tooltip,callbacks:{label:ctx=>`${ctx.raw.n}: ${ctx.raw.x.toFixed(0)}ms / ${fM(ctx.raw.y)}`}}},scales:{x:{...CD.scales.x,title:{display:true,text:'Latência (ms)',color:C.tx2,font:{size:9}}},y:{...CD.scales.y,title:{display:true,text:'Throughput (Mbps)',color:C.tx2,font:{size:9}}}}}});
+  document.getElementById('tr-tb').innerHTML=ca.map(c=>{const cp=c.capacity_gbps?+c.capacity_gbps*1000:null,tp=+c.throughput_mbps||0,ut=cp?Math.min(100,tp/cp*100):null;return`<tr><td style="font-size:11px">${c.cable_name}</td><td style="color:var(--tealL);font-family:monospace">${fM(tp)}</td><td style="color:var(--text2)">${cp?fM(cp):'—'}</td><td>${ut!=null?br(ut,ut>70?C.r:ut>40?C.a:C.tL)+'<span style="font-size:10px;margin-left:6px">'+ut.toFixed(1)+'%</span>':'—'}</td><td style="color:${lc(c.latency_ms)}">${fm(c.latency_ms)}</td><td>${ab(+c.availability_pct)}</td></tr>`;}).join('');
+}
+
+loadOv();loadTo();
+</script>
+</body>
+</html>
