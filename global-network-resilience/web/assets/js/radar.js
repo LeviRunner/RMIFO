@@ -96,6 +96,13 @@ function initSidebar() {
   if (!sb) return;
   const toggle = document.getElementById('sb-toggle');
 
+  // Estado inicial do chevron conforme classe atual (colapsado por padrao)
+  (function () {
+    const c0 = sb.classList.contains('sb-col');
+    const chev0 = toggle && toggle.querySelector('svg');
+    if (chev0) chev0.style.transform = c0 ? 'rotate(180deg)' : '';
+  })();
+
   function setCollapsed(collapsed) {
     sb.classList.toggle('sb-col', collapsed);
     sb.classList.toggle('sb-exp', !collapsed);
