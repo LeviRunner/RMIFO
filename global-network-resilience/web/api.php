@@ -3080,6 +3080,13 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY baseline_packet_loss_pct) AS loss_p75
                      FROM cable_telemetry_reference"
                 )->fetch() ?: [];
+                $cqDns = $pdo->query(
+                    "SELECT
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY dns_ms) AS dns_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY dns_ms) AS dns_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY dns_ms) AS dns_p75
+                     FROM cable_telemetry_samples WHERE dns_ms IS NOT NULL"
+                )->fetch() ?: [];
                 $cqTs = $pdo->query(
                     "SELECT to_char(date_trunc('day', measured_at), 'YYYY-MM-DD') AS bucket,
                         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY latency_ms)      AS lat_p25,
@@ -3087,7 +3094,10 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY latency_ms)      AS lat_p75,
                         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p25,
                         PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p50,
-                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p75
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY throughput_mbps) AS bw_p75,
+                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY dns_ms)         AS dns_p25,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY dns_ms)         AS dns_p50,
+                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY dns_ms)         AS dns_p75
                      FROM cable_telemetry_samples
                      WHERE measured_at > NOW() - INTERVAL '30 days'
                      GROUP BY 1 ORDER BY 1"
@@ -3103,13 +3113,13 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'iqi' => [
                         'bandwidth' => array_merge($cqMp($cqRow, 'bw'),  ['unit' => 'Mbps', 'available' => true]),
                         'latency'   => array_merge($cqMp($cqRow, 'lat'), ['unit' => 'ms',   'available' => true]),
-                        'dns'       => ['p25' => null, 'p50' => null, 'p75' => null, 'unit' => 'ms', 'available' => false],
+                        'dns'       => array_merge($cqMp($cqDns, 'dns'), ['unit' => 'ms', 'available' => ($cqDns['dns_p50'] ?? null) !== null]),
                     ],
                     'timeseries' => [
                         'buckets'   => array_column($cqTs, 'bucket'),
                         'bandwidth' => ['p25' => $cqCol('bw_p25'),  'p50' => $cqCol('bw_p50'),  'p75' => $cqCol('bw_p75')],
                         'latency'   => ['p25' => $cqCol('lat_p25'), 'p50' => $cqCol('lat_p50'), 'p75' => $cqCol('lat_p75')],
-                        'dns'       => ['p25' => [], 'p50' => [], 'p75' => []],
+                        'dns'       => ['p25' => $cqCol('dns_p25'), 'p50' => $cqCol('dns_p50'), 'p75' => $cqCol('dns_p75')],
                     ],
                     'connection' => [
                         'download'       => array_merge($cqMp($cqRow, 'bw'),  ['unit' => 'Mbps', 'available' => true]),
@@ -3227,6 +3237,8 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                 $scanHttp = probeCall('http', '/probe/http', '/probe', 'POST', ['host' => $scanIp]);
                 $scanMtr = probeCall('mtr', '/probe/traceroute', '/probe', 'POST', ['host' => $scanIp, 'cycles' => 3, 'max_hops' => 15]);
                 $scanAsn = probeCall('bgp', '/network/bgp/ip', '/asn', 'POST', ['ip' => $scanIp]);
+                $scanDns = probeCall('dns', '/probe/dns', '/probe', 'POST', ['host' => $scanIp]);
+                $scanTamper = probeCall('tcp', '/probe/tcp/tamper', '/tamper', 'POST', ['host' => $scanIp]);
                 // Enriquecimento ja coletado para esse IP, se existir
                 $encStmt = $pdo->prepare(
                     "SELECT host(hop_ip) AS hop_ip, city, region, country, country_code, isp, org,
@@ -3243,8 +3255,25 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     'http'       => $scanHttp,
                     'traceroute' => $scanMtr,
                     'asn'        => $scanAsn,
+                    'dns'        => $scanDns,
+                    'tamper'     => $scanTamper,
                     'enrichment' => $scanEnrich,
                     'scanned_at' => date('c'),
+                ]);
+
+            case 'probe_dns':
+                $host = trim((string) ($req['host'] ?? $q ?? ''));
+                if ($host === '') throw new InvalidArgumentException('Informe host para resolucao DNS.');
+                jsonResponse(probeCall('dns', '/probe/dns', '/probe', 'POST', ['host' => $host]));
+
+            case 'routing_ipspace':
+                // Distribuicao IPv4 vs IPv6 dos IPs descobertos (hops e endpoints).
+                $ipHops = $pdo->query("SELECT family(hop_ip) AS fam, COUNT(*) AS n FROM cable_telemetry_hops WHERE hop_ip IS NOT NULL GROUP BY 1")->fetchAll() ?: [];
+                $ipEnds = $pdo->query("SELECT family(ip_start) AS fam, COUNT(*) AS n FROM endpoint_ip_samples WHERE ip_start IS NOT NULL GROUP BY 1")->fetchAll() ?: [];
+                $ipPick = function ($rows, $fam) { foreach ($rows as $r) { if ((int) $r['fam'] === $fam) return (int) $r['n']; } return 0; };
+                jsonResponse([
+                    'hops'      => ['ipv4' => $ipPick($ipHops, 4), 'ipv6' => $ipPick($ipHops, 6)],
+                    'endpoints' => ['ipv4' => $ipPick($ipEnds, 4), 'ipv6' => $ipPick($ipEnds, 6)],
                 ]);
 
             case 'routing':
@@ -3319,12 +3348,33 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     $k = strtolower($a['severity'] ?? 'low');
                     if (isset($sev[$k])) $sev[$k]++;
                 }
+                $tamper = ['available' => false, 'suspected' => 0, 'avg_reset_pct' => null, 'avg_timeout_pct' => null];
+                try {
+                    $tRow = $pdo->query(
+                        "SELECT COUNT(*) FILTER (WHERE tamper_suspected) AS suspected,
+                            ROUND(AVG(tcp_reset_pct)::numeric, 2)   AS avg_reset_pct,
+                            ROUND(AVG(tcp_timeout_pct)::numeric, 2) AS avg_timeout_pct,
+                            COUNT(*) FILTER (WHERE tcp_reset_pct IS NOT NULL) AS measured
+                         FROM cable_telemetry_samples
+                         WHERE measured_at > NOW() - INTERVAL '7 days'"
+                    )->fetch() ?: [];
+                    if ((int) ($tRow['measured'] ?? 0) > 0) {
+                        $tamper = [
+                            'available'       => true,
+                            'suspected'       => (int) ($tRow['suspected'] ?? 0),
+                            'avg_reset_pct'   => $tRow['avg_reset_pct'] !== null ? (float) $tRow['avg_reset_pct'] : null,
+                            'avg_timeout_pct' => $tRow['avg_timeout_pct'] !== null ? (float) $tRow['avg_timeout_pct'] : null,
+                            'measured'        => (int) $tRow['measured'],
+                        ];
+                    }
+                } catch (Throwable $__e) {}
                 jsonResponse([
                     'alerts'           => $secAlerts,
                     'privacy_hops'     => $privHops,
                     'alert_count'      => count($secAlerts),
                     'severity_summary' => $sev,
                     'privacy_hop_count'=> count($privHops),
+                    'tamper'           => $tamper,
                 ]);
 
             case 'traffic':

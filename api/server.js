@@ -6,6 +6,7 @@
  */
 const express = require('express');
 const tcp  = require('./lib/tcp');
+const dnsp = require('./lib/dns');
 const icmp = require('./lib/icmp');
 const mtr  = require('./lib/mtr');
 const httpProbe = require('./lib/http');
@@ -34,6 +35,12 @@ app.post('/probe/traceroute', async (req,res)=>{ const {host,cycles=5,max_hops=1
 app.post('/probe/http', async (req,res)=>{ const {host,port,scheme}=req.body||{};
   if(!host)return res.status(400).json({error:'host obrigatorio'});
   try{res.json({host,...(await httpProbe.head(host,{port,scheme}))});}catch(e){res.status(500).json({error:e.message});} });
+app.post('/probe/dns', async (req,res)=>{ const {host,server}=req.body||{};
+  if(!host)return res.status(400).json({error:'host obrigatorio'});
+  try{res.json(await dnsp.resolve(host,{server}));}catch(e){res.status(500).json({error:e.message});} });
+app.post('/probe/tcp/tamper', async (req,res)=>{ const {host,ports=[443,80,22,53]}=req.body||{};
+  if(!host)return res.status(400).json({error:'host obrigatorio'});
+  try{res.json(await tcp.tamperProbe(host,ports));}catch(e){res.status(500).json({error:e.message});} });
 
 // ── BGP ─────────────────────────────────────────────────────────────────────
 app.post('/network/bgp', async (req,res)=>{ const {prefix}=req.body||{};

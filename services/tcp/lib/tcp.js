@@ -43,4 +43,34 @@ async function probe(host, opts = {}) {
     loss_pct:j.loss_pct, samples:j.samples, total:j.total,
     method:`tcp-jitter-${j.total}pkt`, reachable:true };
 }
-module.exports = { tcpConnect, scanPorts, jitterProbe, probe };
+
+// ── Connection tampering: classifica resultado da conexao por porta ───────────
+function tcpClassify(host, port, timeoutMs = T) {
+  return new Promise(resolve => {
+    const t0 = Date.now(), sock = new net.Socket();
+    const done = (outcome, rtt) => { try { sock.destroy(); } catch (e) {} resolve({ port, outcome, rtt_ms: rtt != null ? rtt : null }); };
+    sock.setTimeout(timeoutMs);
+    sock.connect(port, host, () => done('open', Date.now() - t0));
+    sock.on('timeout', () => done('timeout'));
+    sock.on('error', e => done(e.code === 'ECONNREFUSED' ? 'refused' : (e.code === 'ECONNRESET' ? 'reset' : 'error')));
+  });
+}
+async function tamperProbe(host, ports = [443, 80, 22], timeoutMs = T) {
+  const r = await Promise.all(ports.map(p => tcpClassify(host, p, timeoutMs)));
+  const n = Math.max(1, r.length);
+  const open    = r.filter(x => x.outcome === 'open').length;
+  const refused = r.filter(x => x.outcome === 'refused').length;
+  const timeout = r.filter(x => x.outcome === 'timeout').length;
+  const reset   = r.filter(x => x.outcome === 'reset').length;
+  // Heuristica: timeouts em massa sem refused (filtragem) OU resets pos-handshake (tampering)
+  const suspect = (timeout >= Math.ceil(n * 0.6) && refused === 0 && open === 0) || reset > 0;
+  return {
+    host, ports: r, open, refused, timeout, reset,
+    reset_pct: +(reset / n * 100).toFixed(1),
+    timeout_pct: +(timeout / n * 100).toFixed(1),
+    tamper_suspected: !!suspect,
+    method: 'tcp-tamper',
+  };
+}
+
+module.exports = { tcpConnect, scanPorts, jitterProbe, probe, tcpClassify, tamperProbe };

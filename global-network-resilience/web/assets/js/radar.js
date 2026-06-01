@@ -364,6 +364,14 @@ const Rdr = {
         options:CD,
       });
 
+      try {
+        const ipv = await af('routing_ipspace');
+        const h4 = ipv.hops?.ipv4||0, h6 = ipv.hops?.ipv6||0, e4 = ipv.endpoints?.ipv4||0, e6 = ipv.endpoints?.ipv6||0;
+        mk('rdr-rt-ipc', { type:'doughnut',
+          data:{ labels:['IPv4 hops','IPv6 hops','IPv4 endpoints','IPv6 endpoints'],
+            datasets:[{ data:[h4,h6,e4,e6], backgroundColor:[C.p,C.pL,C.t,C.tL], borderWidth:0 }] },
+          options:{ ...CD, plugins:{ ...CD.plugins, legend:{ display:true, position:'right', labels:{color:C.tx2,font:{size:10},boxWidth:10} } } } });
+      } catch(e){}
       document.getElementById('rdr-rt-tb').innerHTML = hp.slice(0, 100).map(h => `
         <tr>
           <td style="font-family:monospace;font-size:11px">${h.hop_ip}</td>
@@ -476,7 +484,8 @@ const Rdr = {
         kpi('Total alertas', res.alert_count||0, (res.alert_count||0)>0?C.r:C.tL, '') +
         kpi('Criticos', sv.critical||0, C.r, '') +
         kpi('Altos', sv.high||0, C.co, '') +
-        kpi('Hops com flags', res.privacy_hop_count||0, C.a, '');
+        kpi('Hops com flags', res.privacy_hop_count||0, C.a, '') +
+        kpi('Tampering', (res.tamper&&res.tamper.available)?res.tamper.suspected:'\u2014', (res.tamper&&res.tamper.suspected>0)?C.r:C.tL, (res.tamper&&res.tamper.available)?('reset '+(res.tamper.avg_reset_pct||0)+'%'):'sem coleta');
 
       mk('rdr-se-sc', { type:'doughnut',
         data:{ labels:['Critical','High','Medium','Low'],
@@ -687,6 +696,8 @@ const Rdr = {
         const http = (r.http && r.http.data) || r.http || {};
         const mtr = (r.traceroute && r.traceroute.data) || r.traceroute || {};
         const asn = (r.asn && r.asn.data) || r.asn || {};
+        const dnsr = (r.dns && r.dns.data) || r.dns || {};
+        const tmp = (r.tamper && r.tamper.data) || r.tamper || {};
         const e = r.enrichment || {};
         const flags = [e.privacy_vpn&&'VPN',e.privacy_proxy&&'PROXY',e.privacy_tor&&'TOR',e.privacy_relay&&'RELAY',e.privacy_hosting&&'HOSTING'].filter(Boolean);
         const card = (t,b) => '<div class="rdr-card"><div class="rdr-ct">'+t+'</div>'+b+'</div>';
@@ -698,8 +709,10 @@ const Rdr = {
           '</div>' +
           '<div class="rdr-g2">' +
           card('BGP / ASN', row('ASN', asn.asn?('AS'+asn.asn):'-') + row('Holder', asn.holder||'-')) +
+          card('DNS', row('Resolvido', dnsr.resolved?'sim':'nao') + row('Tempo', dnsr.dns_ms!=null?dnsr.dns_ms+' ms':'-') + row('Familia', dnsr.family?('IPv'+dnsr.family):'-') + row('Enderecos', (dnsr.addresses||[]).slice(0,3).join(', ')||'-')) +
           card('Geo / Enriquecimento', row('Pais', (e.country||e.country_code)||'-') + row('Cidade', e.city||'-') + row('ISP', e.isp||'-') + row('Hostname', e.hostname||'-') + row('ROA', e.roa_status||'-') + row('Flags', flags.length?flags.join(' '):'nenhuma')) +
           '</div>' +
+          card('Connection tampering', row('Suspeita', tmp.tamper_suspected?'SIM':'nao') + row('Reset', tmp.reset_pct!=null?tmp.reset_pct+'%':'-') + row('Timeout', tmp.timeout_pct!=null?tmp.timeout_pct+'%':'-') + row('Portas abertas', tmp.open!=null?tmp.open:'-')) +
           card('Traceroute (' + (mtr.visible_hops||0) + '/' + (mtr.total_hops||0) + ' hops)',
             '<div class="rdr-tw"><table><thead><tr><th>Hop</th><th>IP</th><th>RTT</th><th>Perda</th></tr></thead><tbody>' +
             ((mtr.hops||[]).map(h => '<tr><td style="text-align:center;color:#888780">'+h.hop+'</td><td style="font-family:monospace;font-size:11px">'+(h.ip||'*')+'</td><td style="color:'+lc(h.avg_ms)+'">'+(h.avg_ms!=null?h.avg_ms+' ms':'-')+'</td><td style="color:#888780">'+(h.loss_pct!=null?h.loss_pct+'%':'-')+'</td></tr>').join('') || '<tr><td colspan="4" style="text-align:center;color:#888780;padding:12px">Sem dados de rota</td></tr>') +

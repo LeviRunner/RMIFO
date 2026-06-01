@@ -281,3 +281,11 @@ DO $$ BEGIN
     ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS roa_checked_at TIMESTAMPTZ;
 END $$;
 CREATE INDEX IF NOT EXISTS idx_hop_geo_roa ON hop_switch_geolocations(roa_status) WHERE roa_status IS NOT NULL;
+
+-- ── DNS resolution + connection tampering (coleta media prioridade) ───────────
+DO $$ BEGIN
+    ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS dns_ms          DOUBLE PRECISION;
+    ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_reset_pct   DOUBLE PRECISION;
+    ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tcp_timeout_pct DOUBLE PRECISION;
+    ALTER TABLE cable_telemetry_samples ADD COLUMN IF NOT EXISTS tamper_suspected BOOLEAN;
+END $$;

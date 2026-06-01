@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/app.css?v=6">
+<link rel="stylesheet" href="assets/css/app.css?v=7">
 <style id="radar-styles">
 
 /* Drawer e hamburger ocultos — navegacao agora pela barra lateral fixa */
@@ -493,7 +493,7 @@
       <!-- Header -->
       <div class="daily-header">
         <div>
-          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v6</span></div>
+          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v7</span></div>
           <div class="daily-subtitle">Verificação ICMP real + latência TCP em 699 cabos submarinos</div>
         </div>
         <div class="daily-actions">
@@ -833,6 +833,7 @@
         <div class="rdr-card"><div class="rdr-ct">Top ISPs no caminho dos cabos</div><div style="height:240px"><canvas id="rdr-rt-ic"></canvas></div></div>
         <div class="rdr-card"><div class="rdr-ct">Distribuicao de RTT por hop</div><div style="height:200px"><canvas id="rdr-rt-rc"></canvas></div></div>
       </div>
+      <div class="rdr-card"><div class="rdr-ct">Espaco de enderecos IPv4 vs IPv6 (hops e endpoints)</div><div style="height:200px"><canvas id="rdr-rt-ipc"></canvas></div></div>
       <div class="rdr-card"><div class="rdr-ct">Hops geolocalizados</div>
         <div class="rdr-tw"><table><thead><tr><th>IP</th><th>Cabo</th><th>Hop</th><th>RTT</th><th>Perda</th><th>Pais e Cidade</th><th>ISP e AS</th></tr></thead><tbody id="rdr-rt-tb"></tbody></table></div>
       </div>
@@ -1020,7 +1021,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js" defer></script>
 <script src="assets/js/app.js"></script>
 <script src="assets/js/ui-enhancements.js" defer></script>
-<script src="assets/js/radar.js?v=6" defer></script>
+<script src="assets/js/radar.js?v=7" defer></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
