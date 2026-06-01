@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/app.css?v=5">
+<link rel="stylesheet" href="assets/css/app.css?v=6">
 <style id="radar-styles">
 
 /* Drawer e hamburger ocultos — navegacao agora pela barra lateral fixa */
@@ -197,6 +197,11 @@
       <li style="display:none"><a href="#" class="nav-link" data-page="radar-tools">Tools</a></li>
       <li style="display:none"><a href="#" class="nav-link" data-page="radar-security">Security</a></li>
       <li style="display:none"><a href="#" class="nav-link" data-page="radar-traffic">Traffic</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-rpki">RPKI</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-anomalies">Anomalies</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-topases">Top ASes</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-outages">Outages</a></li>
+      <li style="display:none"><a href="#" class="nav-link" data-page="radar-ipscan">IP Scanner</a></li>
     </ul>
 </nav>
 
@@ -488,7 +493,7 @@
       <!-- Header -->
       <div class="daily-header">
         <div>
-          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v5</span></div>
+          <div class="daily-title">Sonda de Telemetria Diária <span class="daily-version">v6</span></div>
           <div class="daily-subtitle">Verificação ICMP real + latência TCP em 699 cabos submarinos</div>
         </div>
         <div class="daily-actions">
@@ -927,6 +932,75 @@
     </div>
   </section>
 
+
+  <!-- ── RADAR: RPKI ─────────────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-rpki">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr"><div><div class="rdr-title">Routing — RPKI</div><div class="rdr-sub">Validacao ROA dos prefixos descobertos no caminho dos cabos</div></div>
+        <button class="btn primary" onclick="Rdr.rpki.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button></div>
+      <div class="rdr-kgrid" id="rdr-rpki-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Distribuicao RPKI</div><div style="height:200px"><canvas id="rdr-rpki-dc"></canvas></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Validacao por ASN</div>
+        <div class="rdr-tw"><table><thead><tr><th>ASN</th><th>Nome</th><th>Total</th><th>Valid</th><th>Invalid</th><th>Unknown</th></tr></thead><tbody id="rdr-rpki-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: ANOMALIES ────────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-anomalies">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr"><div><div class="rdr-title">Routing — Anomalies</div><div class="rdr-sub">Conflitos MOAS e risco de hijack nos prefixos descobertos</div></div>
+        <button class="btn primary" onclick="Rdr.anom.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button></div>
+      <div class="rdr-kgrid" id="rdr-anom-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-card"><div class="rdr-ct">MOAS — prefixos com multiplas origens</div>
+        <div class="rdr-tw"><table><thead><tr><th>Prefixo</th><th>Origens</th><th>ASNs</th></tr></thead><tbody id="rdr-anom-moas"></tbody></table></div>
+      </div>
+      <div class="rdr-card"><div class="rdr-ct">Risco de hijack (ROA invalid / not-found)</div>
+        <div class="rdr-tw"><table><thead><tr><th>IP</th><th>Prefixo</th><th>ASN</th><th>ROA</th><th>Pais</th></tr></thead><tbody id="rdr-anom-hj"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: TOP ASes ─────────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-topases">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr"><div><div class="rdr-title">Routing — Top ASes</div><div class="rdr-sub">Sistemas autonomos por presenca na infraestrutura de cabos</div></div>
+        <button class="btn primary" onclick="Rdr.topa.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button></div>
+      <div class="rdr-kgrid" id="rdr-topa-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Top 15 ASes por cabos atravessados</div><div style="height:280px"><canvas id="rdr-topa-bc"></canvas></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Ranking completo</div>
+        <div class="rdr-tw"><table><thead><tr><th>#</th><th>ASN</th><th>Nome</th><th>Tipo</th><th>Cabos</th><th>Hops</th><th>IPs</th></tr></thead><tbody id="rdr-topa-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: OUTAGE CENTER ────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-outages">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr"><div><div class="rdr-title">Outage Center</div><div class="rdr-sub">Linha do tempo de disrupcoes e duracao dos eventos</div></div>
+        <button class="btn primary" onclick="Rdr.out.load(1)" style="font-size:12px;padding:7px 14px">Atualizar</button></div>
+      <div class="rdr-kgrid" id="rdr-out-kpis"><div class="rdr-sk"></div><div class="rdr-sk"></div><div class="rdr-sk"></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Eventos por dia (30 dias)</div><div style="height:200px"><canvas id="rdr-out-tc"></canvas></div></div>
+      <div class="rdr-card"><div class="rdr-ct">Eventos de disrupcao</div>
+        <div class="rdr-tw"><table><thead><tr><th>Cabo</th><th>Metrica</th><th>Severidade</th><th>Detectado</th><th>Duracao</th><th>Estado</th></tr></thead><tbody id="rdr-out-tb"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RADAR: IP SCANNER ───────────────────────────────────────────────────── -->
+  <section class="page" id="page-radar-ipscan">
+    <div class="rdr-wrap">
+      <div class="rdr-hdr"><div><div class="rdr-title">IP Scanner</div><div class="rdr-sub">Relatorio unificado: TCP, HTTP, traceroute, BGP e enriquecimento</div></div></div>
+      <div class="rdr-card">
+        <div class="rdr-tf">
+          <input id="rdr-scan-ip" placeholder="IP a escanear, ex: 8.8.8.8" style="flex:3">
+          <button class="btn primary" onclick="Rdr.scan.run()" style="font-size:12px;padding:7px 14px">Escanear</button>
+        </div>
+      </div>
+      <div id="rdr-scan-out"><div class="rdr-lod">Informe um IP e clique em Escanear.</div></div>
+    </div>
+  </section>
+
 </main>
 
 <!-- ── MODAL: RESULTADO DA SONDA ─────────────────────────────────────────── -->
@@ -946,7 +1020,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js" defer></script>
 <script src="assets/js/app.js"></script>
 <script src="assets/js/ui-enhancements.js" defer></script>
-<script src="assets/js/radar.js?v=5" defer></script>
+<script src="assets/js/radar.js?v=6" defer></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -1012,6 +1086,26 @@ if ('serviceWorker' in navigator) {
   <button class="sb-item" data-page="radar-traffic">
     <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
     <span class="sb-name">Traffic</span>
+  </button>
+  <button class="sb-item" data-page="radar-rpki">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></svg></span>
+    <span class="sb-name">RPKI</span>
+  </button>
+  <button class="sb-item" data-page="radar-anomalies">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg></span>
+    <span class="sb-name">Anomalies</span>
+  </button>
+  <button class="sb-item" data-page="radar-topases">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
+    <span class="sb-name">Top ASes</span>
+  </button>
+  <button class="sb-item" data-page="radar-outages">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg></span>
+    <span class="sb-name">Outages</span>
+  </button>
+  <button class="sb-item" data-page="radar-ipscan">
+    <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg></span>
+    <span class="sb-name">IP Scanner</span>
   </button>
 </div>
 </body>
