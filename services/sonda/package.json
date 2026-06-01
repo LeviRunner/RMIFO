@@ -1,0 +1,10 @@
+{
+  "name": "rmifo-sonda-worker",
+  "version": "1.0.0",
+  "description": "RMIFO sonda diaria — worker agendado (Railway cron). Probe real TCP/HTTP/MTR e grava telemetria no PostgreSQL.",
+  "main": "sonda.js",
+  "scripts": { "start": "node sonda.js" },
+  "dependencies": { "pg": "^8.11.0" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = [
+  "nodejs_20",
+  "mtr",
+  "iputils"
+]
+
+[phases.install]
+cmds = ["npm install --omit=dev"]
+
+[start]
+cmd = "node sonda.js"
