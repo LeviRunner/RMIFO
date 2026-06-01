@@ -3121,6 +3121,132 @@ if (isset($_GET['api']) || isset($_GET['action']) || isset($_GET['mode']) || iss
                     ],
                 ]);
 
+            case 'routing_rpki':
+                // Distribuicao RPKI (Valid/Invalid/Unknown) sobre prefixos descobertos.
+                // Preenche conforme o enriquecimento popular roa_status (via servico bgp).
+                $rpkiDist = $pdo->query(
+                    "SELECT COALESCE(NULLIF(roa_status,''),'unknown') AS status, COUNT(*) AS n
+                     FROM hop_switch_geolocations
+                     WHERE asn_route IS NOT NULL
+                     GROUP BY 1 ORDER BY n DESC"
+                )->fetchAll() ?: [];
+                $rpkiByAsn = $pdo->query(
+                    "SELECT as_number, MAX(as_name) AS as_name, COUNT(*) AS total,
+                        COUNT(*) FILTER (WHERE roa_status = 'valid')                       AS valid,
+                        COUNT(*) FILTER (WHERE roa_status = 'invalid')                     AS invalid,
+                        COUNT(*) FILTER (WHERE roa_status IS NULL OR roa_status NOT IN ('valid','invalid')) AS unknown
+                     FROM hop_switch_geolocations
+                     WHERE as_number IS NOT NULL AND asn_route IS NOT NULL
+                     GROUP BY as_number ORDER BY total DESC LIMIT 60"
+                )->fetchAll() ?: [];
+                $rpkiTotal = (int) ($pdo->query("SELECT COUNT(*) FROM hop_switch_geolocations WHERE asn_route IS NOT NULL")->fetchColumn() ?: 0);
+                $rpkiChecked = (int) ($pdo->query("SELECT COUNT(*) FROM hop_switch_geolocations WHERE roa_status IS NOT NULL")->fetchColumn() ?: 0);
+                jsonResponse([
+                    'distribution' => $rpkiDist,
+                    'by_asn'       => $rpkiByAsn,
+                    'total_prefixes' => $rpkiTotal,
+                    'checked'      => $rpkiChecked,
+                ]);
+
+            case 'routing_anomalies':
+                // MOAS: mesmo prefixo (asn_route) anunciado por origens (as_number) distintas.
+                $moas = $pdo->query(
+                    "SELECT asn_route AS prefix,
+                        COUNT(DISTINCT as_number) AS asn_count,
+                        string_agg(DISTINCT as_number, ', ' ORDER BY as_number) AS asns,
+                        string_agg(DISTINCT COALESCE(as_name,''), ' | ') AS as_names
+                     FROM hop_switch_geolocations
+                     WHERE asn_route IS NOT NULL AND as_number IS NOT NULL
+                     GROUP BY asn_route HAVING COUNT(DISTINCT as_number) > 1
+                     ORDER BY asn_count DESC LIMIT 100"
+                )->fetchAll() ?: [];
+                // Hijack risk: roa_status invalid / not-found
+                $hijack = $pdo->query(
+                    "SELECT host(hop_ip) AS hop_ip, asn_route AS prefix, as_number, as_name, roa_status,
+                        city, country_code
+                     FROM hop_switch_geolocations
+                     WHERE roa_status IN ('invalid','not-found')
+                     ORDER BY as_number LIMIT 100"
+                )->fetchAll() ?: [];
+                jsonResponse([
+                    'moas'        => $moas,
+                    'hijack'      => $hijack,
+                    'moas_count'  => count($moas),
+                    'hijack_count'=> count($hijack),
+                ]);
+
+            case 'routing_top_ases':
+                // Ranking de ASes por presenca na infraestrutura de cabos.
+                $topAses = $pdo->query(
+                    "SELECT g.as_number, MAX(g.as_name) AS as_name, MAX(g.asn_type) AS asn_type,
+                        MAX(g.country_code) AS country_code,
+                        COUNT(DISTINCT h.cable_id) AS cables,
+                        COUNT(*) AS hops,
+                        COUNT(DISTINCT g.hop_ip) AS unique_ips
+                     FROM hop_switch_geolocations g
+                     JOIN cable_telemetry_hops h ON h.hop_ip = g.hop_ip
+                     WHERE g.as_number IS NOT NULL
+                     GROUP BY g.as_number
+                     ORDER BY cables DESC, hops DESC LIMIT 100"
+                )->fetchAll() ?: [];
+                jsonResponse(['top_ases' => $topAses, 'total' => count($topAses)]);
+
+            case 'outages':
+                // Centro de outages: alertas com duracao e agrupamento temporal.
+                $outRows = $pdo->query(
+                    "SELECT a.alert_id, a.cable_id, c.cable_name, a.metric, a.severity,
+                        a.current_value, a.baseline_value, a.detected_at, a.resolved_at,
+                        a.description,
+                        ROUND((EXTRACT(EPOCH FROM (COALESCE(a.resolved_at, NOW()) - a.detected_at)) / 3600)::numeric, 2) AS duration_h,
+                        (a.resolved_at IS NULL) AS ongoing
+                     FROM telemetry_alerts a
+                     JOIN cables c ON c.cable_id = a.cable_id
+                     ORDER BY a.detected_at DESC LIMIT 200"
+                )->fetchAll() ?: [];
+                $outTimeline = $pdo->query(
+                    "SELECT to_char(date_trunc('day', detected_at), 'YYYY-MM-DD') AS day,
+                        COUNT(*) AS total,
+                        COUNT(*) FILTER (WHERE severity = 'critical') AS critical,
+                        COUNT(*) FILTER (WHERE severity = 'high')     AS high
+                     FROM telemetry_alerts
+                     WHERE detected_at > NOW() - INTERVAL '30 days'
+                     GROUP BY 1 ORDER BY 1"
+                )->fetchAll() ?: [];
+                jsonResponse([
+                    'alerts'   => $outRows,
+                    'timeline' => $outTimeline,
+                    'ongoing'  => count(array_filter($outRows, fn($r) => !empty($r['ongoing']))),
+                    'total'    => count($outRows),
+                ]);
+
+            case 'ip_scan':
+                // IP/Endpoint Scanner: orquestra os probes em paralelo + enriquecimento do banco.
+                $scanIp = trim((string) ($req['ip'] ?? $q ?? ''));
+                if ($scanIp === '') throw new InvalidArgumentException('Informe um IP para escanear.');
+                $scanTcp = probeCall('tcp', '/probe/tcp', '/probe', 'POST', ['host' => $scanIp, 'ports' => [443,80,22,8080,8443], 'packets' => 20]);
+                $scanHttp = probeCall('http', '/probe/http', '/probe', 'POST', ['host' => $scanIp]);
+                $scanMtr = probeCall('mtr', '/probe/traceroute', '/probe', 'POST', ['host' => $scanIp, 'cycles' => 3, 'max_hops' => 15]);
+                $scanAsn = probeCall('bgp', '/network/bgp/ip', '/asn', 'POST', ['ip' => $scanIp]);
+                // Enriquecimento ja coletado para esse IP, se existir
+                $encStmt = $pdo->prepare(
+                    "SELECT host(hop_ip) AS hop_ip, city, region, country, country_code, isp, org,
+                        as_number, as_name, asn_type, hostname, timezone, asn_route, roa_status,
+                        privacy_vpn, privacy_proxy, privacy_tor, privacy_relay, privacy_hosting,
+                        tls_san_count, tls_san_sample
+                     FROM hop_switch_geolocations WHERE hop_ip = :ip"
+                );
+                $encStmt->execute([':ip' => $scanIp]);
+                $scanEnrich = $encStmt->fetch() ?: null;
+                jsonResponse([
+                    'ip'         => $scanIp,
+                    'tcp'        => $scanTcp,
+                    'http'       => $scanHttp,
+                    'traceroute' => $scanMtr,
+                    'asn'        => $scanAsn,
+                    'enrichment' => $scanEnrich,
+                    'scanned_at' => date('c'),
+                ]);
+
             case 'routing':
                 // MTR hop data with geolocation for routing visualization
                 $routeStmt = $pdo->query(
