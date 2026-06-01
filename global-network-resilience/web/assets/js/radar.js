@@ -59,6 +59,7 @@ function mk(id, cfg) {
   if (ex) ex.destroy();
   return new Chart(el, cfg);
 }
+function pct(v, total) { return total ? ((v/total*100).toFixed(1)+'%') : ''; }
 function kpi(lbl, val, color, sub) {
   return `<div class="rdr-kpi"><div class="rdr-kl">${lbl}</div><div class="rdr-kv" style="color:${color}">${val}</div>${sub ? `<div class="rdr-ks">${sub}</div>` : ''}</div>`;
 }
@@ -87,6 +88,11 @@ function _loadPage(pg) {
     'radar-tools':        () => Rdr.tools.init(),
     'radar-security':     () => Rdr.se.load(),
     'radar-traffic':      () => Rdr.tr.load(),
+    'radar-rpki':         () => Rdr.rpki.load(),
+    'radar-anomalies':    () => Rdr.anom.load(),
+    'radar-topases':      () => Rdr.topa.load(),
+    'radar-outages':      () => Rdr.out.load(),
+    'radar-ipscan':       () => Rdr.scan.init(),
   };
   if (map[pg]) { map[pg](); _loaded[pg] = true; }
 }
@@ -549,6 +555,156 @@ const Rdr = {
           <td>${ab(+c.availability_pct)}</td>
         </tr>`;
       }).join('');
+    },
+  },
+
+  // ── ROUTING: RPKI ───────────────────────────────────────────────────────────
+  rpki: {
+    async load(force) {
+      if (_loaded['radar-rpki'] && !force) return;
+      _loaded['radar-rpki'] = true;
+      const r = await af('routing_rpki');
+      const dist = r.distribution || [];
+      const m = {}; dist.forEach(d => m[(d.status||'unknown').toLowerCase()] = +d.n || 0);
+      const valid = m.valid||0, invalid = m.invalid||0;
+      const unk = Math.max(0, (r.total_prefixes||0) - valid - invalid);
+      document.getElementById('rdr-rpki-kpis').innerHTML =
+        kpi('Prefixos', r.total_prefixes||0, C.pL, 'descobertos') +
+        kpi('Valid', valid, C.tL, pct(valid, r.total_prefixes)) +
+        kpi('Invalid', invalid, invalid>0?C.r:C.tL, pct(invalid, r.total_prefixes)) +
+        kpi('Verificados', r.checked||0, (r.checked||0)>0?C.pL:C.a, (r.checked||0)===0?'rode o enrich':'');
+      mk('rdr-rpki-dc', { type:'doughnut',
+        data:{ labels:['Valid','Invalid','Unknown'], datasets:[{ data:[valid,invalid,unk], backgroundColor:[C.tL,C.r,C.gr], borderWidth:0 }] },
+        options:{ ...CD, plugins:{ ...CD.plugins, legend:{ display:true, position:'right', labels:{color:C.tx2,font:{size:10},boxWidth:10} } } } });
+      const rows = r.by_asn || [];
+      document.getElementById('rdr-rpki-tb').innerHTML = rows.length ? rows.map(a => `
+        <tr><td style="font-family:monospace;font-size:11px">AS${a.as_number}</td>
+        <td style="font-size:11px">${a.as_name||'-'}</td>
+        <td style="text-align:center">${a.total}</td>
+        <td style="text-align:center;color:#5DCAA5">${a.valid}</td>
+        <td style="text-align:center;color:${a.invalid>0?C.r:'#888780'}">${a.invalid}</td>
+        <td style="text-align:center;color:#888780">${a.unknown}</td></tr>`).join('')
+        : '<tr><td colspan="6" style="text-align:center;color:#888780;padding:20px">Sem prefixos com ROA verificado ainda. Rode o enriquecimento para popular roa_status.</td></tr>';
+    },
+  },
+
+  // ── ROUTING: ANOMALIES ──────────────────────────────────────────────────────
+  anom: {
+    async load(force) {
+      if (_loaded['radar-anomalies'] && !force) return;
+      _loaded['radar-anomalies'] = true;
+      const r = await af('routing_anomalies');
+      document.getElementById('rdr-anom-kpis').innerHTML =
+        kpi('MOAS', r.moas_count||0, (r.moas_count||0)>0?C.a:C.tL, 'prefixos multi-origem') +
+        kpi('Hijack risk', r.hijack_count||0, (r.hijack_count||0)>0?C.r:C.tL, 'ROA invalid/not-found') +
+        kpi('Total', (r.moas_count||0)+(r.hijack_count||0), C.pL, 'anomalias');
+      const moas = r.moas || [];
+      document.getElementById('rdr-anom-moas').innerHTML = moas.length ? moas.map(m => `
+        <tr><td style="font-family:monospace;font-size:11px">${m.prefix}</td>
+        <td style="text-align:center;color:${C.a}">${m.asn_count}</td>
+        <td style="font-family:monospace;font-size:11px;color:#888780">${m.asns}</td></tr>`).join('')
+        : '<tr><td colspan="3" style="text-align:center;color:#5DCAA5;padding:16px">Nenhum conflito MOAS detectado</td></tr>';
+      const hj = r.hijack || [];
+      document.getElementById('rdr-anom-hj').innerHTML = hj.length ? hj.map(h => `
+        <tr><td style="font-family:monospace;font-size:11px">${h.hop_ip}</td>
+        <td style="font-family:monospace;font-size:11px">${h.prefix||'-'}</td>
+        <td style="font-family:monospace;font-size:11px">AS${h.as_number||'?'}</td>
+        <td><span class="rdr-bk rdr-er">${h.roa_status}</span></td>
+        <td style="font-size:11px;color:#888780">${h.country_code||''}</td></tr>`).join('')
+        : '<tr><td colspan="5" style="text-align:center;color:#5DCAA5;padding:16px">Nenhum risco de hijack (requer roa_status populado)</td></tr>';
+    },
+  },
+
+  // ── ROUTING: TOP ASes ───────────────────────────────────────────────────────
+  topa: {
+    async load(force) {
+      if (_loaded['radar-topases'] && !force) return;
+      _loaded['radar-topases'] = true;
+      const r = await af('routing_top_ases');
+      const rows = r.top_ases || [];
+      document.getElementById('rdr-topa-kpis').innerHTML =
+        kpi('ASes', r.total||0, C.pL, 'na infraestrutura') +
+        kpi('Lider', rows[0]?('AS'+rows[0].as_number):'-', C.tL, rows[0]?(rows[0].cables+' cabos'):'') +
+        kpi('Tipos', new Set(rows.map(a=>a.asn_type).filter(Boolean)).size, C.a, 'classificacoes');
+      const top = rows.slice(0,15);
+      mk('rdr-topa-bc', { type:'bar',
+        data:{ labels:top.map(a=>'AS'+a.as_number), datasets:[{ data:top.map(a=>+a.cables||0), backgroundColor:C.p+'99', borderRadius:3 }] },
+        options:{ ...CD, indexAxis:'y', scales:{ x:{...CD.scales.x,title:{display:true,text:'Cabos atravessados',color:C.tx2,font:{size:9}}}, y:{...CD.scales.y,ticks:{...CD.scales.y.ticks,font:{size:9}}} } } });
+      document.getElementById('rdr-topa-tb').innerHTML = rows.length ? rows.map((a,i) => `
+        <tr><td style="color:#888780">${i+1}</td>
+        <td style="font-family:monospace;font-size:11px">AS${a.as_number}</td>
+        <td style="font-size:11px">${a.as_name||'-'}</td>
+        <td style="font-size:11px;color:#888780">${a.asn_type||'-'}</td>
+        <td style="text-align:center;color:${C.pL}">${a.cables}</td>
+        <td style="text-align:center;color:#888780">${a.hops}</td>
+        <td style="text-align:center;color:#888780">${a.unique_ips}</td></tr>`).join('')
+        : '<tr><td colspan="7" style="text-align:center;color:#888780;padding:20px">Sem ASes geolocalizados ainda</td></tr>';
+    },
+  },
+
+  // ── OUTAGE CENTER ───────────────────────────────────────────────────────────
+  out: {
+    async load(force) {
+      if (_loaded['radar-outages'] && !force) return;
+      _loaded['radar-outages'] = true;
+      const r = await af('outages');
+      const al = r.alerts || [];
+      document.getElementById('rdr-out-kpis').innerHTML =
+        kpi('Eventos', r.total||0, C.pL, 'ultimos 200') +
+        kpi('Em curso', r.ongoing||0, (r.ongoing||0)>0?C.r:C.tL, 'nao resolvidos') +
+        kpi('Resolvidos', (r.total||0)-(r.ongoing||0), C.tL, '');
+      const tl = r.timeline || [];
+      mk('rdr-out-tc', { type:'bar',
+        data:{ labels:tl.map(t=>t.day), datasets:[
+          { label:'Critical', data:tl.map(t=>+t.critical||0), backgroundColor:C.r, stack:'s' },
+          { label:'High', data:tl.map(t=>+t.high||0), backgroundColor:C.co, stack:'s' },
+          { label:'Outros', data:tl.map(t=>(+t.total||0)-(+t.critical||0)-(+t.high||0)), backgroundColor:C.a, stack:'s' },
+        ]},
+        options:{ ...CD, plugins:{ ...CD.plugins, legend:{display:true,position:'top',labels:{color:C.tx2,font:{size:9},boxWidth:9}} },
+          scales:{ x:{...CD.scales.x,stacked:true,ticks:{...CD.scales.x.ticks,maxTicksLimit:8}}, y:{...CD.scales.y,stacked:true} } } });
+      document.getElementById('rdr-out-tb').innerHTML = al.length ? al.map(a => `
+        <tr><td style="font-size:11px">${a.cable_name||a.cable_id}</td>
+        <td style="font-family:monospace;font-size:11px">${a.metric||'-'}</td>
+        <td>${sb(a.severity)}</td>
+        <td style="color:#888780;font-size:11px">${a.detected_at?new Date(a.detected_at).toLocaleString('pt-BR'):'-'}</td>
+        <td style="color:#888780">${a.duration_h!=null?(+a.duration_h).toFixed(1)+'h':'-'}</td>
+        <td>${a.ongoing?'<span class="rdr-bk rdr-er">em curso</span>':'<span class="rdr-bk rdr-ok">resolvido</span>'}</td></tr>`).join('')
+        : '<tr><td colspan="6" style="text-align:center;color:#5DCAA5;padding:20px">Nenhum evento de disrupcao registrado</td></tr>';
+    },
+  },
+
+  // ── IP / ENDPOINT SCANNER ───────────────────────────────────────────────────
+  scan: {
+    init() { _loaded['radar-ipscan'] = true; },
+    async run() {
+      const ip = (document.getElementById('rdr-scan-ip')?.value||'').trim();
+      const out = document.getElementById('rdr-scan-out');
+      if (!ip) { out.innerHTML = '<div class="rdr-lod">Informe um IP.</div>'; return; }
+      out.innerHTML = '<div class="rdr-lod">Escaneando ' + ip + ' — TCP, HTTP, traceroute, BGP e enriquecimento...</div>';
+      try {
+        const r = await af('ip_scan', { ip });
+        const tcp = (r.tcp && r.tcp.data) || r.tcp || {};
+        const http = (r.http && r.http.data) || r.http || {};
+        const mtr = (r.traceroute && r.traceroute.data) || r.traceroute || {};
+        const asn = (r.asn && r.asn.data) || r.asn || {};
+        const e = r.enrichment || {};
+        const flags = [e.privacy_vpn&&'VPN',e.privacy_proxy&&'PROXY',e.privacy_tor&&'TOR',e.privacy_relay&&'RELAY',e.privacy_hosting&&'HOSTING'].filter(Boolean);
+        const card = (t,b) => '<div class="rdr-card"><div class="rdr-ct">'+t+'</div>'+b+'</div>';
+        const row = (k,v) => '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px"><span style="color:#888780">'+k+'</span><span style="font-family:monospace">'+(v==null?'-':v)+'</span></div>';
+        out.innerHTML =
+          '<div class="rdr-g2">' +
+          card('TCP', row('Portas abertas', (tcp.open_ports||[]).join(', ')||'nenhuma') + row('Latencia', tcp.avg_ms!=null?tcp.avg_ms+' ms':'-') + row('Jitter', tcp.jitter_ms!=null?tcp.jitter_ms+' ms':'-') + row('Metodo', tcp.method||'-')) +
+          card('HTTP', row('Codigo', http.http_code||'-') + row('Esquema', http.scheme||'-') + row('Latencia', http.avg_ms!=null?http.avg_ms+' ms':'-')) +
+          '</div>' +
+          '<div class="rdr-g2">' +
+          card('BGP / ASN', row('ASN', asn.asn?('AS'+asn.asn):'-') + row('Holder', asn.holder||'-')) +
+          card('Geo / Enriquecimento', row('Pais', (e.country||e.country_code)||'-') + row('Cidade', e.city||'-') + row('ISP', e.isp||'-') + row('Hostname', e.hostname||'-') + row('ROA', e.roa_status||'-') + row('Flags', flags.length?flags.join(' '):'nenhuma')) +
+          '</div>' +
+          card('Traceroute (' + (mtr.visible_hops||0) + '/' + (mtr.total_hops||0) + ' hops)',
+            '<div class="rdr-tw"><table><thead><tr><th>Hop</th><th>IP</th><th>RTT</th><th>Perda</th></tr></thead><tbody>' +
+            ((mtr.hops||[]).map(h => '<tr><td style="text-align:center;color:#888780">'+h.hop+'</td><td style="font-family:monospace;font-size:11px">'+(h.ip||'*')+'</td><td style="color:'+lc(h.avg_ms)+'">'+(h.avg_ms!=null?h.avg_ms+' ms':'-')+'</td><td style="color:#888780">'+(h.loss_pct!=null?h.loss_pct+'%':'-')+'</td></tr>').join('') || '<tr><td colspan="4" style="text-align:center;color:#888780;padding:12px">Sem dados de rota</td></tr>') +
+            '</tbody></table></div>');
+      } catch (err) { out.innerHTML = '<div class="rdr-lod">Erro: ' + err.message + '</div>'; }
     },
   },
 };
