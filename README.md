@@ -119,16 +119,23 @@ Toda relação direta com `cables` usa `ON DELETE CASCADE` — remover um cabo l
 
 ### RMIFO Radar — dashboard analítico
 
-Integrado ao app, acessível pela barra lateral fixa à direita (recolhível, ícones SVG). Seis seções:
+Integrado ao app, acessível pela barra lateral fixa à direita (recolhível, ícones SVG). Seções:
 
 | Seção | Estado | Entrega |
 |---|---|---|
 | **Overview** | Completo | KPIs globais, distribuição de disponibilidade, latência média por região, alertas, piores cabos |
-| **Connectivity** | Completo | Disponibilidade e perda por cabo, scatter availability×loss, tabela filtrável/ordenável |
-| **Routing** | Completo | Hops geolocalizados, top ISPs no caminho, distribuição de RTT, ASNs e países únicos |
-| **Tools** | Completo | TCP Probe, BGP Lookup, ASN Info, Top Rotas entre países (probe sob demanda) |
-| **Security** | Parcial | Alertas por severidade, hops com flags VPN/Proxy/Tor |
+| **Connectivity** | Completo | Índice IQI (banda, latência, DNS) com percentis p25/p50/p75 e série temporal de 30 dias; Connection Quality (download/upload, latência idle/loaded, jitter, perda); tabela por cabo |
+| **Routing** | Completo | Hops geolocalizados, top ISPs, distribuição de RTT, ASNs/países únicos, espaço IPv4 vs IPv6 |
+| **Routing → RPKI** | Pronto* | Distribuição ROA Valid/Invalid/Unknown e validação por ASN |
+| **Routing → Anomalies** | Completo | Conflitos MOAS (multi-origem) e risco de hijack (ROA invalid/not-found) |
+| **Routing → Top ASes** | Completo | Ranking de sistemas autônomos por cabos atravessados, hops e IPs |
+| **Tools** | Completo | TCP Probe, BGP Lookup, ASN Info, Top Rotas entre países |
+| **IP Scanner** | Completo | Relatório unificado de um IP: TCP, HTTP, DNS, traceroute, BGP/ASN, tampering e enriquecimento |
+| **Outage Center** | Completo | Linha do tempo de disrupções por dia/severidade e duração dos eventos |
+| **Security** | Pronto* | Alertas por severidade, hops com flags VPN/Proxy/Tor, agregado de connection tampering |
 | **Traffic** | Parcial | Throughput estimado, capacidade declarada, utilização |
+
+\* *Pronto* = estrutura, action e frontend implementados; popula quando a coleta correspondente é ativada (ver [Ativação](#ativação--passo-a-passo)).
 
 ### Sonda Diária
 
@@ -173,7 +180,7 @@ A baseline (`cable_telemetry_reference`) é recalculada por janela de 7 dias a p
 
 ## Probe API e microsserviços (monorepo)
 
-As ferramentas de medição ativa (TCP, ICMP/ping, MTR, HTTP, BGP, switch, telemetry) vivem no próprio repositório, em duas formas que você escolhe deployar:
+As ferramentas de medição ativa (TCP, ICMP/ping, MTR, HTTP, BGP, switch, telemetry, DNS) vivem no próprio repositório, em duas formas que você escolhe deployar:
 
 - **`api/`** — monolito: um único serviço com todas as ferramentas. Mais simples de operar; ideal para começar.
 - **`services/<tool>/`** — microsserviços: cada ferramenta isolada, escalável em paralelo. Adicionar uma nova não toca nas existentes.
@@ -188,7 +195,7 @@ Cada pasta é um serviço Railway separado, definido pelo **Root Directory**:
 |---|---|---|
 | Site + dashboard | `global-network-resilience` | — |
 | Probe API (monolito) | `api` | `/health` |
-| Microsserviço por ferramenta | `services/tcp`, `services/ping`, `services/mtr`, `services/http`, `services/bgp`, `services/switch`, `services/telemetry` | `/health` |
+| Microsserviço por ferramenta | `services/tcp`, `services/ping`, `services/mtr`, `services/http`, `services/bgp`, `services/switch`, `services/telemetry`, `services/dns` | `/health` |
 
 ### Variáveis no gateway (serviço do site)
 
@@ -206,10 +213,48 @@ HTTP_SERVICE_URL=http://http.railway.internal:3000
 BGP_SERVICE_URL=http://bgp.railway.internal:3000
 SWITCH_SERVICE_URL=http://switch.railway.internal:3000
 TELEMETRY_SERVICE_URL=http://telemetry.railway.internal:3000
+DNS_SERVICE_URL=http://dns.railway.internal:3000
 ```
 
 Ferramentas sem URL configurada simplesmente não são chamadas. Verifique o que está ativo em `?action=probe_health`.
 
+
+## Ativação — passo a passo
+
+A estrutura toda já está no código. Para deixar cada recurso funcional:
+
+### 1. Banco de dados (uma vez, idempotente)
+Aplica o schema com as colunas novas (`roa_status`, `dns_ms`, `tcp_reset_pct`, `tamper_suspected`):
+```
+psql $DATABASE_URL -f global-network-resilience/db/schema.sql
+```
+
+### 2. Subir os serviços de probe no Railway
+Para cada ferramenta, crie um serviço apontando o **Root Directory** (ver tabela acima). Opções:
+- **Rápido:** suba só `api/` (monolito) — atende todas as ferramentas de uma vez.
+- **Granular:** suba os `services/<tool>/` que quiser escalar isolados.
+
+Depois defina as variáveis no serviço do site (`PROBE_API_URL` e/ou `*_SERVICE_URL`). Confirme com `?action=probe_health`.
+
+### 3. Ativar cada recurso
+
+| Recurso | O que ativa | Passo |
+|---|---|---|
+| **IP Scanner, Tools** | já funcionam | só precisa dos serviços de probe no ar (passo 2) |
+| **Top ASes, Anomalies (MOAS), Outage Center, IPv4/IPv6** | já funcionam | usam dados que já existem no banco |
+| **RPKI** | coluna `roa_status` | no enriquecimento (`rmifo_ip_enrich.py`), chamar o serviço `bgp` (`/network/bgp`) por prefixo e gravar `roa_status` em `hop_switch_geolocations` |
+| **DNS (card IQI)** | coluna `dns_ms` | na `sonda.js`, resolver o host via serviço `dns` (`/probe`) e gravar `dns_ms` em `cable_telemetry_samples` |
+| **Connection tampering** | colunas `tcp_*` | na `sonda.js`, chamar `tamperProbe` (serviço tcp `/tamper`) e gravar `tcp_reset_pct`, `tcp_timeout_pct`, `tamper_suspected` |
+| **Alertas / Security / Outage** | execução periódica | agendar `scripts/rmifo_anomaly_detect.py` |
+
+### 4. Agendar a detecção automática de anomalias
+Gera e resolve alertas comparando amostras recentes com a baseline. Ex. cron a cada 15 min:
+```
+*/15 * * * * DATABASE_URL=$DATABASE_URL python3 scripts/rmifo_anomaly_detect.py
+```
+Limiares ajustáveis por env: `LAT_MULT` (2.0), `LOSS_ABS` (5.0), `AVAIL_DROP` (1.0).
+
+Enquanto um recurso não tem coleta ativa, ele aparece vazio com aviso ("sem dados" / "rode o enrich") — nada quebra.
 
 ## PWA
 
