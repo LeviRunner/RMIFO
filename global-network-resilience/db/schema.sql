@@ -274,3 +274,10 @@ CREATE TABLE IF NOT EXISTS api_rate_limit (
     PRIMARY KEY (ip_hash, window_start)
 );
 CREATE INDEX IF NOT EXISTS idx_rate_limit_window ON api_rate_limit(window_start);
+
+-- ── RPKI / Routing security (roa_status por prefixo descoberto) ────────────────
+DO $$ BEGIN
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS roa_status     VARCHAR(20);
+    ALTER TABLE hop_switch_geolocations ADD COLUMN IF NOT EXISTS roa_checked_at TIMESTAMPTZ;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_hop_geo_roa ON hop_switch_geolocations(roa_status) WHERE roa_status IS NOT NULL;
