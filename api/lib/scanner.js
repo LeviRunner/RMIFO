@@ -22,6 +22,7 @@ async function scanCable(cable, opts = {}) {
     const h = await httpProbe.head(ip);
     if (h.reachable) { hit={avg_ms:h.avg_ms,jitter_ms:null,loss_pct:0,open_ports:[],samples:1,method:'http-head'}; method='http-head'; break; }
   }
+  // Synthetic values are model estimates, not measurements; expose that distinction to callers.
   if (!hit) { const s=synth(cable); hit={avg_ms:s.lat,jitter_ms:s.jitter,loss_pct:s.loss,throughput:s.throughput,open_ports:[],samples:0,method:'synthetic'}; method='synthetic'; }
   const real = method!=='synthetic';
   return { cable_id:cable.cable_id, cable_name:cable.cable_name, measured_at:new Date().toISOString(),

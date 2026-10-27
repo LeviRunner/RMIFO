@@ -74,6 +74,7 @@ function probeCall(string $tool, string $monoPath, string $microPath, string $me
     if ($base === null) {
         return ['ok' => false, 'error' => 'Nenhum serviço de probe configurado (defina PROBE_API_URL ou ' . strtoupper($tool) . '_SERVICE_URL).'];
     }
+    // A configured dedicated service wins even if its request fails; this is not a retry policy.
     $path = probeHasMicro($tool) ? $microPath : $monoPath;
     return probeHttp($base . $path, $method, $body);
 }

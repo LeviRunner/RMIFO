@@ -448,6 +448,7 @@ async function main() {
         }
     }
 
+    // An empty input is a normal return, so cron exits 0 without proving data was collected.
     if (!cables.length) {
         warn('Nenhum cabo para sondar — use --cables-file ou configure DATABASE_URL.');
         if (db) await db.end().catch(() => {});

@@ -139,7 +139,7 @@ Integrado ao app, acessível pela barra lateral fixa à direita (recolhível, í
 
 ### Sonda Diária
 
-Mede os 699 cabos com múltiplos protocolos calibrados (MTR, TCP SYN-ACK, TCP Jitter de 50 pacotes, HTTP, e fallback sintético). Mostra progresso ao vivo: arco animado, scatter de RTT em tempo real, barra de fases (pré-flight → ICMP → DNS → HTTP → pipeline), contadores por protocolo e tabela das últimas sondas. Cada execução grava amostras em `cable_telemetry_samples`, saltos em `cable_telemetry_hops` e novos IPs de roteador em `hop_switch_geolocations`.
+O worker agendado [`services/sonda`](services/sonda/README.md) coleta os cabos do banco com TCP, HTTP e MTR quando disponível; usa estimativas sintéticas quando não obtém uma medição real. Com banco conectado, tenta gravar amostras, hops e referências. A execução é independente do site; consulte os logs do worker e o banco para verificar o resultado. A quantidade de cabos depende dos dados e do limite configurado.
 
 ### Histórico e telemetria por cabo
 
@@ -216,7 +216,7 @@ TELEMETRY_SERVICE_URL=http://telemetry.railway.internal:3000
 DNS_SERVICE_URL=http://dns.railway.internal:3000
 ```
 
-Ferramentas sem URL configurada simplesmente não são chamadas. Verifique o que está ativo em `?action=probe_health`.
+A escolha entre serviço dedicado e monolito depende da configuração: se o dedicado está configurado, uma falha nele não dispara nova tentativa no monolito. Verifique o que está ativo em `?action=probe_health`. Os serviços de probe não implementam autenticação própria; mantenha-os em rede privada e proteja o acesso. Veja [arquitetura e operação do back-end](docs/BACKEND.md).
 
 
 ## Ativação — passo a passo

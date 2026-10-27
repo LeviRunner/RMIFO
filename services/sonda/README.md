@@ -1,33 +1,35 @@
-# rmifo sonda worker
+# Worker de sonda RMIFO
 
-Sonda diaria do RMIFO como servico agendado (Railway Cron). Faz probe real
-(TCP connect + jitter, HTTP, MTR quando disponivel) dos cabos carregados do
-banco e grava telemetria real em `cable_telemetry_samples` / `cable_telemetry_hops`
-/ `cable_telemetry_reference`. Substitui o gatilho manual de Sonda Diaria do site.
+O worker em `services/sonda/sonda.js` executa uma coleta e encerra o processo, permitindo agendamento por cron. Ele carrega cabos do PostgreSQL ou de um JSON, usa TCP, HTTP e MTR quando disponíveis e pode produzir estimativas sintéticas. A gravação no banco depende da conexão e das operações individuais; saída zero não garante que todas as amostras tenham sido persistidas.
 
-## Por que isto resolve o "tudo sintetico"
-O probe so cai em `synthetic` quando nenhum protocolo responde. No container web
-(PHP, via exec) o probe nao roda de forma confiavel e cai em sintetico. Este worker
-roda em Node puro: o TCP connect nativo funciona no Railway (nao precisa de
-privilegios), entao cabos que respondem em 443/80/22 geram telemetria REAL
-(`active_tcp_connect`, confidence 0.95).
+## Railway
 
-## Configuracao no Railway
-1. New Service -> GitHub Repo `LeviRunner/RMIFO`
-2. Settings -> Root Directory -> `services/sonda`
-3. Variables -> referencie o Postgres: `DATABASE_URL=${{Postgres.DATABASE_URL}}`
-   (ou cole a connection string interna do banco)
-4. Settings -> Cron Schedule -> ex. `0 6 * * *` (06:00 UTC diario)
-   Importante: defina o cron no DASHBOARD, nao no railway.json
-   (config-as-code de cron teve bug conhecido). Min. a cada 5 min, sempre UTC.
-5. O servico roda, grava no banco e ENCERRA (exit 0) — requisito do cron.
+1. Crie um serviço do repositório com Root Directory `services/sonda`.
+2. Configure `DATABASE_URL` com a conexão PostgreSQL para carregar cabos e persistir resultados.
+3. Configure o cron no serviço, por exemplo `0 6 * * *` (06:00 UTC). O processo termina após a execução.
+4. Confira os logs e os registros no banco após cada execução. Sem banco, a sonda pode executar com `--cables-file`, mas não persiste no PostgreSQL; sem cabos, encerra com aviso e código zero.
 
-## Variaveis uteis
-- `DATABASE_URL` (obrigatoria)
-- `PROBE_LIMIT` / `--limit` para limitar nº de cabos por execucao
-- `FULL_SCAN=1` para varredura completa de portas
+## Execução e opções
 
-## Execucao manual (teste)
+```bash
+cd services/sonda
+npm install
+DATABASE_URL='postgresql://usuario:senha@host:5432/banco' node sonda.js --limit 10
+node sonda.js --cables-file /caminho/cabos.json --limit 10
+node sonda.js --full-scan --mtr-cycles 15 --timeout 8
 ```
-DATABASE_URL=... node sonda.js
-```
+
+| Opção | Comportamento |
+|---|---|
+| `--limit N` | Máximo de cabos; padrão 999. |
+| `--full-scan` | Habilita varredura ampliada; desligada por padrão. |
+| `--mtr-cycles N` | Ciclos MTR; padrão 15. |
+| `--timeout N` | Timeout de sondagem em segundos; padrão 8. |
+| `--cables-file ARQUIVO` | Carrega um array JSON; se vazio ou ilegível e houver banco, tenta carregar do banco. |
+| `DATABASE_URL` | Conexão PostgreSQL; se ausente ou indisponível, executa sem persistência. |
+| `BASE_DIR` | Raiz dos arquivos locais em `data/local/historico/<data>`; padrão é o diretório pai do worker. |
+| `LOG_FILE` | Valor registrado no status da execução. |
+
+As opções de limite e varredura são argumentos da linha de comando; `PROBE_LIMIT` e `FULL_SCAN` não são lidos por este worker. A conexão PostgreSQL usa TLS com `rejectUnauthorized: false`; avalie a confiança da rede e dos certificados antes de implantá-la. O arquivo de histórico é local ao ambiente do worker e não substitui o banco.
+
+Leia também [Back-end: arquitetura e operação](../../docs/BACKEND.md).

@@ -17,6 +17,7 @@ const { scanCable } = require('./lib/scanner');
 const app = express(), PORT = process.env.PORT || 3000;
 app.use(express.json({ limit:'2mb' }));
 
+// Batch state is local to this process, lost on restart and expires two hours after completion.
 const scans = new Map();
 const newId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
